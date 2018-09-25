@@ -1,4 +1,4 @@
 - [ ] Define the data format.
 - [ ] Write scripts to convert UD Treebank to the data format.
-- [ ] Prototype interfaces.
+- [ ] Design the interfaces.
 - [ ] Implement each modules.
