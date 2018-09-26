@@ -2,6 +2,19 @@
 import argparse
 import json
 import sys
+import re
+
+
+
+class ExceptionHook:
+    instance = None
+    def __call__(self, *args, **kwargs):
+        if self.instance is None:
+            from IPython.core import ultratb
+            self.instance = ultratb.FormattedTB(mode="Plain", color_scheme="Linux", call_pdb=1)
+        return self.instance(*args, **kwargs)
+
+sys.excepthook = ExceptionHook()
 
 def write_json(
         file_to_write,
@@ -17,9 +30,9 @@ def write_json(
     """
     dict_to_write = {}
     dict_to_write['sent_id'] = sentence_id
-    dict_to_write['tokens'] = [item[1]  for item in stacked_lines]
-    dict_to_write['lemma'] = [item[2]  for item in stacked_lines]
-    dict_to_write['pos'] = [item[3]  for item in stacked_lines]
+    dict_to_write['tokens'] = " ".join([item[1]  for item in stacked_lines])
+    dict_to_write['lemma'] = " ".join([item[2]  for item in stacked_lines])
+    dict_to_write['pos'] = " ".join([item[3]  for item in stacked_lines])
     dict_to_write['relations'] = [(item[0], item[6], item[7]) for item in stacked_lines]
 
     line_to_write = json.dumps(dict_to_write) + '\n'
@@ -76,12 +89,18 @@ if __name__ == "__main__":
             sentence_id = None
             sentence_conter += 1
 
+        elif "CopyOf" in line:
+            # Leave the copy tokens for now
+            continue
         else:
             tuples = line.strip().split()
             if tuples[0] == "#":
                 if tuples[1] == "sent_id":
                     sentence_id = tuples[-1]
                     stacked_lines = []
+            elif re.match("^\d+$", tuples[0]) is None:
+                # leave these case for now
+                continue
             else:
                 stacked_lines.append(tuples)
 

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 path_to_UD='./UD_English-EWT'
 for split in train dev test
 do
