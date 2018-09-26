@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn.parameter import Parameter
 
 
-class BiAffineAttention(nn.Module):
+class BiaffineAttention(nn.Module):
     """
     Adopted from NeuroNLP2:
         https://github.com/XuezheMax/NeuroNLP2/blob/master/neuronlp2/nn/modules/attention.py
