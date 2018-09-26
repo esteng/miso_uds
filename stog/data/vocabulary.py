@@ -2,7 +2,7 @@
 Adopted from AllenNLP:
     https://github.com/allenai/allennlp/blob/v0.6.1/allennlp/data/vocabulary.py
     tutorial: https://github.com/allenai/allennlp/blob/v0.6.1/tutorials/notebooks/vocabulary.ipynb
-    
+
 A Vocabulary maps strings to integers, allowing for strings to be mapped to an
 out-of-vocabulary token.
 """

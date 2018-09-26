@@ -110,6 +110,12 @@ class DeepBiaffineParser(torch.nn.Module):
         self.bilinear = BiLinear(type_hidden_size, type_hidden_size, num_labels)
 
     def forward(self, input_token, input_char, mask):
+        """
+        :param input_token: [batch, token_length]
+        :param input_char:  [batch, token_length, char_length]
+        :param mask: [batch, token_length]
+        :return:
+        """
         # Output: [batch, length, token_dim]
         token = self.token_embedding(input_token)
         token = self.embedding_dropout(token)
