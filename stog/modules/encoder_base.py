@@ -15,6 +15,9 @@ RnnStateStorage = Tuple[torch.Tensor, ...]  # pylint: disable=invalid-name
 class _EncoderBase(torch.nn.Module):
     # pylint: disable=abstract-method
     """
+    Adopted from AllenNLP:
+        https://github.com/allenai/allennlp/blob/v0.6.1/allennlp/modules/encoder_base.py
+        
     This abstract class serves as a base for the 3 ``Encoder`` abstractions in AllenNLP.
     - :class:`~allennlp.modules.seq2seq_encoders.Seq2SeqEncoders`
     - :class:`~allennlp.modules.seq2vec_encoders.Seq2VecEncoders`

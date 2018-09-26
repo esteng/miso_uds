@@ -8,7 +8,7 @@ from stog.utils.checks import ConfigurationError
 
 class StackedBidirectionalLstm(torch.nn.Module):
     """
-    Adopte from AllenNLP:
+    Adopted from AllenNLP:
         https://github.com/allenai/allennlp/blob/v0.6.1/allennlp/modules/stacked_bidirectional_lstm.py
 
     A standard stacked Bidirectional LSTM where the LSTM layers
