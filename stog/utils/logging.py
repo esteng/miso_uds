@@ -3,13 +3,15 @@ from __future__ import absolute_import
 import logging
 
 
-# Borrowed from OpenNMT-py:
-#   https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/utils/logging.py
 
 logger = logging.getLogger()
 
 
 def init_logger(log_file=None):
+    """
+    Adopted from OpenNMT-py:
+        https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/utils/logging.py
+    """
     log_format = logging.Formatter("[%(asctime)s %(levelname)s] %(message)s")
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)

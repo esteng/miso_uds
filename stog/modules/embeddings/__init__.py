@@ -1,0 +1,1 @@
+from stog.modules.embeddings.embedding import Embedding

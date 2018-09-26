@@ -6,14 +6,12 @@ from stog.utils import logging
 
 logger = logging.init_logger()
 
-'''
-Borrowed from AllenNLP: 
-    https://github.com/allenai/allennlp/blob/606a61abf04e3108949022ae1bcea975b2adb560/allennlp/common/util.py
-'''
-
 
 def set_seed(seed=13370, numpy_seed=1337, torch_seed=133):
     """
+    Adopted from AllenNLP:
+        https://github.com/allenai/allennlp/blob/606a61abf04e3108949022ae1bcea975b2adb560/allennlp/common/util.py
+
     Sets random seeds for reproducible experiments. This may not work as expected
     if you use this from within a python project in which you have already imported Pytorch.
     If you use the scripts/run_model.py entry point to training models with this library,
