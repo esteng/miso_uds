@@ -1,5 +1,5 @@
 import argparse
-from stog.dataset import get_iterator, get_dataset_splits
+from stog.data import get_iterator, get_dataset_splits
 from stog.utils import init_logger, logger
 
 def validate():
@@ -24,7 +24,7 @@ def train(opt):
             # relation*_tenor size (batch_size, len, len + 1)
             relation_tensor, relation_mask_tensor = batch_data.relations
 
-            #TODO do somethin here use tokens and relations
+            #TODO do something here with tokens and relations
 
 
 if __name__ == "__main__":
