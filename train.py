@@ -1,6 +1,9 @@
 import argparse
+import sys
 from stog.data import get_iterator, get_dataset_splits
 from stog.utils import init_logger, logger
+from stog.utils import ExceptionHook
+
 
 def validate():
     pass
@@ -21,9 +24,13 @@ def train(opt):
         for batch_idx, batch_data in enumerate(train_iter):
             # tokens_tensor size (batch_size, len)
             tokens_tensor = batch_data.tokens
+            # since we have pad token, it's very easy to get a mask as below
+            tokens_tensor_mask = (tokens_tensor != 1).float()
+            # Character tensor size (batch_size, len, max_len_word)
+            char_tensor = batch_data.chars
             # relation*_tenor size (batch_size, len, len + 1)
             relation_tensor, relation_mask_tensor = batch_data.relations
-
+            import pdb; pdb.set_trace()
             #TODO do something here with tokens and relations
 
 

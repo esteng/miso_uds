@@ -4,6 +4,19 @@ import torch
 from torchtext import data
 from torchtext.data.field import RawField
 
+class StupidDict(dict):
+    def __init__(self, list):
+        self.list = list
+
+    def items(self):
+        return self.list
+
+    def values(self):
+        return [ (name, value) for _, (name , value) in self.list]
+
+    def __getitem__(self, i):
+        return self.list[i]
+
 class RelationField(RawField):
     """
     A class for relations between tokens
@@ -20,7 +33,6 @@ class RelationField(RawField):
         return x
 
     def process(self, batch, device=None):
-        # The token index could be float
         max_len = max(len(item) for item in batch)
         batch_size = len(batch)
 
@@ -65,6 +77,14 @@ def get_fields(opt):
         batch_first=opt.batch_first
     )
 
+    fields['chars'] = data.NestedField(
+        data.Field(
+            tokenize=list,
+            init_token="<bos>",
+            eos_token="<eos>"
+        ),
+    )
+
     fields['relations'] = RelationField(
         batch_first=opt.batch_first,
         is_target=True
@@ -80,17 +100,28 @@ def get_dataset_splits(opt):
     """
 
     # get fields first
-    fields = get_fields()
+    fields = get_fields(opt)
 
+    # It's quite hacky here, but that's the best I can do without modifying torch text
+    stupid_dict = StupidDict(
+        [
+            ("tokens", ( "tokens", fields['tokens'] ) ),
+            ("tokens", ( "chars", fields["chars"] ) ),
+            ("relations" , ( "relations", fields["relations"]))
+        ]
+    )
     train, dev, test = data.TabularDataset.splits(
         path=opt.data, format="JSON",
         train='train.json', validation='dev.json', test='test.json',
-        fields={key : (key, value) for key, value in fields.items()}
+        fields=stupid_dict
     )
+
+    for dataset in [train, dev, test]:
+        dataset.fields = fields
 
     # Build vocab
     fields['tokens'].build_vocab(train)
-
+    fields['chars'].build_vocab(train)
 
     return train, dev, test
 
