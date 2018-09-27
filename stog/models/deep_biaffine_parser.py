@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 from stog.modules.embeddings import Embedding
 from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
@@ -110,11 +111,55 @@ class DeepBiaffineParser(torch.nn.Module):
         self.bilinear = BiLinear(type_hidden_size, type_hidden_size, num_labels)
 
     def forward(self, input_token, input_char, mask):
+        encoder_output = self.encode(input_token, input_char, mask)
+        edge, type = self.mlp(encoder_output)
+        edge_headers, edge_modifiers = edge
+        edge_scores = self.attention(edge_headers, edge_modifiers, mask)
+        return edge_scores
+
+    def loss(self, edge_scores, mask, headers, minus_inf=-1e8):
         """
+        :param edge_scores: [batch, header_length, modifier_length]
+        :param mask: [bath, length]
+        :param headers: [batch, length] -- header at [i, j] means the header index of token_j at batch_i.
+        :param minus_inf: -inf
+        :return:
+        """
+        # Make pad position -inf for log_softmax
+        minus_mask = (1 - mask) * minus_inf
+        edge_scores = edge_scores + minus_mask.unsqueeze(2) + minus_mask.unsqueeze(1)
+
+        # Compute the edge log likelihood.
+        # [batch, header_length, modifier_length]
+        edge_log_likelihood = F.log_softmax(edge_scores, dim=1)
+
+        # Make pad position 0 for sum of loss
+        edge_log_likelihood = edge_log_likelihood * mask.unsqueeze(2) * mask.unsqueeze(1)
+
+        # Total number of headers to predict (ROOT excluded).
+        batch_size, max_len, _ = edge_scores.size()
+        num_headers = mask.sum() - batch_size
+
+        # Create indexing matrix for batch: [batch]
+        batch_index = torch.arange(0, batch_size).type_as(edge_scores.data).long()
+        # Create indexing matrix for header: [header_length, batch]
+        header_index = headers.data.t()
+        # Create indexing matrix for modifier: [modifier_length, batch]
+        modifier_index = torch.arange(0, max_len).view(max_len, 1).expand(max_len, batch_size)
+        modifier_index = modifier_index.type_as(edge_scores.data).long()
+        # Index the log likelihood of gold edges (ROOT excluded).
+        gold_edge_log_likelihood = edge_log_likelihood[batch_index, header_index, modifier_index][1:]
+
+        return -gold_edge_log_likelihood.sum() / num_headers
+
+    def encode(self, input_token, input_char, mask):
+        """
+        Encode input sentence into a list of hidden states by a stacked BiLSTM.
+
         :param input_token: [batch, token_length]
         :param input_char:  [batch, token_length, char_length]
         :param mask: [batch, token_length]
-        :return:
+        :return: [batch, length, hidden_size]
         """
         # Output: [batch, length, token_dim]
         token = self.token_embedding(input_token)
@@ -138,6 +183,53 @@ class DeepBiaffineParser(torch.nn.Module):
             # concatenate word and char [batch, length, word_dim+char_filter]
             input = torch.cat([input, char], dim=2)
 
-        encoder_output, h = self.encoder(input, mask)
+        # Output: [batch, length, hidden_size]
+        output = self.encoder(input, mask)
 
+        # Apply dropout to certain step?
+        output = self.hidden_state_dropout(output.transpose(1, 2)).transpose(1, 2)
+
+        return output
+
+    def mlp(self, input):
+        """
+        Map contextual representation into specific space (w/ lower dimensionality).
+
+        :param input: [batch, length, encoder_hidden_size]
+        :return:
+            edge: a tuple of (header, modifier) hidden state with size [batch, length, edge_hidden_size]
+            type: a tuple of (header, modifier) hidden state with size [batch, length, type_hidden_size]
+        """
+
+        # Output: [batch, length, edge_hidden_size]
+        edge_h = F.elu(self.edge_h(input))
+        edge_m = F.elu(self.edge_m(input))
+
+        # Output: [batch, length, type_hidden_size]
+        type_h = F.elu(self.type_h(input))
+        type_m = F.elu(self.type_m(input))
+
+        # Apply dropout to certain node?
+        # [batch, length * 2, hidden_size]
+        edge = torch.cat([edge_h, edge_m], dim=1)
+        type = torch.cat([type_h, type_m], dim=1)
+        edge = self.hidden_state_dropout(edge.transpose(1, 2)).transpose(1, 2)
+        type = self.hidden_state_dropout(type.transpose(1, 2)).transpose(1, 2)
+
+        edge_h, edge_m = edge.chunk(2, 1)
+        type_h, type_m = type.chunk(2, 1)
+
+        return (edge_h, edge_m), (type_h, type_m)
+
+    def attention(self, input_header, input_modifier, mask):
+        """
+        Compute attention between headers and modifiers.
+
+        :param input_header:  [batch, header_length, hidden_size]
+        :param input_modifier: [batch, modifier_length, hidden_size]
+        :param mask: [batch, length, hidden_size]
+        :return: [batch, header_length, modifier_length]
+        """
+        output = self.attention(input_header, input_modifier, mask_d=mask, mask_e=mask).squeeze(dim=1)
+        return output
 
