@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from stog.modules.embeddings import Embedding
+from stog.modules.embedding import Embedding
 from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
 from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.attention import BiaffineAttention
@@ -140,15 +140,15 @@ class DeepBiaffineParser(torch.nn.Module):
         batch_size, max_len, _ = edge_scores.size()
         num_headers = mask.sum() - batch_size
 
-        # Create indexing matrix for batch: [batch]
-        batch_index = torch.arange(0, batch_size).type_as(edge_scores.data).long()
-        # Create indexing matrix for header: [header_length, batch]
-        header_index = headers.data.t()
-        # Create indexing matrix for modifier: [modifier_length, batch]
-        modifier_index = torch.arange(0, max_len).view(max_len, 1).expand(max_len, batch_size)
+        # Create indexing matrix for batch: [batch, 1]
+        batch_index = torch.arange(0, batch_size).view(batch_size, 1)
+        batch_index = batch_index.type_as(edge_scores.data).long()
+        # Create indexing matrix for modifier: [batch, modifier_length]
+        modifier_index = torch.arange(0, max_len).view(1, max_len).expand(batch_size, max_len)
         modifier_index = modifier_index.type_as(edge_scores.data).long()
         # Index the log likelihood of gold edges (ROOT excluded).
-        gold_edge_log_likelihood = edge_log_likelihood[batch_index, header_index, modifier_index][1:]
+        # Output [batch, length - 1]
+        gold_edge_log_likelihood = edge_log_likelihood[batch_index, headers.data, modifier_index][:, 1:]
 
         return -gold_edge_log_likelihood.sum() / num_headers
 
