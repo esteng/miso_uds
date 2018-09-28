@@ -1,3 +1,4 @@
+import sys
 import argparse
 
 def model_opts(parser : argparse.ArgumentParser):
@@ -26,10 +27,12 @@ def preprocess_opts(parser):
                        help="Path to the training data")
     group.add_argument('--dev_data', required=True,
                        help="Path to the dev data")
-    group.add_argument('--save_data',
-                       help="place to same data"
-                       )
-
+    group.add_argument('--save_data', required=False,
+                       help="place to same data")
+    group.add_argument('--pre_emb',
+                       help="Pretrained embeddings")
+    group.add_argument('--lower',
+                       help="truecase the tokens")
     # Data processing options
     group = parser.add_argument_group('Random')
     group.add_argument('--shuffle', type=int, default=1,
@@ -182,20 +185,17 @@ class Options(object):
     def __init__(self, parser):
         parser.add_argument("--json",
                            help="a json file that contains all the options")
-        opt = parser.parse_argument()
+        parser.add_argument("--debug", action="store_true", default=False,
+                            help="a json file that contains all the options")
+        opt = parser.parse_args()
 
         if opt.json:
             import json
             with open(opt.json, 'r') as f:
                 options = json.load(f)
         else:
-            options = vars(args)
+            options = vars(opt)
 
         for key, value in options.items():
             setattr(self, key, value)
-
-
-
-
-
 
