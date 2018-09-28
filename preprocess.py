@@ -129,18 +129,18 @@ def build_vocab(fields, data):
     fields['chars'].build_vocab(data)
 
 
-def get_iterator(dataset, batch_size):
+def get_iterator(dataset, opt):
     """
     Build an iterator for training or inference given dataset
     :param dataset: torchtext.dataset
     :param batch_size:
     :return: iterator
     """
-    train_iter = data.BucketIterator(
-        dataset = dataset, batch_size = batch_size,
+    iter = data.BucketIterator(
+        dataset = dataset, batch_size = opt.batch_size,
         sort_key = lambda x: len(x)
     )
-    return train_iter
+    return iter
 
 def save_fields_to_vocab(fields):
     """
