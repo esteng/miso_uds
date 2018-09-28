@@ -4,20 +4,55 @@ import argparse
 def model_opts(parser : argparse.ArgumentParser):
     # Embedding Options
     group = parser.add_argument_group('Model-Embeddings')
-    group.add_argument('--word_vec_size', type=int, default=-1,
-                       help='Word embedding size for src and tgt.')
 
-    # Encoder-Decoder Options
+    group.add_argument('--token_emb_size', type=int, default=500,
+                       help='Size of token embedding')
+
+    group.add_argument('--char_emb_size', type=int, default=100,
+                       help='Size of char embedding')
+
+    group.add_argument('--pretrain_emb', type=str,
+                       help="Pretrained embeddings, GloVe or fasttext")
+
+    group.add_argument('--emb_dropout', type=float, default=0.3,
+                       help="Dropout rate for embeddings")
+
+    # Model Options
     group = parser.add_argument_group('Model')
-    group.add_argument('--model_type', default=None,
-                       help="Which model to run")
-    group.add_argument('--enc_layers', type=int, default=2,
+
+    group.add_argument('--model_type', type=str, default="DeepBiaffineParser",
+                       help="Model needs to be trained")
+
+    group.add_argument('--hidden_dropout', type=float, default=0.3,
+                       help="Dropout rate for hidden state")
+
+    group.add_argument('--use_char_conv', action='store_true', default=False,
+                       help="Whether use char conv")
+
+    group.add_argument('--num_filters', type=int, default=32,
+                       help="")
+
+    group.add_argument('kernal_size', type=int, default=4,
+                       help="")
+
+    group.add_argument('--encoder_layers', type=int, default=2,
                        help='Number of layers in the encoder')
-    group.add_argument('--rnn_size', type=int, default=500,
+
+    group.add_argument('--encoder_size', type=int, default=500,
                        help='Size of rnn hidden states')
-    group.add_argument('--rnn_type', type=str, default='LSTM',
-                       choices=['LSTM', 'GRU'],
-                       help="""The gate type to use in the RNNs""")
+
+    group.add_argument('--encoder_dropout', type=float, default=0.3,
+                       help="Dropout rate for encoder hidden state")
+
+    group.add_argument('--edge_hidden_size', type=int, default=500,
+                       help='')
+
+    group.add_argument('--type_hidden_size', type=int, default=500,
+                       help='')
+
+    group.add_argument('--num_labels', type=int, default=500,
+                       help='')
+
 
 def preprocess_opts(parser):
     """ Pre-procesing options """
@@ -29,8 +64,6 @@ def preprocess_opts(parser):
                        help="Path to the dev data")
     group.add_argument('--save_data', required=False,
                        help="place to same data")
-    group.add_argument('--pre_emb',
-                       help="Pretrained embeddings")
     group.add_argument('--lower',
                        help="truecase the tokens")
     # Data processing options
