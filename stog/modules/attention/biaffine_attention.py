@@ -11,7 +11,7 @@ class BiaffineAttention(nn.Module):
     Bi-Affine attention layer.
     """
 
-    def __init__(self, input_size_encoder, input_size_decoder, num_labels, biaffine=True, **kwargs):
+    def __init__(self, input_size_encoder, input_size_decoder, num_labels=1, biaffine=True, **kwargs):
         """
         Args:
             input_size_encoder: int
@@ -24,7 +24,7 @@ class BiaffineAttention(nn.Module):
                 if apply bi-affine parameter.
             **kwargs:
         """
-        super(BiAffineAttention, self).__init__()
+        super(BiaffineAttention, self).__init__()
         self.input_size_encoder = input_size_encoder
         self.input_size_decoder = input_size_decoder
         self.num_labels = num_labels
