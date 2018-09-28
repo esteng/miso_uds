@@ -11,8 +11,11 @@ def model_opts(parser : argparse.ArgumentParser):
     group.add_argument('--char_emb_size', type=int, default=100,
                        help='Size of char embedding')
 
-    group.add_argument('--pretrain_emb', type=str,
+    group.add_argument('--pretrain_token_emb', type=str,
                        help="Pretrained embeddings, GloVe or fasttext")
+
+    group.add_argument('--pretrain_char_emb', type=str,
+                       help="")
 
     group.add_argument('--emb_dropout', type=float, default=0.3,
                        help="Dropout rate for embeddings")
@@ -32,7 +35,7 @@ def model_opts(parser : argparse.ArgumentParser):
     group.add_argument('--num_filters', type=int, default=32,
                        help="")
 
-    group.add_argument('kernal_size', type=int, default=4,
+    group.add_argument('--kernel_size', type=int, default=4,
                        help="")
 
     group.add_argument('--encoder_layers', type=int, default=2,
@@ -70,14 +73,6 @@ def preprocess_opts(parser):
     group = parser.add_argument_group('Random')
     group.add_argument('--shuffle', type=int, default=1,
                        help="Shuffle data")
-    group.add_argument('--seed', type=int, default=3435,
-                       help="Random seed")
-
-    group = parser.add_argument_group('Logging')
-    group.add_argument('--report_every', type=int, default=100000,
-                       help="Report status every this many sentences")
-    group.add_argument('--log_file', type=str, default="",
-                       help="Output logs to a file under this path.")
 
 def train_opts(parser):
     """ Training and saving options """
@@ -229,6 +224,12 @@ class Options(object):
         else:
             options = vars(opt)
 
+        self.opt_dict = {}
+
         for key, value in options.items():
             setattr(self, key, value)
+            self.opt_dict[key] = value
+
+    def __repr__(self):
+        return '\n'.join(["*** {} : {}".format(key,value) for key, value in self.opt_dict.items()])
 

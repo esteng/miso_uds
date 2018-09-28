@@ -1,28 +1,9 @@
-import io
-import tarfile
-import zipfile
-import bz2
-import lzma
-import gzip
-import re
-import warnings
-import itertools
-from typing import Optional, Tuple, Sequence, cast, IO, Iterator, Any, NamedTuple
-
 from overrides import overrides
-import numpy
 import torch
 from torch.nn.functional import embedding
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", category=FutureWarning)
-    import h5py
 
 from stog.utils import logging
-from stog.utils.tqdm import Tqdm
 from stog.utils.checks import ConfigurationError
-from stog.utils.file import get_file_extension, cached_path
-from stog.data.vocabulary import Vocabulary
-from stog.modules.time_distributed import TimeDistributed
 
 logger = logging.init_logger()  # pylint: disable=invalid-name
 
@@ -77,6 +58,7 @@ class Embedding(torch.nn.Module):
                  trainable: bool = True,
                  max_norm: float = None,
                  norm_type: float = 2.,
+                 padding_index : int = None,
                  scale_grad_by_freq: bool = False,
                  sparse: bool = False) -> None:
         super(Embedding, self).__init__()
@@ -85,6 +67,7 @@ class Embedding(torch.nn.Module):
         self.norm_type = norm_type
         self.scale_grad_by_freq = scale_grad_by_freq
         self.sparse = sparse
+        self.padding_index = padding_index
 
         if weight is None:
             weight = torch.FloatTensor(num_embeddings, embedding_dim)
@@ -98,9 +81,8 @@ class Embedding(torch.nn.Module):
         if self.padding_index is not None:
             self.weight.data[self.padding_index].fill_(0)
 
-    @overrides
     def get_output_dim(self) -> int:
-        return self.output_dim
+        return self.embedding_dim
 
     @overrides
     def forward(self, inputs):  # pylint: disable=arguments-differ
