@@ -3,50 +3,47 @@ import sys
 from stog.data import get_iterator, get_dataset_splits
 from stog.utils import init_logger, logger
 from stog.utils import ExceptionHook
+from stog.utils.opts import preprocess_opts, model_opts, train_opts, Options
+from stog.model_builder import build_model
+from preprocess import preprocess, get_iterator
+from stog.models.deep_biaffine_parser import DeepBiaffineParser
+from stog.trainer import Trainer
+from stog.modules.optimizer import build_optim
 
+def main(opt):
 
-def validate():
-    pass
-
-def test():
-    pass
-
-def train(opt):
     init_logger()
 
-    logger.info("Building datasets")
-    train_data, dev_data, test_data = get_dataset_splits(opt)
-    logger.info("Building training iterator")
-    train_iter = get_iterator(train_data, batch_size=opt.batch_size)
+    # preprocess data
+    logger.info("Loading data ...")
+    train_data, dev_data = preprocess(opt)
 
-    for epoch_idx in range(opt.epochs):
-        logger.info("Start epoch {}".format(epoch_idx + 1))
-        for batch_idx, batch_data in enumerate(train_iter):
-            # tokens_tensor size (batch_size, len)
-            tokens_tensor = batch_data.tokens
-            # since we have pad token, it's very easy to get a mask as below
-            tokens_tensor_mask = (tokens_tensor != 1).float()
-            # Character tensor size (batch_size, len, max_len_word)
-            char_tensor = batch_data.chars
-            # relation*_tenor size (batch_size, len, len + 1)
-            relation_tensor, relation_mask_tensor = batch_data.relations
-            import pdb; pdb.set_trace()
-            #TODO do something here with tokens and relations
+    logger.info("Building training iterator ...")
+    train_iter = get_iterator(opt, train_data)
+
+    # build model
+    logger.info("Building model ...")
+    model = build_model(opt, train_data)
+
+    # build optimizer
+    logger.info("Building optimizer ...")
+    optim = build_optim(opt, model, checkpoint=None)
+
+    # build trainer
+    logger.info("Building Trainer...")
+    trainer = Trainer(
+        model=model,
+        optim=optim
+    )
+
+    trainer.train()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser('train')
-    parser.add_argument("--data", required=True,
-                        help="The path of data directory. The the files in data path should be {train,dev,test}.json")
-    parser.add_argument("--lower", action="store_true", default=False,
-                        help="Whether lower the tokens")
-    parser.add_argument("--batch_first", action="store_true", default=False,
-                        help="Whether let the batch dim first")
-    parser.add_argument("--batch_size", default=64,
-                        help="Batch size")
-    parser.add_argument("--epochs", default=10,
-                        help="Epochs to run")
-    opt = parser.parse_args()
-
-    train(opt)
+    parser = argparse.ArgumentParser('train.py')
+    preprocess_opts(parser)
+    model_opts(parser)
+    train_opts(parser)
+    opt =  Options(parser)
+    main(opt)
 
