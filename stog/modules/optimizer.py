@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 
 
-def build_optim(model, params, checkpoint):
+def build_optim(params, model, checkpoint):
     """ Build optimizer """
     saved_optimizer_state_dict = None
 
