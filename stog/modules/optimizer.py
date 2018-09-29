@@ -89,7 +89,6 @@ class Optimizer(object):
         self.decay_steps = decay_steps
         self.start_decay = False
         self._step = 0
-        self._epoch = 0
         self.betas = [beta1, beta2]
         self.adagrad_accum = adagrad_accum
         self.decay_method = decay_method

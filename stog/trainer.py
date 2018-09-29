@@ -21,6 +21,10 @@ logger = logging.init_logger()
 
 
 class Trainer:
+    """
+    Adopted from AllenNLP:
+        https://github.com/allenai/allennlp/blob/v0.6.1/allennlp/training/trainer.py
+    """
 
     def __init__(
             self,
@@ -41,6 +45,51 @@ class Trainer:
             model_save_interval = None,
             summary_interval = 100
     ):
+        """
+        Parameters
+        ----------
+        :param model:
+            The model to train.
+        :param optimizer:
+            Optimizer.
+        :param iterator:
+            A method for iterating over a ``Dataset``, yielding padded indexed batches.
+        :param training_dataset:
+            A ``Dataset`` to train on. The dataset should have already been indexed.
+        :param dev_dataset:
+            A ``Dataset`` to validate on. The dataset should have already been indexed.
+        :param dev_iterator:
+            An iterator to use for the dev set.  If ``None``, then
+            use the training `iterator`.
+        :param dev_metric:
+            Dev metric to measure for whether to stop training using patience
+            and whether to serialize an ``is_best`` model each epoch.
+        :param use_gpu:
+            Whether use gpu or not.
+        :param patience:
+            Number of epochs to be patient before early stopping: the training is stopped
+            after ``patience`` epochs with no improvement. If given, it must be ``> 0``.
+            If None, early stopping is disabled.
+        :param grad_clipping:
+            If provided, gradients will be clipped `during the backward pass` to have an (absolute)
+            maximum of this value.  If you are getting ``NaNs`` in your gradients during training
+            that are not solved by using ``grad_norm``, you may need this.
+        :param shuffle:
+            Whether to shuffle the instances in the iterator or not.
+        :param num_epochs:
+            Number of training epochs.
+        :param serialization_dir:
+            Path to save and load model states, training states, and logs.
+        :param num_serialized_models_to_keep:
+            Number of previous model checkpoints to retain.  Default is to keep 20 checkpoints.
+            A value of None or -1 means all checkpoints will be kept.
+        :param model_save_interval:
+            If provided, then serialize models every ``model_save_interval``
+            seconds within single epochs.  In all cases, models are also saved
+            at the end of every epoch if ``serialization_dir`` is provided.
+        :param summary_interval:
+            Number of batches between logging scalars to tensorboard
+        """
         self._model = model
         self._optimizer = optimizer
         self._iterator = iterator
@@ -68,17 +117,18 @@ class Trainer:
         else:
             self._tensorboard = TensorboardWriter()
 
-    def _batch_loss(self, batch: torch.Tensor, for_training: bool) -> torch.Tensor:
+    def _batch_loss(self, batch, for_training: bool) -> torch.Tensor:
         """
         Does a forward pass on the given batch and returns the ``loss`` value in the result.
         If ``for_training`` is `True` also applies regularization penalty.
         """
-        output_dict = self._model(**batch)
+        # TODO: make the model forward method returns a dict.
+        output_dict = self._model(for_training=for_training, **batch)
 
         try:
             loss = output_dict["loss"]
             if for_training:
-                loss += self.model.get_regularization_penalty()
+                loss += self._model.get_regularization_penalty()
         except KeyError:
             if for_training:
                 raise RuntimeError("The model you are trying to optimize does not contain a"
@@ -93,6 +143,8 @@ class Trainer:
         the total loss divided by the ``num_batches`` so that
         the ``"loss"`` metric is "average loss per batch".
         """
+        # Model returns (accumulated) metric values by far, and reset values if reset is True.
+        # TODO: implement the get_metrics method.
         metrics = self._model.get_metrics(reset=reset)
         metrics["loss"] = float(total_loss / num_batches) if num_batches > 0 else 0.0
         return metrics
@@ -108,10 +160,13 @@ class Trainer:
         self._model.train()
 
         # Get tqdm for the training batches
+        # TODO: iterator takes the following params and returns a generator.
+        # TODO: the generator should yield a dict containing parameters needed by the model.
         train_generator = self._iterator(self._training_dataset,
                                          num_epochs=1,
                                          shuffle=self._shuffle,
                                          use_gpu=self._use_gpu)
+        # TODO: iterator provides 'get_num_batches' method.
         num_training_batches = self._iterator.get_num_batches(self._training_dataset)
 
         logger.info('Training...')
@@ -203,7 +258,6 @@ class Trainer:
             elif train_metric is not None:
                 logger.info(no_dev_message_template, name.ljust(name_length), train_metric, "N/A")
 
-
     def _validate_dev(self):
         """
         Computes the dev loss. Returns it and the number of batches.
@@ -228,6 +282,7 @@ class Trainer:
         dev_loss = 0
         for batch in dev_generator_tqdm:
 
+            batches_this_epoch += 1
             loss = self._batch_loss(batch, for_training=False)
             if loss is not None:
                 # You shouldn't necessarily have to compute a loss for validation, so we allow for
@@ -235,7 +290,6 @@ class Trainer:
                 # currently only used as the divisor for the loss function, so we can safely only
                 # count those batches for which we actually have a loss.  If this variable ever
                 # gets used for something else, we might need to change things around a bit.
-                batches_this_epoch += 1
                 dev_loss += loss.item()
 
             # Update the description with the latest metrics
@@ -246,9 +300,8 @@ class Trainer:
         return self._get_metrics(dev_loss, batches_this_epoch, reset=True)
 
     def train(self):
+        """Trains the supplied model with the supplied parameters.
         """
-                Trains the supplied model with the supplied parameters.
-                """
         try:
             epoch_counter, dev_metric_per_epoch = self._restore_checkpoint()
         except RuntimeError:
@@ -262,18 +315,19 @@ class Trainer:
 
         logger.info('Start training...')
 
+        # Init.
+        training_start_time = time.time()
         epochs_trained_this_time = 0
         training_metrics = {}
         dev_metrics = {}
         is_best_so_far = True
         best_epoch_dev_metrics = {}
-        this_epoch_dev_metric = None
-        training_start_time = time.time()
 
         for epoch in range(epoch_counter, self._num_epochs):
             epoch_start_time = time.time()
             training_metrics = self._train_epoch(epoch)
 
+            # Validate on the dev set.
             if self._dev_dataset is not None:
                 with torch.no_grad():
                     dev_metrics = self._validate_dev()
@@ -281,7 +335,7 @@ class Trainer:
                     # Check dev metric for early stopping
                     this_epoch_dev_metric = dev_metrics[self._dev_metric]
 
-                    # Check validation metric to see if it's the best so far
+                    # Check dev metric to see if it's the best so far
                     is_best_so_far = self._is_best_so_far(this_epoch_dev_metric, dev_metric_per_epoch)
                     if is_best_so_far:
                         best_epoch_dev_metrics = dev_metrics.copy()
@@ -290,11 +344,13 @@ class Trainer:
                         logger.info("Ran out of patience.  Stopping training.")
                         break
 
+            # Save status.
             self._save_checkpoint(epoch, dev_metric_per_epoch, is_best=is_best_so_far)
             self._metrics_to_tensorboard(epoch, training_metrics, dev_metrics=dev_metrics)
             self._metrics_to_console(training_metrics, dev_metrics=dev_metrics)
             self._tensorboard.add_dev_scalar('learning_rate', self._optimizer.lr, epoch)
 
+            # Estimate ETA.
             epoch_elapsed_time = time.time() - epoch_start_time
             logger.info("Epoch duration: %s", time.strftime("%H:%M:%S", time.gmtime(epoch_elapsed_time)))
 
@@ -307,6 +363,7 @@ class Trainer:
 
             epochs_trained_this_time += 1
 
+        # Finish training, and summarize the status.
         training_elapsed_time = time.time() - training_start_time
         metrics = dict(
             training_duration=time.strftime("%H:%M:%S", time.gmtime(training_elapsed_time)),
@@ -435,18 +492,22 @@ class Trainer:
         training_state_path = os.path.join(
             self._serialization_dir, 'training_state_epoch_{}.th'.format(epoch_to_load)
         )
-        return (model_state_path, training_state_path)
+        return model_state_path, training_state_path
 
     def _restore_checkpoint(self):
         last_checkpoint = self._find_latest_checkpoint()
+
         if last_checkpoint is None:
             return 0, []
+
         model_state_path, training_state_path = last_checkpoint
+
         model_state = torch.load(model_state_path, map_location=device_mapping(-1))
         self._model.load_state_dict(model_state)
         training_state = torch.load(training_state_path, map_location=device_mapping(-1))
-        self._optimizer.set_state(training_state['optimizer'])
         self._num_trained_batches = training_state['num_trained_batches']
+        self._optimizer.set_state(training_state['optimizer'])
+        self._optimizer._step = self._num_trained_batches
         starting_epoch = training_state['epoch'] + 1
         return starting_epoch, training_state['dev_metric_per_epoch']
 

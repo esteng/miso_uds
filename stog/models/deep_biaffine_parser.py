@@ -110,6 +110,17 @@ class DeepBiaffineParser(torch.nn.Module):
 
         self.bilinear = BiLinear(type_hidden_size, type_hidden_size, num_labels)
 
+        # Metrics
+        self.loss = 0.0
+
+    def get_metrics(self, reset=True):
+        return dict(
+            loss=self.loss
+        )
+
+    def get_regularization_penality(self):
+        return 0.0
+
     def forward(self, input_token, input_char, mask):
         encoder_output = self.encode(input_token, input_char, mask)
         edge, type = self.mlp(encoder_output)
