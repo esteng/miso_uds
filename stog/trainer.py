@@ -4,7 +4,7 @@ import shutil
 import time
 import datetime
 import traceback
-from typing import Dict, Optional, List, Tuple, Union, Iterable, Any, Set
+from typing import Dict, Optional, List, Union
 
 import torch
 
@@ -13,7 +13,7 @@ from stog.training.tensorboard import TensorboardWriter
 from stog.utils.environment import device_mapping, peak_memory_mb, gpu_memory_mb
 from stog.utils.checks import  ConfigurationError
 from stog.utils.tqdm import Tqdm
-from stog.utils.time import time_to_str, str_to_time
+from stog.utils.time import time_to_str
 
 
 logger = logging.init_logger()
@@ -27,7 +27,7 @@ class Trainer:
             model,
             optimizer,
             iterator,
-            train_dataset,
+            training_dataset,
             dev_dataset = None,
             dev_iterator = None,
             dev_metric = 'loss',
@@ -41,25 +41,25 @@ class Trainer:
             model_save_interval = None,
             summary_interval = 100
     ):
-        self.model = model
-        self.optimizer = optimizer
-        self.iterator = iterator
-        self.train_dataset = train_dataset
-        self.dev_dataset = dev_dataset
-        self.dev_iterator = dev_iterator
-        self.dev_metric = dev_metric
-        self.use_gpu = use_gpu
-        self.patience = patience
-        self.grad_clipping = grad_clipping
-        self.shuffle = shuffle
-        self.num_epochs = num_epochs
-        self.serialization_dir = serialization_dir
-        self.num_serialized_models_to_keep = num_serialized_models_to_keep
-        self.model_save_interval = model_save_interval
-        self.summary_interval = summary_interval
+        self._model = model
+        self._optimizer = optimizer
+        self._iterator = iterator
+        self._training_dataset = training_dataset
+        self._dev_dataset = dev_dataset
+        self._dev_iterator = dev_iterator
+        self._dev_metric = dev_metric
+        self._use_gpu = use_gpu
+        self._patience = patience
+        self._grad_clipping = grad_clipping
+        self._shuffle = shuffle
+        self._num_epochs = num_epochs
+        self._serialization_dir = serialization_dir
+        self._num_serialized_models_to_keep = num_serialized_models_to_keep
+        self._model_save_interval = model_save_interval
+        self._summary_interval = summary_interval
 
-        self.num_trained_batches = 0
-        self.serialized_paths = []
+        self._num_trained_batches = 0
+        self._serialized_paths = []
 
         if serialization_dir is not None:
             train_log = os.path.join(serialization_dir, 'log', 'train')
@@ -73,7 +73,7 @@ class Trainer:
         Does a forward pass on the given batch and returns the ``loss`` value in the result.
         If ``for_training`` is `True` also applies regularization penalty.
         """
-        output_dict = self.model(**batch)
+        output_dict = self._model(**batch)
 
         try:
             loss = output_dict["loss"]
@@ -93,26 +93,26 @@ class Trainer:
         the total loss divided by the ``num_batches`` so that
         the ``"loss"`` metric is "average loss per batch".
         """
-        metrics = self.model.get_metrics(reset=reset)
+        metrics = self._model.get_metrics(reset=reset)
         metrics["loss"] = float(total_loss / num_batches) if num_batches > 0 else 0.0
         return metrics
 
     def _train_epoch(self, epoch):
-        logger.info('Epoch {}/{}', epoch, self.num_epochs - 1)
+        logger.info('Epoch {}/{}', epoch, self._num_epochs - 1)
         logger.info(f'Peak CPU memory usage MB: {peak_memory_mb()}')
         for gpu, memory in gpu_memory_mb().items():
             logger.info(f"GPU {gpu} memory usage MB: {memory}")
 
         training_loss = 0.0
         # Set the model to "train" mode.
-        self.model.train()
+        self._model.train()
 
         # Get tqdm for the training batches
-        train_generator = self.iterator(self.train_dataset,
+        train_generator = self._iterator(self._training_dataset,
                                          num_epochs=1,
-                                         shuffle=self.shuffle,
-                                         use_gpu=self.use_gpu)
-        num_training_batches = self.iterator.get_num_batches(self.train_dataset)
+                                         shuffle=self._shuffle,
+                                         use_gpu=self._use_gpu)
+        num_training_batches = self._iterator.get_num_batches(self._training_dataset)
 
         logger.info('Training...')
         last_save_time = time.time()
@@ -121,13 +121,13 @@ class Trainer:
 
         for batch in train_generator_tqdm:
             batches_this_epoch += 1
-            self.num_trained_batches += 1
+            self._num_trained_batches += 1
 
-            self.optimizer.zero_grad()
+            self._optimizer.zero_grad()
             loss = self._batch_loss(batch, for_training=True)
             loss.backward()
             training_loss += loss.item()
-            self.optimizer.step()
+            self._optimizer.step()
 
             # Update the description with the latest metrics
             metrics = self._get_metrics(training_loss, batches_this_epoch)
@@ -136,16 +136,16 @@ class Trainer:
             train_generator_tqdm.set_description(description, refresh=False)
 
             # Log parameter values to Tensorboard
-            if self.num_trained_batches % self.summary_interval == 0:
+            if self._num_trained_batches % self._summary_interval == 0:
                 self._tensorboard.add_train_scalar(
-                    "loss/loss_train", metrics["loss"], self.num_trained_batches)
+                    "loss/loss_train", metrics["loss"], self._num_trained_batches)
                 self._metrics_to_tensorboard(
-                    self.num_trained_batches,
+                    self._num_trained_batches,
                     {"epoch_metrics/" + k: v for k, v in metrics.items()})
 
             # Save model if needed.
-            if self.model_save_interval is not None and (
-                    time.time() - last_save_time > self.model_save_interval
+            if self._model_save_interval is not None and (
+                    time.time() - last_save_time > self._model_save_interval
             ):
                 last_save_time = time.time()
                 self._save_checkpoint(
@@ -210,18 +210,18 @@ class Trainer:
         """
         logger.info("Validating on dev")
 
-        self.model.eval()
+        self._model.eval()
 
-        if self.dev_iterator is not None:
-            dev_iterator = self.dev_iterator
+        if self._dev_iterator is not None:
+            dev_iterator = self._dev_iterator
         else:
-            dev_iterator = self.iterator
+            dev_iterator = self._iterator
 
-        dev_generator = dev_iterator(self.dev_dataset,
+        dev_generator = dev_iterator(self._dev_dataset,
                                      num_epochs=1,
                                      shuffle=False,
-                                     use_gpu=self.use_gpu)
-        num_dev_batches = dev_iterator.get_num_batches(self.dev_dataset)
+                                     use_gpu=self._use_gpu)
+        num_dev_batches = dev_iterator.get_num_batches(self._dev_dataset)
         dev_generator_tqdm = Tqdm.tqdm(dev_generator,
                                        total=num_dev_batches)
         batches_this_epoch = 0
@@ -270,16 +270,16 @@ class Trainer:
         this_epoch_dev_metric = None
         training_start_time = time.time()
 
-        for epoch in range(epoch_counter, self.num_epochs):
+        for epoch in range(epoch_counter, self._num_epochs):
             epoch_start_time = time.time()
             training_metrics = self._train_epoch(epoch)
 
-            if self.dev_dataset is not None:
+            if self._dev_dataset is not None:
                 with torch.no_grad():
                     dev_metrics = self._validate_dev()
 
                     # Check dev metric for early stopping
-                    this_epoch_dev_metric = dev_metrics[self.dev_metric]
+                    this_epoch_dev_metric = dev_metrics[self._dev_metric]
 
                     # Check validation metric to see if it's the best so far
                     is_best_so_far = self._is_best_so_far(this_epoch_dev_metric, dev_metric_per_epoch)
@@ -293,15 +293,15 @@ class Trainer:
             self._save_checkpoint(epoch, dev_metric_per_epoch, is_best=is_best_so_far)
             self._metrics_to_tensorboard(epoch, training_metrics, dev_metrics=dev_metrics)
             self._metrics_to_console(training_metrics, dev_metrics=dev_metrics)
-            self._tensorboard.add_dev_scalar('learning_rate', self.optimizer.lr, epoch)
+            self._tensorboard.add_dev_scalar('learning_rate', self._optimizer.lr, epoch)
 
             epoch_elapsed_time = time.time() - epoch_start_time
             logger.info("Epoch duration: %s", time.strftime("%H:%M:%S", time.gmtime(epoch_elapsed_time)))
 
-            if epoch < self.num_epochs - 1:
+            if epoch < self._num_epochs - 1:
                 training_elapsed_time = time.time() - training_start_time
                 estimated_time_remaining = training_elapsed_time * \
-                    ((self.num_epochs - epoch_counter) / float(epoch - epoch_counter + 1) - 1)
+                    ((self._num_epochs - epoch_counter) / float(epoch - epoch_counter + 1) - 1)
                 formatted_time = str(datetime.timedelta(seconds=int(estimated_time_remaining)))
                 logger.info("Estimated training time remaining: %s", formatted_time)
 
@@ -327,11 +327,11 @@ class Trainer:
         return metrics
 
     def _enable_gradient_clipping(self) -> None:
-        if self.grad_clipping is not None:
+        if self._grad_clipping is not None:
             # Pylint is unable to tell that we're in the case that _grad_clipping is not None...
             # pylint: disable=invalid-unary-operand-type
-            clip_function = lambda grad: grad.clamp(-self.grad_clipping, self.grad_clipping)
-            for parameter in self.model.parameters():
+            clip_function = lambda grad: grad.clamp(-self._grad_clipping, self._grad_clipping)
+            for parameter in self._model.parameters():
                 if parameter.requires_grad:
                     parameter.register_hook(clip_function)
 
@@ -339,9 +339,9 @@ class Trainer:
         """
         uses patience and the validation metric to determine if training should stop early
         """
-        if self.patience and self.patience < len(metric_history):
+        if self._patience and self._patience < len(metric_history):
             # Is the best score in the past N epochs worse than or equal the best score overall?
-            return max(metric_history[-self.patience:]) <= max(metric_history[:-self.patience])
+            return max(metric_history[-self._patience:]) <= max(metric_history[:-self._patience])
 
         return False
 
@@ -375,35 +375,35 @@ class Trainer:
             be copied to a "best.th" file. The value of this flag should
             be based on some validation metric computed by your model.
         """
-        if self.serialization_dir is not None:
-            model_path = os.path.join(self.serialization_dir, "model_state_epoch_{}.th".format(epoch))
-            model_state = self.model.state_dict()
+        if self._serialization_dir is not None:
+            model_path = os.path.join(self._serialization_dir, "model_state_epoch_{}.th".format(epoch))
+            model_state = self._model.state_dict()
             torch.save(model_state, model_path)
 
             training_state = {'epoch': epoch,
                               'dev_metric_per_epoch': dev_metric_per_epoch,
-                              'optimizer': self.optimizer.state_dict(),
-                              'num_trained_batches': self.num_trained_batches}
-            training_path = os.path.join(self.serialization_dir,
+                              'optimizer': self._optimizer.state_dict(),
+                              'num_trained_batches': self._num_trained_batches}
+            training_path = os.path.join(self._serialization_dir,
                                          "training_state_epoch_{}.th".format(epoch))
             torch.save(training_state, training_path)
             if is_best:
                 logger.info("Best validation performance so far. "
-                            "Copying weights to '%s/best.th'.", self.serialization_dir)
-                shutil.copyfile(model_path, os.path.join(self.serialization_dir, "best.th"))
+                            "Copying weights to '%s/best.th'.", self._serialization_dir)
+                shutil.copyfile(model_path, os.path.join(self._serialization_dir, "best.th"))
 
-            if self.num_serialized_models_to_keep and self.num_serialized_models_to_keep >= 0:
-                self.serialized_paths.append([time.time(), model_path, training_path])
-                if len(self.serialized_paths) > self.num_serialized_models_to_keep:
-                    paths_to_remove = self.serialized_paths.pop(0)
+            if self._num_serialized_models_to_keep and self._num_serialized_models_to_keep >= 0:
+                self._serialized_paths.append([time.time(), model_path, training_path])
+                if len(self._serialized_paths) > self._num_serialized_models_to_keep:
+                    paths_to_remove = self._serialized_paths.pop(0)
                     for fname in paths_to_remove[1:]:
                         os.remove(fname)
 
     def _find_latest_checkpoint(self):
-        if self.serialization_dir is None:
+        if self._serialization_dir is None:
             return None
 
-        serialization_files = os.listdir(self.serialization_dir)
+        serialization_files = os.listdir(self._serialization_dir)
         model_checkpoints = [x for x in serialization_files if 'model_state_epoch' in x]
         # Get the last checkpoint file.  Epochs are specified as either an
         # int (for end of epoch files) or with epoch and timestamp for
@@ -430,10 +430,10 @@ class Trainer:
 
         # model state
         model_state_path = os.path.join(
-            self.serialization_dir, 'model_state_epoch_{}.th'.format(epoch_to_load))
+            self._serialization_dir, 'model_state_epoch_{}.th'.format(epoch_to_load))
         # misc training state, e.g. optimizer state, epoch, etc.
         training_state_path = os.path.join(
-            self.serialization_dir, 'training_state_epoch_{}.th'.format(epoch_to_load)
+            self._serialization_dir, 'training_state_epoch_{}.th'.format(epoch_to_load)
         )
         return (model_state_path, training_state_path)
 
@@ -443,10 +443,10 @@ class Trainer:
             return 0, []
         model_state_path, training_state_path = last_checkpoint
         model_state = torch.load(model_state_path, map_location=device_mapping(-1))
-        self.model.load_state_dict(model_state)
+        self._model.load_state_dict(model_state)
         training_state = torch.load(training_state_path, map_location=device_mapping(-1))
-        self.optimizer.set_state(training_state['optimizer'])
-        self.num_trained_batches = training_state['num_trained_batches']
+        self._optimizer.set_state(training_state['optimizer'])
+        self._num_trained_batches = training_state['num_trained_batches']
         starting_epoch = training_state['epoch'] + 1
         return starting_epoch, training_state['dev_metric_per_epoch']
 
