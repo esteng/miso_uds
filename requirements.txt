@@ -1,3 +1,7 @@
 overrides
 torch=0.4.1
 torchtext=0.3.0
+
+# Write logs for training visualisation with the Tensorboard application
+# Install the Tensorboard application separately (part of tensorflow) to view them.
+tensorboardX==1.2
