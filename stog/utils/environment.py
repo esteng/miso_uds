@@ -1,6 +1,15 @@
+import sys
 import random
+import subprocess
+try:
+    import resource
+except ImportError:
+    # resource doesn't exist on Windows systems
+    resource = None
+
 import numpy
 import torch
+
 from stog.utils import logging
 
 
@@ -36,3 +45,69 @@ def set_seed(seed=13370, numpy_seed=1337, torch_seed=133):
         numpy_seed=numpy_seed,
         torch_seed=torch_seed
     ))
+
+
+def device_mapping(cuda_device: int):
+    """
+    In order to `torch.load()` a GPU-trained model onto a CPU (or specific GPU),
+    you have to supply a `map_location` function. Call this with
+    the desired `cuda_device` to get the function that `torch.load()` needs.
+    """
+    def inner_device_mapping(storage: torch.Storage, location) -> torch.Storage:  # pylint: disable=unused-argument
+        if cuda_device >= 0:
+            return storage.cuda(cuda_device)
+        else:
+            return storage
+    return inner_device_mapping
+
+
+def peak_memory_mb() -> float:
+    """
+    Get peak memory usage for this process, as measured by
+    max-resident-set size:
+    https://unix.stackexchange.com/questions/30940/getrusage-system-call-what-is-maximum-resident-set-size
+    Only works on OSX and Linux, returns 0.0 otherwise.
+    """
+    if resource is None or sys.platform not in ('linux', 'darwin'):
+        return 0.0
+
+    # TODO(joelgrus): For whatever, our pinned version 0.521 of mypy does not like
+    # next line, but later versions (e.g. 0.530) are fine with it. Once we get that
+    # figured out, remove the type: ignore.
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # type: ignore
+
+    if sys.platform == 'darwin':
+        # On OSX the result is in bytes.
+        return peak / 1_000_000
+
+    else:
+        # On Linux the result is in kilobytes.
+        return peak / 1_000
+
+
+def gpu_memory_mb() -> Dict[int, int]:
+    """
+    Get the current GPU memory usage.
+    Based on https://discuss.pytorch.org/t/access-gpu-memory-usage-in-pytorch/3192/4
+    Returns
+    -------
+    ``Dict[int, int]``
+        Keys are device ids as integers.
+        Values are memory usage as integers in MB.
+        Returns an empty ``dict`` if GPUs are not available.
+    """
+    # pylint: disable=bare-except
+    try:
+        result = subprocess.check_output(['nvidia-smi', '--query-gpu=memory.used',
+                                          '--format=csv,nounits,noheader'],
+                                         encoding='utf-8')
+        gpu_memory = [int(x) for x in result.strip().split('\n')]
+        return {gpu: memory for gpu, memory in enumerate(gpu_memory)}
+    except FileNotFoundError:
+        # `nvidia-smi` doesn't exist, assume that means no GPU.
+        return {}
+    except:
+        # Catch *all* exceptions, because this memory check is a nice-to-have
+        # and we'd never want a training run to fail because of it.
+        logger.exception("unable to check gpu_memory_mb(), continuing")
+        return {}

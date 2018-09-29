@@ -7,13 +7,13 @@ import logging
 logger = logging.getLogger()
 
 
-def init_logger(log_file=None):
+def init_logger(log_name=None, log_file=None):
     """
     Adopted from OpenNMT-py:
         https://github.com/OpenNMT/OpenNMT-py/blob/master/onmt/utils/logging.py
     """
     log_format = logging.Formatter("[%(asctime)s %(levelname)s] %(message)s")
-    logger = logging.getLogger()
+    logger = logging.getLogger(log_name)
     logger.setLevel(logging.INFO)
 
     console_handler = logging.StreamHandler()
