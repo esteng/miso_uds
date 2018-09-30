@@ -122,7 +122,6 @@ class Trainer:
         Does a forward pass on the given batch and returns the ``loss`` value in the result.
         If ``for_training`` is `True` also applies regularization penalty.
         """
-        # TODO: make the model forward method returns a dict.
         output_dict = self._model(for_training=for_training, **batch)
 
         try:
@@ -136,18 +135,6 @@ class Trainer:
             loss = None
 
         return loss
-
-    def _get_metrics(self, total_loss: float, num_batches: int, reset: bool = False) -> Dict[str, float]:
-        """
-        Gets the metrics but sets ``"loss"`` to
-        the total loss divided by the ``num_batches`` so that
-        the ``"loss"`` metric is "average loss per batch".
-        """
-        # Model returns (accumulated) metric values by far, and reset values if reset is True.
-        # TODO: implement the get_metrics method.
-        metrics = self._model.get_metrics(reset=reset)
-        metrics["loss"] = float(total_loss / num_batches) if num_batches > 0 else 0.0
-        return metrics
 
     def _train_epoch(self, epoch):
         logger.info('Epoch {}/{}', epoch, self._num_epochs - 1)
@@ -185,7 +172,7 @@ class Trainer:
             self._optimizer.step()
 
             # Update the description with the latest metrics
-            metrics = self._get_metrics(training_loss, batches_this_epoch)
+            metrics = self._model.get_metrics()
             description = self._description_from_metrics(metrics)
 
             train_generator_tqdm.set_description(description, refresh=False)
@@ -206,7 +193,7 @@ class Trainer:
                 self._save_checkpoint(
                     '{0}.{1}'.format(epoch, time_to_str(int(last_save_time))), [], is_best=False
                 )
-        return self._get_metrics(training_loss, batches_this_epoch, reset=True)
+        return self._model.get_metrics(reset=True)
 
     def _metrics_to_tensorboard(self,
                                 epoch: int,
@@ -293,11 +280,11 @@ class Trainer:
                 dev_loss += loss.item()
 
             # Update the description with the latest metrics
-            dev_metrics = self._get_metrics(dev_loss, batches_this_epoch)
+            dev_metrics = self._model.get_metrics()
             description = self._description_from_metrics(dev_metrics)
             dev_generator_tqdm.set_description(description, refresh=False)
 
-        return self._get_metrics(dev_loss, batches_this_epoch, reset=True)
+        return self._model.get_metrics(reset=True)
 
     def train(self):
         """Trains the supplied model with the supplied parameters.

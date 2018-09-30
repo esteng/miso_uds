@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -6,6 +7,8 @@ from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
 from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.attention import BiaffineAttention
 from stog.modules.linear import BiLinear
+from stog.metrics import UnlabeledAttachScore as UAS
+from stog.algorithms import maximum_spanning_tree as MST
 
 
 class DeepBiaffineParser(torch.nn.Module):
@@ -16,6 +19,9 @@ class DeepBiaffineParser(torch.nn.Module):
     Deep Biaffine Attention Parser was originally used in dependency parsing.
     See https://arxiv.org/abs/1611.01734
     """
+
+    # TODO: change it to -np.inf?
+    minus_inf = -1e8
 
     def __init__(
             self,
@@ -97,47 +103,69 @@ class DeepBiaffineParser(torch.nn.Module):
 
         encoder_output_size = encoder_input_size * 2
         # Linear transformation for edge headers.
-        self.edge_h = torch.nn.Linear(encoder_input_size, edge_hidden_size)
+        self.edge_h = torch.nn.Linear(encoder_output_size, edge_hidden_size)
         # Linear transformation for edge modifiers.
-        self.edge_m = torch.nn.Linear(encoder_input_size, edge_hidden_size)
+        self.edge_m = torch.nn.Linear(encoder_output_size, edge_hidden_size)
 
         self.attention = BiaffineAttention(edge_hidden_size, edge_hidden_size)
 
+        # Comment out because currently we don't consider edge types.
         # Linear transformation for type headers.
-        self.type_h = torch.nn.Linear(encoder_output_size, type_hidden_size)
+        # self.type_h = torch.nn.Linear(encoder_output_size, type_hidden_size)
         # Linear transformation for type modifiers.
-        self.type_m = torch.nn.Linear(encoder_output_size, type_hidden_size)
+        # self.type_m = torch.nn.Linear(encoder_output_size, type_hidden_size)
 
         self.bilinear = BiLinear(type_hidden_size, type_hidden_size, num_labels)
 
         # Metrics
-        self.loss = 0.0
+        self.accumulated_loss = 0.0
+        self.num_accumulated_tokens = 0
+        self.uas = UAS()
 
-    def get_metrics(self, reset=True):
-        return dict(
-            loss=self.loss
+    def get_metrics(self, reset=False):
+        metrics = dict(
+            loss=self.accumulated_loss / self.num_accumulated_tokens,
+            uas=self.uas.score
         )
+        if reset:
+            self.accumulated_loss = 0.0
+            self.num_accumulated_tokens = 0
+            self.uas.reset()
+        return metrics
 
     def get_regularization_penality(self):
         return 0.0
 
-    def forward(self, input_token, input_char, mask):
+    def forward(self, input_token, input_char, headers, mask, for_training=True):
         encoder_output = self.encode(input_token, input_char, mask)
-        edge, type = self.mlp(encoder_output)
+        edge = self.mlp(encoder_output)
         edge_headers, edge_modifiers = edge
         edge_scores = self.attention(edge_headers, edge_modifiers, mask)
-        return edge_scores
+        edge_log_likelihood = self.compute_edge_log_likelihood(edge_scores, mask)
+        num_tokens = mask.sum().item() - mask.size(0)
 
-    def loss(self, edge_scores, mask, headers, minus_inf=-1e8):
+        if for_training or headers is not None:
+            loss = self.compute_loss(edge_log_likelihood, headers)
+            pred_headers = self.decode(edge_log_likelihood, mask)
+            self.uas(pred_headers, headers, mask)
+            self.accumulated_loss += loss.item()
+            self.num_accumulated_tokens += num_tokens
+        else:
+            loss = 0.0
+            pred_headers = self.decode(edge_log_likelihood, mask)
+
+        return dict(
+            pred_headers=pred_headers,
+            loss=loss / num_tokens,
+        )
+
+    def compute_edge_log_likelihood(self, edge_scores, mask):
         """
         :param edge_scores: [batch, header_length, modifier_length]
         :param mask: [bath, length]
-        :param headers: [batch, length] -- header at [i, j] means the header index of token_j at batch_i.
-        :param minus_inf: -inf
-        :return:
         """
         # Make pad position -inf for log_softmax
-        minus_mask = (1 - mask) * minus_inf
+        minus_mask = (1 - mask) * self.minus_inf
         edge_scores = edge_scores + minus_mask.unsqueeze(2) + minus_mask.unsqueeze(1)
 
         # Compute the edge log likelihood.
@@ -147,21 +175,55 @@ class DeepBiaffineParser(torch.nn.Module):
         # Make pad position 0 for sum of loss
         edge_log_likelihood = edge_log_likelihood * mask.unsqueeze(2) * mask.unsqueeze(1)
 
+        return edge_log_likelihood
+
+    def compute_loss(self, edge_log_likelihood, headers):
+        """
+        :param edge_log_likelihood: [batch, header_length, modifier_length]
+        :param headers: [batch, length] -- header at [i, j] means the header index of token_j at batch_i.
+        """
         # Total number of headers to predict (ROOT excluded).
-        batch_size, max_len, _ = edge_scores.size()
-        num_headers = mask.sum() - batch_size
+        batch_size, max_len, _ = edge_log_likelihood.size()
 
         # Create indexing matrix for batch: [batch, 1]
         batch_index = torch.arange(0, batch_size).view(batch_size, 1)
-        batch_index = batch_index.type_as(edge_scores.data).long()
+        batch_index = batch_index.type_as(edge_log_likelihood.data).long()
         # Create indexing matrix for modifier: [batch, modifier_length]
         modifier_index = torch.arange(0, max_len).view(1, max_len).expand(batch_size, max_len)
-        modifier_index = modifier_index.type_as(edge_scores.data).long()
+        modifier_index = modifier_index.type_as(edge_log_likelihood.data).long()
         # Index the log likelihood of gold edges (ROOT excluded).
         # Output [batch, length - 1]
         gold_edge_log_likelihood = edge_log_likelihood[batch_index, headers.data, modifier_index][:, 1:]
 
-        return -gold_edge_log_likelihood.sum() / num_headers
+        return -gold_edge_log_likelihood.sum()
+
+    def decode(self, edge_scores, mask):
+        return self.mst_decode(edge_scores, mask)
+
+    def greedy_decode(self, edge_scores, mask=None):
+        # out_arc shape [batch, length, length]
+        edge_scores = edge_scores.data
+        batch, max_len, _ = edge_scores.size()
+
+        # set diagonal elements to -inf
+        edge_scores += torch.diag(edge_scores.new(max_len).fill_(-np.inf))
+
+        # set invalid positions to -inf
+        # minus_mask = (1 - mask.data).byte().view(batch, max_len, 1)
+        minus_mask = (1 - mask.data).byte().unsqueeze(2)
+        edge_scores.masked_fill_(minus_mask, -np.inf)
+
+        # compute naive predictions.
+        # predition shape = [batch, length]
+        _, headers = edge_scores.max(dim=1)
+
+        return headers.cpu().numpy()
+
+    def mst_decode(self, edge_scores, mask):
+        length = mask.sum(dim=1).long().cpu().numpy()
+        pred_headers = MST.decode(
+            edge_scores.cpu().numpy(), length, num_leading_symbols=1, labeled=False)
+        return pred_headers
 
     def encode(self, input_token, input_char, mask):
         """
@@ -217,20 +279,20 @@ class DeepBiaffineParser(torch.nn.Module):
         edge_m = F.elu(self.edge_m(input))
 
         # Output: [batch, length, type_hidden_size]
-        type_h = F.elu(self.type_h(input))
-        type_m = F.elu(self.type_m(input))
+        # type_h = F.elu(self.type_h(input))
+        # type_m = F.elu(self.type_m(input))
 
         # Apply dropout to certain node?
         # [batch, length * 2, hidden_size]
         edge = torch.cat([edge_h, edge_m], dim=1)
-        type = torch.cat([type_h, type_m], dim=1)
+        # type = torch.cat([type_h, type_m], dim=1)
         edge = self.hidden_state_dropout(edge.transpose(1, 2)).transpose(1, 2)
-        type = self.hidden_state_dropout(type.transpose(1, 2)).transpose(1, 2)
+        # type = self.hidden_state_dropout(type.transpose(1, 2)).transpose(1, 2)
 
         edge_h, edge_m = edge.chunk(2, 1)
-        type_h, type_m = type.chunk(2, 1)
+        # type_h, type_m = type.chunk(2, 1)
 
-        return (edge_h, edge_m), (type_h, type_m)
+        return edge_h, edge_m
 
     def attention(self, input_header, input_modifier, mask):
         """
