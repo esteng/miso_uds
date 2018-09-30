@@ -1,4 +1,23 @@
 
+class UnlabeledAttachScore:
+
+    def __init__(self):
+        self.accumulated_uas = 0.0
+        self.num_tokens = 0
+
+    def __call__(self, pred_headers, gold_headers, mask):
+        self.num_tokens += mask.sum().item() - mask.size(0)
+        self.accumulated_uas += uas(pred_headers, gold_headers, mask)
+
+    def reset(self):
+        self.accumulated_uas = 0.0
+        self.num_tokens = 0
+
+    @property
+    def score(self):
+        return self.accumulated_uas * 100 / self.num_tokens
+
+
 def uas(pred_headers, gold_headers, mask):
     """
     Compute unlabelled attachment score.
