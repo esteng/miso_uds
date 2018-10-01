@@ -136,7 +136,10 @@ class DeepBiaffineParser(torch.nn.Module):
     def get_regularization_penality(self):
         return 0.0
 
-    def forward(self, input_token, input_char, headers, mask, for_training=True):
+    def forward(self, batch, for_training=True,):
+        input_token = batch.tokens
+        input_char = batch.chars
+        headers, mask = batch.headers
         encoder_output = self.encode(input_token, input_char, mask)
         edge = self.mlp(encoder_output)
         edge_headers, edge_modifiers = edge
