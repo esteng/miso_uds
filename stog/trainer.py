@@ -43,7 +43,8 @@ class Trainer:
             serialization_dir = None,
             num_serialized_models_to_keep = 20,
             model_save_interval = None,
-            summary_interval = 100
+            summary_interval = 100,
+            batch_size = 64
     ):
         """
         Parameters
@@ -89,6 +90,8 @@ class Trainer:
             at the end of every epoch if ``serialization_dir`` is provided.
         :param summary_interval:
             Number of batches between logging scalars to tensorboard
+        :param batch_size:
+            Training and dev batch size
         """
         self._model = model
         self._optimizer = optimizer
@@ -106,6 +109,7 @@ class Trainer:
         self._num_serialized_models_to_keep = num_serialized_models_to_keep
         self._model_save_interval = model_save_interval
         self._summary_interval = summary_interval
+        self._batch_size = batch_size
 
         self._num_trained_batches = 0
         self._serialized_paths = []
@@ -149,12 +153,18 @@ class Trainer:
         # Get tqdm for the training batches
         # TODO: iterator takes the following params and returns a generator.
         # TODO: the generator should yield a dict containing parameters needed by the model.
-        train_generator = self._iterator(self._training_dataset,
-                                         num_epochs=1,
-                                         shuffle=self._shuffle,
-                                         use_gpu=self._use_gpu)
+        # self._iterator is torchtext bucketiterator
+        # TODO: How to deal with cuda device. Typically I set CUDA_VISIBLE_DEVICES before excute script, so it;s alway 0
+        train_generator = self._iterator(
+            dataset=self._training_dataset,
+            batch_size=self._batch_size,
+            sort_key=lambda x: len(x),
+            shuffle=self._shuffle,
+            device=torch.device('cuda:0') if self._use_gpu else None
+        )
+
         # TODO: iterator provides 'get_num_batches' method.
-        num_training_batches = self._iterator.get_num_batches(self._training_dataset)
+        num_training_batches = len(train_generator)
 
         logger.info('Training...')
         last_save_time = time.time()
