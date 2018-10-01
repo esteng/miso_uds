@@ -25,6 +25,35 @@ class StupidDict(dict):
     def __getitem__(self, i):
         return self.list[i]
 
+class HeaderField(RawField):
+    def __init__(
+            self,
+            batch_first=True,
+            is_target=True
+    ):
+        self.batch_first = batch_first
+        self.is_target = is_target
+
+    def preprocess(self, x):
+        return [int(item) for item in x]
+
+    def process(self, batch, device):
+        max_len = max(len(item) for item in batch)
+        batch_size = len(batch)
+        if self.batch_first:
+            batch_headers = torch.zeros(batch_size, max_len)
+            batch_mask = torch.zeros(batch_size, max_len)
+            for idx_in_batch, example in enumerate(batch):
+                batch_headers[idx_in_batch, :len(example)] = torch.Tensor(example)
+                batch_mask[idx_in_batch, : len(example)] = 1
+        else:
+            raise NotImplementedError
+
+        batch_headers.to(device)
+        batch_mask.to(device)
+
+        return batch_headers, batch_mask
+
 
 class RelationField(RawField):
     """
@@ -81,6 +110,7 @@ def get_fields(opt):
     fields['tokens'] = data.Field(
         sequential=True,
         lower=opt.lower,
+        batch_first=opt.batch_first
     )
 
     fields['chars'] = data.NestedField(
@@ -91,8 +121,8 @@ def get_fields(opt):
         ),
     )
 
-    fields['relations'] = RelationField(
-        is_target=True
+    fields['headers'] = HeaderField(
+        batch_first=opt.batch_first
     )
 
     return fields
@@ -110,7 +140,7 @@ def get_dataset(data_path, fields):
         [
             ("tokens", ( "tokens", fields['tokens'] ) ),
             ("tokens", ( "chars", fields["chars"] ) ),
-            ("relations" , ( "relations", fields["relations"]))
+            ("headers" , ( "headers", fields["headers"]))
         ]
     )
     dataset = data.TabularDataset(
@@ -190,4 +220,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("preprocess.py")
     preprocess_opts(parser)
     opt = Options(parser)
-    preprocess(opt)
+    train_data, dev_data = preprocess(opt)
+    train_iter = data.BucketIterator(
+        dataset=train_data,
+        batch_size=64,
+        sort_key=lambda x: len(x),
+        device=None,
+        train=True,
+        repeat=None,
+        shuffle=None
+    )
+
+    from stog.utils.tqdm import Tqdm
+    for batch in Tqdm.tqdm(train_iter):
+        import pdb;pdb.set_trace()

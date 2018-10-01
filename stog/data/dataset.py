@@ -85,9 +85,13 @@ def get_fields(opt):
         ),
     )
 
-    fields['relations'] = RelationField(
-        batch_first=opt.batch_first,
-        is_target=True
+    #fields['relations'] = RelationField(
+    #    batch_first=opt.batch_first,
+    #    is_target=True
+    #)
+
+    fields['headers'] = data.Field(
+        sequential=True,
     )
 
     return fields

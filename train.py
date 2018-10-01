@@ -1,5 +1,6 @@
 import argparse
 import sys
+from torchtext.data import BucketIterator
 from stog.data import get_iterator, get_dataset_splits
 from stog.utils import init_logger, logger
 from stog.utils import ExceptionHook
@@ -18,8 +19,8 @@ def main(opt):
     logger.info("Loading data ...")
     train_data, dev_data = preprocess(opt)
 
-    logger.info("Building training iterator ...")
-    train_iter = get_iterator(opt, train_data)
+    #logger.info("Building training iterator ...")
+    #train_iter = get_iterator(opt, train_data)
 
     # build model
     logger.info("Building model ...")
@@ -33,7 +34,8 @@ def main(opt):
     logger.info("Building Trainer...")
     trainer = Trainer(
         model=model,
-        optim=optim
+        optim=optim,
+        iterator=BucketIterator
     )
 
     trainer.train()

@@ -73,6 +73,8 @@ def preprocess_opts(parser):
     group = parser.add_argument_group('Random')
     group.add_argument('--shuffle', type=int, default=1,
                        help="Shuffle data")
+    group.add_argument('--batch_first', action="store_true", default=False,
+                       help="Batch first")
 
 def train_opts(parser):
     """ Training and saving options """
