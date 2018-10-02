@@ -27,7 +27,7 @@ def uas(pred_headers, gold_headers, mask):
     :return: float
     """
     equality = (pred_headers[:, 1:] == gold_headers[:, 1:]) # exclude ROOT
-    equality = equality.long() * mask
+    equality = equality.long() * mask[:, 1:].long()
     num_tokens = mask.sum().item() - mask.size(0)
     return 100.0 * equality.sum().item() / num_tokens
 
