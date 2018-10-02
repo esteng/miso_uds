@@ -8,6 +8,24 @@ import torch
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 
+def build_optim(opt, model):
+    """ Build optimizer """
+    optim = Optimizer(
+        opt.optim, opt.learning_rate, opt.max_grad_norm,
+        lr_decay=opt.learning_rate_decay,
+        start_decay_steps=opt.start_decay_steps,
+        decay_steps=opt.decay_steps,
+        beta1=opt.adam_beta1,
+        beta2=opt.adam_beta2,
+        adagrad_accum=opt.adagrad_accumulator_init,
+        decay_method=opt.decay_method,
+        warmup_steps=opt.warmup_steps,
+        model_size=opt.encoder_size
+    )
+
+    optim.set_parameters(model.named_parameters())
+
+    return optim
 
 class MultipleOptimizer(object):
     """ Implement multiple optimizers needed for sparse adam """
