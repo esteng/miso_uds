@@ -10,7 +10,7 @@ from stog.utils.opts import Options
 from stog.utils.logging import init_logger, logger
 from stog.utils import ExceptionHook
 ROOT_TOKEN="<root>"
-ROOT_CHARS=list(ROOT_TOKEN)
+ROOT_CHAR="<r>"
 #sys.excepthook = ExceptionHook()
 
 class StupidDict(dict):
@@ -100,6 +100,37 @@ class RelationField(RawField):
 
         return batch_relation_tensor, batch_relation_tensor_mask
 
+class RootNestedField(data.NestedField):
+    def add_root(self, root_char):
+        assert self.vocab, "Call this function after there is a vocab"
+        self.vocab.stoi[root_char] = len(self.vocab)
+        self.vocab.itos.append(root_char)
+        self._root = True
+        self._root_char = root_char
+
+    def process(self, batch, device=None):
+        """ Process a list of examples to create a torch.Tensor.
+        Pad, numericalize, and postprocess a batch and create a tensor.
+        Args:
+            batch (list(object)): A list of object from a batch of examples.
+        Returns:
+            torch.autograd.Variable: Processed object given the input
+            and custom postprocessing Pipeline.
+        """
+
+        padded = self.pad(batch)
+        batch_size = len(padded)
+        seq_len = len(padded[0])
+        max_char_len = len(padded[0][0])
+        new_padded = []
+        for seq in padded:
+            if self.init_token is None:
+                new_padded.append(
+                    [[self._root_char] + [ self.pad_token for i in range(max_char_len - 1)]] + seq
+                )
+        tensor = self.numericalize(new_padded, device=device)
+        return tensor
+
 
 def get_fields(opt):
     """
@@ -116,12 +147,8 @@ def get_fields(opt):
         preprocessing=lambda x: [ROOT_TOKEN] + x
     )
 
-    fields['chars'] = data.NestedField(
-        data.Field(
-            tokenize=list,
-            eos_token=None,
-        ),
-        preprocessing=lambda x: [ROOT_TOKEN] + x
+    fields['chars'] = RootNestedField(
+        data.Field(tokenize=list)
     )
 
     fields['headers'] = HeaderField(
@@ -160,6 +187,7 @@ def build_vocab(fields, data):
     # Build vocab
     fields['tokens'].build_vocab(data)
     fields['chars'].build_vocab(data)
+    fields['chars'].add_root(ROOT_CHAR)
 
 
 def get_iterator(dataset, opt):
