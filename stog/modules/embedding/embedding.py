@@ -21,7 +21,8 @@ from stog.utils import logging
 from stog.utils.tqdm import Tqdm
 from stog.utils.checks import ConfigurationError
 from stog.utils.file import get_file_extension, cached_path
-from stog.data.vocabulary import Vocabulary
+#from stog.data.vocabulary import Vocabulary
+from torchtext.vocab import Vocab
 from stog.modules.time_distributed import TimeDistributed
 
 logger = logging.init_logger()  # pylint: disable=invalid-name
@@ -86,6 +87,7 @@ class Embedding(torch.nn.Module):
                  sparse: bool = False) -> None:
         super(Embedding, self).__init__()
         self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
         self.padding_index = padding_index
         self.max_norm = max_norm
         self.norm_type = norm_type
@@ -111,9 +113,9 @@ class Embedding(torch.nn.Module):
         else:
             self._projection = None
 
-    @overrides
-    def get_output_dim(self) -> int:
-        return self.output_dim
+   # @overrides
+   # def get_output_dim(self) -> int:
+        #return self.output_dim
 
     @overrides
     def forward(self, inputs):  # pylint: disable=arguments-differ
@@ -136,8 +138,17 @@ class Embedding(torch.nn.Module):
         return embedded
 
     # Custom logic requires custom from_params.
+    def load_pretrain_from_file(self, vocab: Vocab, pretrained_file):
+        weight = _read_pretrained_embeddings_file(
+            pretrained_file,
+            self.embedding_dim,
+            vocab,
+        )
+
+        self.weight.data.copy_(weight)
+
     @classmethod
-    def from_params(cls, vocab: Vocabulary, params: Params) -> 'Embedding':  # type: ignore
+    def from_params(cls, vocab: Vocab , params) -> 'Embedding':  # type: ignore
         """
         We need the vocabulary here to know how many items we need to embed, and we look for a
         ``vocab_namespace`` key in the parameter dictionary to know which vocabulary to use.  If
@@ -188,8 +199,7 @@ class Embedding(torch.nn.Module):
             # have the original embedding file anymore, anyway.
             weight = _read_pretrained_embeddings_file(pretrained_file,
                                                       embedding_dim,
-                                                      vocab,
-                                                      vocab_namespace)
+                                                      vocab)
         else:
             weight = None
 
@@ -207,8 +217,8 @@ class Embedding(torch.nn.Module):
 
 def _read_pretrained_embeddings_file(file_uri: str,
                                      embedding_dim: int,
-                                     vocab: Vocabulary,
-                                     namespace: str = "tokens") -> torch.FloatTensor:
+                                     vocab: Vocab
+                                     ) -> torch.FloatTensor:
     """
     Returns and embedding matrix for the given vocabulary using the pretrained embeddings
     contained in the given file. Embeddings for tokens not found in the pretrained embedding file
@@ -254,18 +264,16 @@ def _read_pretrained_embeddings_file(file_uri: str,
     file_ext = get_file_extension(file_uri)
     if file_ext in ['.h5', '.hdf5']:
         return _read_embeddings_from_hdf5(file_uri,
-                                          embedding_dim,
-                                          vocab, namespace)
+                                          embedding_dim)
 
     return _read_embeddings_from_text_file(file_uri,
                                            embedding_dim,
-                                           vocab, namespace)
+                                           vocab)
 
 
 def _read_embeddings_from_text_file(file_uri: str,
                                     embedding_dim: int,
-                                    vocab: Vocabulary,
-                                    namespace: str = "tokens") -> torch.FloatTensor:
+                                    vocab: Vocab) -> torch.FloatTensor:
     """
     Read pre-trained word vectors from an eventually compressed text file, possibly contained
     inside an archive with multiple files. The text file is assumed to be utf-8 encoded with
@@ -275,8 +283,11 @@ def _read_embeddings_from_text_file(file_uri: str,
 
     The remainder of the docstring is identical to ``_read_pretrained_embeddings_file``.
     """
-    tokens_to_keep = set(vocab.get_index_to_token_vocabulary(namespace).values())
-    vocab_size = vocab.get_vocab_size(namespace)
+    #tokens_to_keep = set(vocab.get_index_to_token_vocabulary(namespace).values())
+    #vocab_size = vocab.get_vocab_size(namespace)
+    tokens_to_keep = set(vocab.stoi.keys())
+    vocab_size = len(vocab)
+
     embeddings = {}
 
     # First we read the embeddings from the file, only keeping vectors for the words we need.
@@ -316,7 +327,7 @@ def _read_embeddings_from_text_file(file_uri: str,
     embedding_matrix = torch.FloatTensor(vocab_size, embedding_dim).normal_(embeddings_mean,
                                                                             embeddings_std)
     num_tokens_found = 0
-    index_to_token = vocab.get_index_to_token_vocabulary(namespace)
+    index_to_token = vocab.itos
     for i in range(vocab_size):
         token = index_to_token[i]
 
@@ -336,7 +347,7 @@ def _read_embeddings_from_text_file(file_uri: str,
 
 def _read_embeddings_from_hdf5(embeddings_filename: str,
                                embedding_dim: int,
-                               vocab: Vocabulary,
+                               vocab: Vocab,
                                namespace: str = "tokens") -> torch.FloatTensor:
     """
     Reads from a hdf5 formatted file. The embedding matrix is assumed to
