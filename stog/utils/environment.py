@@ -85,7 +85,7 @@ def peak_memory_mb() -> float:
         return peak / 1_000
 
 
-def gpu_memory_mb() -> Dict[int, int]:
+def gpu_memory_mb() -> dict:
     """
     Get the current GPU memory usage.
     Based on https://discuss.pytorch.org/t/access-gpu-memory-usage-in-pytorch/3192/4
