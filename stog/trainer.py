@@ -126,7 +126,7 @@ class Trainer:
         Does a forward pass on the given batch and returns the ``loss`` value in the result.
         If ``for_training`` is `True` also applies regularization penalty.
         """
-        output_dict = self._model(for_training=for_training, **batch)
+        output_dict = self._model(batch, for_training=for_training)
 
         try:
             loss = output_dict["loss"]
@@ -141,7 +141,7 @@ class Trainer:
         return loss
 
     def _train_epoch(self, epoch):
-        logger.info('Epoch {}/{}', epoch, self._num_epochs - 1)
+        logger.info('Epoch {}/{}'.format(epoch, self._num_epochs - 1))
         logger.info(f'Peak CPU memory usage MB: {peak_memory_mb()}')
         for gpu, memory in gpu_memory_mb().items():
             logger.info(f"GPU {gpu} memory usage MB: {memory}")
@@ -307,6 +307,9 @@ class Trainer:
                 "Could not recover training from the checkpoint.  Did you mean to output to "
                 "a different serialization directory or delete the existing serialization "
                 "directory?")
+        except IndexError:
+            logger.info("Setting new directory '{}' to save model".format(self._serialization_dir))
+            epoch_counter, dev_metric_per_epoch = 0, []
 
         self._enable_gradient_clipping()
 
