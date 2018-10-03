@@ -126,7 +126,7 @@ class DeepBiaffineParser(torch.nn.Module):
             self.uas.reset()
         return metrics
 
-    def get_regularization_penality(self):
+    def get_regularization_penalty(self):
         return 0.0
 
     def forward(self, batch, for_training=True,):
