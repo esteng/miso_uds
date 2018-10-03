@@ -27,15 +27,30 @@ def main(opt):
     model = build_model(opt, train_data)
 
     # build optimizer
-    logger.info("Building optimizer ...")
-    optim = build_optim(opt, model, checkpoint=None)
+    #logger.info("Building optimizer ...")
+    optim = build_optim(opt, model)
 
     # build trainer
     logger.info("Building Trainer...")
+
     trainer = Trainer(
         model=model,
-        optim=optim,
-        iterator=BucketIterator
+        optimizer=optim,
+        iterator=BucketIterator,
+        training_dataset=train_data,
+        dev_dataset=dev_data,
+        dev_iterator=BucketIterator,
+        dev_metric='loss',
+        use_gpu=opt.gpu,
+        patience=None,
+        grad_clipping=None,
+        shuffle=opt.shuffle,
+        num_epochs=20,
+        serialization_dir=opt.save_model,
+        num_serialized_models_to_keep=20,
+        model_save_interval=opt.model_save_interval,
+        summary_interval=100,
+        batch_size=opt.batch_size
     )
 
     trainer.train()
