@@ -26,8 +26,9 @@ def uas(pred_headers, gold_headers, mask):
     :param mask: [batch, max_length]
     :return: float
     """
+    #import pdb;pdb.set_trace()
     equality = (pred_headers[:, 1:] == gold_headers[:, 1:]) # exclude ROOT
     equality = equality.long() * mask[:, 1:].long()
-    num_tokens = mask.sum().item() - mask.size(0)
+    num_tokens = mask[:, 1:].sum().item()
     return 100.0 * equality.sum().item() / num_tokens
 
