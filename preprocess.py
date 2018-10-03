@@ -9,8 +9,9 @@ from stog.utils.opts import preprocess_opts
 from stog.utils.opts import Options
 from stog.utils.logging import init_logger, logger
 from stog.utils import ExceptionHook
-
-sys.excepthook = ExceptionHook()
+ROOT_TOKEN="<root>"
+ROOT_CHARS=list(ROOT_TOKEN)
+#sys.excepthook = ExceptionHook()
 
 class StupidDict(dict):
     def __init__(self, list):
@@ -35,16 +36,17 @@ class HeaderField(RawField):
         self.is_target = is_target
 
     def preprocess(self, x):
-        return [int(item) for item in x]
+        # add 0 for root node
+        return [0] + [int(item) for item in x]
 
     def process(self, batch, device):
         max_len = max(len(item) for item in batch)
         batch_size = len(batch)
         if self.batch_first:
-            batch_headers = torch.zeros(batch_size, max_len)
-            batch_mask = torch.zeros(batch_size, max_len)
+            batch_headers = torch.zeros(batch_size, max_len, dtype=torch.long)
+            batch_mask = torch.zeros(batch_size, max_len, dtype=torch.float)
             for idx_in_batch, example in enumerate(batch):
-                batch_headers[idx_in_batch, :len(example)] = torch.Tensor(example)
+                batch_headers[idx_in_batch, :len(example)] = torch.LongTensor(example)
                 batch_mask[idx_in_batch, : len(example)] = 1
         else:
             raise NotImplementedError
@@ -110,15 +112,16 @@ def get_fields(opt):
     fields['tokens'] = data.Field(
         sequential=True,
         lower=opt.lower,
-        batch_first=opt.batch_first
+        batch_first=opt.batch_first,
+        preprocessing=lambda x: [ROOT_TOKEN] + x
     )
 
     fields['chars'] = data.NestedField(
         data.Field(
             tokenize=list,
-            init_token="<bos>",
-            eos_token="<eos>"
+            eos_token=None,
         ),
+        preprocessing=lambda x: [ROOT_TOKEN] + x
     )
 
     fields['headers'] = HeaderField(
