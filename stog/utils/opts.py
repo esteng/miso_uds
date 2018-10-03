@@ -71,7 +71,7 @@ def preprocess_opts(parser):
                        help="truecase the tokens")
     # Data processing options
     group = parser.add_argument_group('Random')
-    group.add_argument('--shuffle', type=int, default=1,
+    group.add_argument('--shuffle', action="store_true", default=False,
                        help="Shuffle data")
     group.add_argument('--batch_first', action="store_true", default=False,
                        help="Batch first")
@@ -85,11 +85,14 @@ def train_opts(parser):
                            <save_model>_N.pt where N is the number
                            of steps""")
 
+    group.add_argument('-model_save_interval', default=None,
+                       help="save model evert this seconds")
+
     group.add_argument('--save_checkpoint_steps', type=int, default=5000,
                        help="""Save a checkpoint every X steps""")
     # GPU
-    group.add_argument('--gpuid', default=[], nargs='+', type=int,
-                       help="Deprecated see world_size and gpu_ranks.")
+    group.add_argument('--gpu', action="store_true", default=False,
+                       help="deprecated see world_size and gpu_ranks.")
 
     group.add_argument('--seed', type=int, default=-1,
                        help="""Random seed used for the experiments
@@ -188,6 +191,8 @@ def train_opts(parser):
                        help="""Decay every decay_steps""")
     group.add_argument('--decay_method', type=str, default="",
                        choices=['noam'], help="Use a custom decay rate.")
+    group.add_argument('-warmup_steps', type=int, default=4000,
+                       help="""Number of warmup steps for custom decay.""")
 
     group = parser.add_argument_group('Logging')
     group.add_argument('--report_every', type=int, default=50,
