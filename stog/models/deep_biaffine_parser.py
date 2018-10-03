@@ -28,10 +28,8 @@ class DeepBiaffineParser(torch.nn.Module):
             # Embedding
             num_token_embeddings,
             token_embedding_dim,
-            token_embedding_weight,
             num_char_embeddings,
             char_embedding_dim,
-            char_embedding_weight,
             embedding_dropout_rate,
             hidden_state_dropout_rate,
             # Character CNN
@@ -39,7 +37,6 @@ class DeepBiaffineParser(torch.nn.Module):
             num_filters,
             kernel_size,
             # Encoder
-            encoder_input_size,
             encoder_hidden_size,
             num_encoder_layers,
             encoder_dropout_rate,
@@ -53,16 +50,14 @@ class DeepBiaffineParser(torch.nn.Module):
         super(DeepBiaffineParser, self).__init__()
         self.num_token_embeddings = num_char_embeddings
         self.token_embedding_dim = token_embedding_dim
-        self.token_embedding_weight = token_embedding_weight
         self.num_char_embeddings = num_char_embeddings
         self.char_embedding_dim = char_embedding_dim
-        self.char_embedding_weight = char_embedding_weight
         self.embedding_dropout_rate = embedding_dropout_rate
         self.hidden_state_dropout_rate = hidden_state_dropout_rate
         self.use_char_conv = use_char_conv
         self.num_filters = num_filters
         self.kernel_size = kernel_size
-        self.encoder_input_size = encoder_input_size
+        self.encoder_input_size = token_embedding_dim + char_embedding_dim if use_char_conv else token_embedding_dim
         self.encoder_hidden_size = encoder_hidden_size
         self.num_encoder_layers = num_encoder_layers
         self.encoder_dropout = encoder_dropout_rate
@@ -73,13 +68,11 @@ class DeepBiaffineParser(torch.nn.Module):
 
         self.token_embedding = Embedding(
             num_token_embeddings,
-            token_embedding_dim,
-            token_embedding_weight
+            token_embedding_dim
         )
         self.char_embedding = Embedding(
             num_char_embeddings,
-            char_embedding_dim,
-            char_embedding_weight
+            char_embedding_dim
         )
 
         self.embedding_dropout = torch.nn.Dropout2d(p=embedding_dropout_rate)
@@ -95,19 +88,19 @@ class DeepBiaffineParser(torch.nn.Module):
             )
 
         self.encoder = PytorchSeq2SeqWrapper(StackedBidirectionalLstm(
-            encoder_input_size,
+            self.encoder_input_size,
             encoder_hidden_size,
             num_encoder_layers,
             encoder_dropout_rate
         ))
 
-        encoder_output_size = encoder_input_size * 2
+        encoder_output_size = self.encoder_hidden_size * 2
         # Linear transformation for edge headers.
         self.edge_h = torch.nn.Linear(encoder_output_size, edge_hidden_size)
         # Linear transformation for edge modifiers.
         self.edge_m = torch.nn.Linear(encoder_output_size, edge_hidden_size)
 
-        self.attention = BiaffineAttention(edge_hidden_size, edge_hidden_size)
+        self._attention = BiaffineAttention(edge_hidden_size, edge_hidden_size)
 
         # Comment out because currently we don't consider edge types.
         # Linear transformation for type headers.
@@ -149,7 +142,8 @@ class DeepBiaffineParser(torch.nn.Module):
 
         if for_training or headers is not None:
             loss = self.compute_loss(edge_log_likelihood, headers)
-            pred_headers = self.decode(edge_log_likelihood, mask)
+            #TODO: Metric for graph includes type.
+            pred_headers = self.decode(edge_log_likelihood, mask)[0]
             self.uas(pred_headers, headers, mask)
             self.accumulated_loss += loss.item()
             self.num_accumulated_tokens += num_tokens
@@ -225,7 +219,11 @@ class DeepBiaffineParser(torch.nn.Module):
     def mst_decode(self, edge_scores, mask):
         length = mask.sum(dim=1).long().cpu().numpy()
         pred_headers = MST.decode(
-            edge_scores.cpu().numpy(), length, num_leading_symbols=1, labeled=False)
+            edge_scores.detach().cpu().numpy(),
+            length,
+            num_leading_symbols=1,
+            labeled=False
+        )
         return pred_headers
 
     def encode(self, input_token, input_char, mask):
@@ -306,6 +304,12 @@ class DeepBiaffineParser(torch.nn.Module):
         :param mask: [batch, length, hidden_size]
         :return: [batch, header_length, modifier_length]
         """
-        output = self.attention(input_header, input_modifier, mask_d=mask, mask_e=mask).squeeze(dim=1)
+        output = self._attention(input_header, input_modifier, mask_d=mask, mask_e=mask).squeeze(dim=1)
         return output
 
+    def load_embedding(self, field, file, vocab):
+        assert field in ["chars", "tokens"]
+        if field == "chars":
+            self.char_embedding.load_pretrain_from_file(vocab, file)
+        if field == "tokens":
+            self.token_embedding.load_pretrain_from_file(vocab, file)
