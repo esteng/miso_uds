@@ -159,6 +159,7 @@ class Trainer:
             dataset=self._training_dataset,
             batch_size=self._batch_size,
             sort_key=lambda x: len(x),
+            repeat=False,
             shuffle=self._shuffle,
             device=torch.device('cuda:0') if self._use_gpu else None
         )
@@ -203,6 +204,7 @@ class Trainer:
                 self._save_checkpoint(
                     '{0}.{1}'.format(epoch, time_to_str(int(last_save_time))), [], is_best=False
                 )
+        logger.info('Finish one epoch.')
         return self._model.get_metrics(reset=True)
 
     def _metrics_to_tensorboard(self,
@@ -244,7 +246,7 @@ class Trainer:
         name_length = max([len(x) for x in metric_names])
 
         logger.info(header_template, "Training".rjust(name_length + 13), "Dev")
-        for name in metric_names:
+        for name in sorted(metric_names):
             train_metric = train_metrics.get(name)
             dev_metric = dev_metrics.get(name)
 
@@ -268,11 +270,15 @@ class Trainer:
         else:
             dev_iterator = self._iterator
 
-        dev_generator = dev_iterator(self._dev_dataset,
-                                     num_epochs=1,
-                                     shuffle=False,
-                                     use_gpu=self._use_gpu)
-        num_dev_batches = dev_iterator.get_num_batches(self._dev_dataset)
+        dev_generator = dev_iterator(
+            self._dev_dataset,
+            batch_size=self._batch_size,
+            sort_key=lambda x: len(x),
+            repeat=False,
+            shuffle=False,
+            device=torch.device('cuda:0') if self._use_gpu else None
+        )
+        num_dev_batches = len(dev_generator)
         dev_generator_tqdm = Tqdm.tqdm(dev_generator,
                                        total=num_dev_batches)
         batches_this_epoch = 0
@@ -469,7 +475,7 @@ class Trainer:
         ]
         if len(found_epochs) == 0:
             return None
-        
+
         int_epochs = []
         for epoch in found_epochs:
             pieces = epoch.split('.')
