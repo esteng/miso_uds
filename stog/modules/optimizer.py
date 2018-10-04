@@ -121,6 +121,9 @@ class Optimizer(object):
         else:
             return max(op.param_groups[0]['lr'] for op in self.optimizer.optimizers)
 
+    def state_dict(self):
+        return self.optimizer.state_dict()
+
     def set_parameters(self, params):
         """ ? """
         self.params = []
