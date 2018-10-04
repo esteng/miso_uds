@@ -307,9 +307,6 @@ class Trainer:
                 "Could not recover training from the checkpoint.  Did you mean to output to "
                 "a different serialization directory or delete the existing serialization "
                 "directory?")
-        except IndexError:
-            logger.info("Setting new directory '{}' to save model".format(self._serialization_dir))
-            epoch_counter, dev_metric_per_epoch = 0, []
 
         self._enable_gradient_clipping()
 
@@ -470,6 +467,9 @@ class Trainer:
             re.search("model_state_epoch_([0-9\.\-]+)\.th", x).group(1)
             for x in model_checkpoints
         ]
+        if len(found_epochs) == 0:
+            return None
+        
         int_epochs = []
         for epoch in found_epochs:
             pieces = epoch.split('.')
