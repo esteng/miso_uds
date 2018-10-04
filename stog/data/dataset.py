@@ -32,7 +32,7 @@ class RelationField(RawField):
     def preprocess(self, x):
         return x
 
-    def process(self, batch, device=None):
+    def process(self, batch, device=None, train=False):
         max_len = max(len(item) for item in batch)
         batch_size = len(batch)
 
