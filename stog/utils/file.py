@@ -17,7 +17,7 @@ import boto3
 from botocore.exceptions import ClientError
 import requests
 
-from allennlp.common.tqdm import Tqdm
+from stog.utils.tqdm import Tqdm
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
