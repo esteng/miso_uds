@@ -5,7 +5,7 @@ def model_opts(parser : argparse.ArgumentParser):
     # Embedding Options
     group = parser.add_argument_group('Model-Embeddings')
 
-    group.add_argument('--token_emb_size', type=int, default=500,
+    group.add_argument('--token_emb_size', type=int, default=300,
                        help='Size of token embedding')
 
     group.add_argument('--char_emb_size', type=int, default=100,
@@ -17,7 +17,7 @@ def model_opts(parser : argparse.ArgumentParser):
     group.add_argument('--pretrain_char_emb', type=str,
                        help="")
 
-    group.add_argument('--emb_dropout', type=float, default=0.3,
+    group.add_argument('--emb_dropout', type=float, default=0.33,
                        help="Dropout rate for embeddings")
 
     # Model Options
@@ -26,7 +26,7 @@ def model_opts(parser : argparse.ArgumentParser):
     group.add_argument('--model_type', type=str, default="DeepBiaffineParser",
                        help="Model needs to be trained")
 
-    group.add_argument('--hidden_dropout', type=float, default=0.3,
+    group.add_argument('--hidden_dropout', type=float, default=0.33,
                        help="Dropout rate for hidden state")
 
     group.add_argument('--use_char_conv', action='store_true', default=False,
@@ -38,23 +38,25 @@ def model_opts(parser : argparse.ArgumentParser):
     group.add_argument('--kernel_size', type=int, default=4,
                        help="")
 
-    group.add_argument('--encoder_layers', type=int, default=2,
+    group.add_argument('--encoder_layers', type=int, default=3,
                        help='Number of layers in the encoder')
 
-    group.add_argument('--encoder_size', type=int, default=500,
+    group.add_argument('--encoder_size', type=int, default=512,
                        help='Size of rnn hidden states')
 
-    group.add_argument('--encoder_dropout', type=float, default=0.3,
+    group.add_argument('--encoder_dropout', type=float, default=0.33,
                        help="Dropout rate for encoder hidden state")
 
-    group.add_argument('--edge_hidden_size', type=int, default=500,
+    group.add_argument('--edge_hidden_size', type=int, default=512,
                        help='')
 
-    group.add_argument('--type_hidden_size', type=int, default=500,
+    group.add_argument('--type_hidden_size', type=int, default=128,
                        help='')
 
-    group.add_argument('--num_labels', type=int, default=500,
+    group.add_argument('--num_labels', type=int, default=50,
                        help='')
+    group.add_argument('--decode_type', choices=['greedy', 'mst'], default='greedy',
+                       help='Algorithm for graph decoding.')
 
 
 def preprocess_opts(parser):
@@ -80,7 +82,7 @@ def train_opts(parser):
     """ Training and saving options """
 
     group = parser.add_argument_group('General')
-    group.add_argument('--save_model', default='model',
+    group.add_argument('--save_model', default=None,
                        help="""Model filename (the model will be saved as
                            <save_model>_N.pt where N is the number
                            of steps""")
@@ -136,7 +138,7 @@ def train_opts(parser):
                        help='Maximum batch size for validation')
     group.add_argument('-train_steps', type=int, default=100000,
                        help='Number of training steps')
-    group.add_argument('--epochs', type=int, default=0,
+    group.add_argument('--epochs', type=int, default=20,
                        help='Deprecated epochs see train_steps')
     group.add_argument('--optim', default='sgd',
                        choices=['sgd', 'adagrad', 'adadelta', 'adam',
