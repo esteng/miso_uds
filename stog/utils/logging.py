@@ -3,10 +3,6 @@ from __future__ import absolute_import
 import logging
 
 
-
-logger = logging.getLogger()
-
-
 def init_logger(log_name=None, log_file=None):
     """
     Adopted from OpenNMT-py:

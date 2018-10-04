@@ -7,11 +7,13 @@ from torchtext.data.field import RawField
 from torchtext.vocab import Vectors
 from stog.utils.opts import preprocess_opts
 from stog.utils.opts import Options
-from stog.utils.logging import init_logger, logger
+from stog.utils import logging
 from stog.utils import ExceptionHook
+
 ROOT_TOKEN="<root>"
 ROOT_CHAR="<r>"
 #sys.excepthook = ExceptionHook()
+logger = logging.init_logger()
 
 class StupidDict(dict):
     def __init__(self, list):
@@ -216,7 +218,6 @@ def save_fields_to_vocab(fields):
     return vocab
 
 def preprocess(opt):
-    init_logger()
 
     logger.info("Getting fields ...")
     fields = get_fields(opt)
