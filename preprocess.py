@@ -39,7 +39,7 @@ class HeaderField(RawField):
         # add 0 for root node
         return [0] + [int(item) for item in x]
 
-    def process(self, batch, device):
+    def process(self, batch, device, train):
         max_len = max(len(item) for item in batch)
         batch_size = len(batch)
         if self.batch_first:
@@ -51,8 +51,8 @@ class HeaderField(RawField):
         else:
             raise NotImplementedError
 
-        batch_headers.to(device)
-        batch_mask.to(device)
+        batch_headers = batch_headers.to(device)
+        batch_mask = batch_mask.to(device)
 
         return batch_headers, batch_mask
 
@@ -72,7 +72,7 @@ class RelationField(RawField):
     def preprocess(self, x):
         return x
 
-    def process(self, batch, device=None):
+    def process(self, batch, device=None, train=False):
         max_len = max(len(item) for item in batch)
         batch_size = len(batch)
 
@@ -95,8 +95,9 @@ class RelationField(RawField):
             batch_relation_tensor[idx_in_batch, relations_child, relations_father] = 1
 
         # Move to GPU if needed
-        batch_relation_tensor.to(device)
-        batch_relation_tensor_mask.to(device)
+        # TODO: Make sure this is the right way to move tensor to gpu memory.
+        batch_relation_tensor = batch_relation_tensor.to(device)
+        batch_relation_tensor_mask = batch_relation_tensor_mask.to(device)
 
         return batch_relation_tensor, batch_relation_tensor_mask
 
@@ -108,7 +109,7 @@ class RootNestedField(data.NestedField):
         self._root = True
         self._root_char = root_char
 
-    def process(self, batch, device=None):
+    def process(self, batch, device=None, train=False):
         """ Process a list of examples to create a torch.Tensor.
         Pad, numericalize, and postprocess a batch and create a tensor.
         Args:
