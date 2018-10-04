@@ -2,7 +2,7 @@ import argparse
 import sys
 from torchtext.data import BucketIterator
 from stog.data import get_iterator, get_dataset_splits
-from stog.utils import init_logger, logger
+from stog.utils import logging
 from stog.utils import ExceptionHook
 from stog.utils.opts import preprocess_opts, model_opts, train_opts, Options
 from stog.model_builder import build_model
@@ -11,9 +11,12 @@ from stog.models.deep_biaffine_parser import DeepBiaffineParser
 from stog.trainer import Trainer
 from stog.modules.optimizer import build_optim
 
+logger = logging.init_logger()
+
+
 def main(opt):
 
-    init_logger()
+    logger.info('Params:\n{}'.format(opt))
 
     # preprocess data
     logger.info("Loading data ...")
@@ -45,9 +48,9 @@ def main(opt):
         patience=None,
         grad_clipping=None,
         shuffle=opt.shuffle,
-        num_epochs=20,
+        num_epochs=opt.epochs,
         serialization_dir=opt.save_model,
-        num_serialized_models_to_keep=20,
+        num_serialized_models_to_keep=5,
         model_save_interval=opt.model_save_interval,
         summary_interval=100,
         batch_size=opt.batch_size
