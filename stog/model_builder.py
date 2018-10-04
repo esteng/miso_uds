@@ -45,5 +45,9 @@ def build_model(opt, train_data):
             vocab=train_data.fields["chars"].vocab
         )
         logger.info("Done.")
+
+    if opt.gpu:
+        model.cuda()
+
     print(model)
     return model
