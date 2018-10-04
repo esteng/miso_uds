@@ -1,6 +1,8 @@
 from torchtext.vocab import Vectors
-from stog.utils import logger
+from stog.utils import logging
 from stog.models import DeepBiaffineParser
+
+logger = logging.init_logger()
 
 def build_model(opt, train_data):
 
@@ -23,7 +25,8 @@ def build_model(opt, train_data):
             encoder_dropout_rate=opt.encoder_dropout,
             edge_hidden_size=opt.edge_hidden_size,
             type_hidden_size=opt.type_hidden_size,
-            num_labels=opt.num_labels
+            num_labels=opt.num_labels,
+            decode_type=opt.decode_type
         )
     else:
         raise NotImplementedError
