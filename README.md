@@ -23,7 +23,15 @@ This project is based on python 3.6 and the newest version of PyTorch.
 
 ## Related Work
 
+- Deep Biaffine
+    - [ICLR2017](https://arxiv.org/pdf/1611.01734.pdf)
+    - [CoNLL2017](https://web.stanford.edu/~tdozat/files/TDozat-CoNLL2017-Paper.pdf)
+    - [CoNLL2018](http://universaldependencies.org/conll18/proceedings/pdf/K18-2016.pdf)
 - [NeuroNLP](https://github.com/XuezheMax/NeuroNLP2)
+- [SemEval 2015 Task 18](http://aclweb.org/anthology/S15-2153)
+    - [English DM](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-1956)
+- [CoNLL 2018 Shared Task](http://universaldependencies.org/conll18/)
+    - Evaluation Script
 
 ## Data
 
