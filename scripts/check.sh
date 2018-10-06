@@ -5,7 +5,7 @@ source activate stog
 glove=${HOME}/data/glove/glove.840B.300d.zip
 
 python -u -m train  \
-  --train_data ./data/json/dev.json \
+  --train_data ./data/json/train.json \
   --dev_data ./data/json/dev.json \
   --token_emb_size 100 \
   --encoder_layers 2 \

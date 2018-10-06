@@ -59,7 +59,7 @@ class DeepBiaffineParser(torch.nn.Module):
         self.use_char_conv = use_char_conv
         self.num_filters = num_filters
         self.kernel_size = kernel_size
-        self.encoder_input_size = token_embedding_dim + char_embedding_dim if use_char_conv else token_embedding_dim
+        self.encoder_input_size = token_embedding_dim + num_filters if use_char_conv else token_embedding_dim
         self.encoder_hidden_size = encoder_hidden_size
         self.num_encoder_layers = num_encoder_layers
         self.encoder_dropout = encoder_dropout_rate

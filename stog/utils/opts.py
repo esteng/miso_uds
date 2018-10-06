@@ -32,10 +32,10 @@ def model_opts(parser : argparse.ArgumentParser):
     group.add_argument('--use_char_conv', action='store_true', default=False,
                        help="Whether use char conv")
 
-    group.add_argument('--num_filters', type=int, default=32,
+    group.add_argument('--num_filters', type=int, default=100,
                        help="")
 
-    group.add_argument('--kernel_size', type=int, default=4,
+    group.add_argument('--kernel_size', type=int, default=3,
                        help="")
 
     group.add_argument('--encoder_layers', type=int, default=3,
