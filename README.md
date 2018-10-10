@@ -32,6 +32,7 @@ This project is based on python 3.6 and the newest version of PyTorch.
     - [English DM](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-1956)
 - [CoNLL 2018 Shared Task](http://universaldependencies.org/conll18/)
     - Evaluation Script
+- [Spider](https://yale-lily.github.io/spider)
 
 ## Data
 
