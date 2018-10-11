@@ -1,4 +1,3 @@
-import sys
 import json
 import argparse
 
@@ -240,7 +239,7 @@ class Params(object):
             return False
         same = True
         for k, v in self._param_dict.items():
-            if k not in other._param_dict
+            if k not in other._param_dict:
                 logger.info('The parameter "{}" is not specified.'.format(k))
                 same = False
             elif other._param_dict[k] != v:
@@ -250,9 +249,16 @@ class Params(object):
                 same = False
         return same
 
+    def __getattr__(self, item):
+        return getattr(self, item, None)
+
     def set_param(self, k, v):
         self._param_dict[k] = v
         setattr(self, k, v)
+
+    def to_file(self, output_json_file):
+        with open(output_json_file, 'w', encoding='utf-8') as f:
+            json.dump(self._param_dict, f)
 
     @classmethod
     def from_file(cls, params_json_file):
