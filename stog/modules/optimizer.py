@@ -23,7 +23,8 @@ def build_optim(opt, model):
         model_size=opt.encoder_size
     )
 
-    optim.set_parameters(model.named_parameters())
+    parameters = [[n, p] for n, p in model.named_parameters() if p.requires_grad]
+    optim.set_parameters(parameters)
 
     return optim
 

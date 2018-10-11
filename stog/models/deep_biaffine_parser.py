@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from .model import  Model
 from stog.modules.embedding import Embedding
 from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
 from stog.modules.stacked_bilstm import StackedBidirectionalLstm
@@ -11,7 +12,7 @@ from stog.metrics import UnlabeledAttachScore as UAS
 from stog.algorithms import maximum_spanning_tree as MST
 
 
-class DeepBiaffineParser(torch.nn.Module):
+class DeepBiaffineParser(Model, torch.nn.Module):
     """
     Adopted from NeuroNLP2:
         https://github.com/XuezheMax/NeuroNLP2/blob/master/neuronlp2/models/parsing.py
@@ -44,7 +45,9 @@ class DeepBiaffineParser(torch.nn.Module):
             edge_hidden_size,
             # Edge type classifier
             type_hidden_size,
-            num_labels
+            num_labels,
+            # Decode
+            decode_type
 
     ):
         super(DeepBiaffineParser, self).__init__()
@@ -57,13 +60,14 @@ class DeepBiaffineParser(torch.nn.Module):
         self.use_char_conv = use_char_conv
         self.num_filters = num_filters
         self.kernel_size = kernel_size
-        self.encoder_input_size = token_embedding_dim + char_embedding_dim if use_char_conv else token_embedding_dim
+        self.encoder_input_size = token_embedding_dim + num_filters if use_char_conv else token_embedding_dim
         self.encoder_hidden_size = encoder_hidden_size
         self.num_encoder_layers = num_encoder_layers
         self.encoder_dropout = encoder_dropout_rate
         self.edge_hidden_size = edge_hidden_size
         self.type_hidden_size = type_hidden_size
         self.num_labels = num_labels
+        self.decode_type = decode_type
 
 
         self.token_embedding = Embedding(
@@ -118,7 +122,7 @@ class DeepBiaffineParser(torch.nn.Module):
     def get_metrics(self, reset=False):
         metrics = dict(
             loss=self.accumulated_loss / self.num_accumulated_tokens,
-            uas=self.uas.score
+            UAS=self.uas.score
         )
         if reset:
             self.accumulated_loss = 0.0
@@ -143,7 +147,7 @@ class DeepBiaffineParser(torch.nn.Module):
         if for_training or headers is not None:
             loss = self.compute_loss(edge_log_likelihood, headers)
             #TODO: Metric for graph includes type.
-            pred_headers = self.decode(edge_log_likelihood, mask)[0]
+            pred_headers = self.decode(edge_log_likelihood, mask)
             self.uas(pred_headers, headers, mask)
             self.accumulated_loss += loss.item()
             self.num_accumulated_tokens += num_tokens
@@ -195,7 +199,10 @@ class DeepBiaffineParser(torch.nn.Module):
         return -gold_edge_log_likelihood.sum()
 
     def decode(self, edge_scores, mask):
-        return self.mst_decode(edge_scores, mask)
+        if self.decode_type == 'mst':
+            return self.mst_decode(edge_scores, mask)
+        else:
+            return self.greedy_decode(edge_scores, mask)
 
     def greedy_decode(self, edge_scores, mask=None):
         # out_arc shape [batch, length, length]
@@ -218,7 +225,7 @@ class DeepBiaffineParser(torch.nn.Module):
 
     def mst_decode(self, edge_scores, mask):
         length = mask.sum(dim=1).long().cpu().numpy()
-        pred_headers = MST.decode(
+        pred_headers, _ = MST.decode(
             edge_scores.detach().cpu().numpy(),
             length,
             num_leading_symbols=1,

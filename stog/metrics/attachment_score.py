@@ -6,8 +6,9 @@ class UnlabeledAttachScore:
         self.num_tokens = 0
 
     def __call__(self, pred_headers, gold_headers, mask):
-        self.num_tokens += mask.sum().item() - mask.size(0)
-        self.accumulated_uas += uas(pred_headers, gold_headers, mask)
+        num_tokens = mask.sum().item() - mask.size(0)
+        self.num_tokens += num_tokens
+        self.accumulated_uas += uas(pred_headers, gold_headers, mask) * num_tokens
 
     def reset(self):
         self.accumulated_uas = 0.0
@@ -28,6 +29,7 @@ def uas(pred_headers, gold_headers, mask):
     """
     equality = (pred_headers[:, 1:] == gold_headers[:, 1:]) # exclude ROOT
     equality = equality.long() * mask[:, 1:].long().data.cpu()
-    num_tokens = mask[:, 1:].sum().item()
-    return 100.0 * equality.sum().item() / num_tokens
+    equality = equality.sum().item()
+    num_tokens = mask.sum().item() - mask.size(0)
+    return equality / num_tokens
 

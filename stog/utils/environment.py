@@ -1,3 +1,4 @@
+import os
 import sys
 import random
 import subprocess
@@ -9,8 +10,12 @@ except ImportError:
 
 import numpy
 import torch
+from torch import cuda
 
 from stog.utils import logging
+from stog.utils.logging import TeeLogger
+from stog.utils.tqdm import Tqdm
+from stog.utils.checks import ConfigurationError
 
 
 logger = logging.init_logger()
@@ -45,6 +50,39 @@ def set_seed(seed=13370, numpy_seed=1337, torch_seed=133):
         numpy_seed=numpy_seed,
         torch_seed=torch_seed
     ))
+
+
+def prepare_global_logging(serialization_dir: str, file_friendly_logging: bool) -> None:
+    """
+    This function configures 3 global logging attributes - streaming stdout and stderr
+    to a file as well as the terminal, setting the formatting for the python logging
+    library and setting the interval frequency for the Tqdm progress bar.
+    Note that this function does not set the logging level, which is set in ``allennlp/run.py``.
+    Parameters
+    ----------
+    serializezation_dir : ``str``, required.
+        The directory to stream logs to.
+    file_friendly_logging : ``bool``, required.
+        Whether logs should clean the output to prevent carridge returns
+        (used to update progress bars on a single terminal line).
+    """
+    Tqdm.set_slower_interval(file_friendly_logging)
+    std_out_file = os.path.join(serialization_dir, "stdout.log")
+    sys.stdout = TeeLogger(std_out_file, # type: ignore
+                           sys.stdout,
+                           file_friendly_logging)
+    sys.stderr = TeeLogger(os.path.join(serialization_dir, "stderr.log"), # type: ignore
+                           sys.stderr,
+                           file_friendly_logging)
+
+    logging.init_logger(log_file=std_out_file)
+    
+    
+def check_for_gpu(device_id: object) -> object:
+    if device_id is not None and device_id >= cuda.device_count():
+        raise ConfigurationError("Experiment specified a GPU but none is available;"
+                                 " if you want to run on CPU use the override"
+                                 " 'trainer.cuda_device=-1' in the json config file.")
 
 
 def device_mapping(cuda_device: int):
@@ -111,3 +149,14 @@ def gpu_memory_mb() -> dict:
         # and we'd never want a training run to fail because of it.
         logger.exception("unable to check gpu_memory_mb(), continuing")
         return {}
+
+
+def get_frozen_and_tunable_parameter_names(model: torch.nn.Module):
+    frozen_parameter_names = []
+    tunable_parameter_names = []
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad:
+            frozen_parameter_names.append(name)
+        else:
+            tunable_parameter_names.append(name)
+    return [frozen_parameter_names, tunable_parameter_names]
