@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from .model import  Model
 from stog.modules.embedding import Embedding
 from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
 from stog.modules.stacked_bilstm import StackedBidirectionalLstm
@@ -11,7 +12,7 @@ from stog.metrics import UnlabeledAttachScore as UAS
 from stog.algorithms import maximum_spanning_tree as MST
 
 
-class DeepBiaffineParser(torch.nn.Module):
+class DeepBiaffineParser(Model, torch.nn.Module):
     """
     Adopted from NeuroNLP2:
         https://github.com/XuezheMax/NeuroNLP2/blob/master/neuronlp2/models/parsing.py
