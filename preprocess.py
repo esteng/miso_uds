@@ -5,8 +5,8 @@ import dill
 from torchtext import data
 from torchtext.data.field import RawField
 from torchtext.vocab import Vectors
-from stog.utils.opts import preprocess_opts
-from stog.utils.opts import Options
+from stog.utils.params import preprocess_opts
+from stog.utils.params import Params
 from stog.utils import logging
 from stog.utils import ExceptionHook
 
@@ -217,7 +217,7 @@ def save_fields_to_vocab(fields):
             vocab.append((k, f.vocab))
     return vocab
 
-def preprocess(opt):
+def dataset_from_params(opt):
 
     logger.info("Getting fields ...")
     fields = get_fields(opt)
@@ -231,7 +231,11 @@ def preprocess(opt):
     logger.info("Building vocabulary ...")
     build_vocab(fields, train_data)
 
-    return train_data, dev_data
+    return dict(
+        train=train_data,
+        dev=dev_data,
+        test=None
+    )
     #TODO save the preprocesse data. This is tricky since torchtext use lambda expression, which can't be serialized.
     #logger.info("Saving train data at {} ... ".format(opt.save_data + ".train.pt"))
     #with open(opt.save_data + ".train.pt", 'wb') as f:
@@ -252,10 +256,10 @@ def preprocess(opt):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("preprocess.py")
     preprocess_opts(parser)
-    opt = Options(parser)
-    train_data, dev_data = preprocess(opt)
+    opt = Params.from_parser(parser)
+    dataset = dataset_from_params(opt)
     train_iter = data.BucketIterator(
-        dataset=train_data,
+        dataset=dataset['train'],
         batch_size=64,
         sort_key=lambda x: len(x),
         device=None,
