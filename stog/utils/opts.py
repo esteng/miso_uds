@@ -1,5 +1,11 @@
 import sys
+import json
 import argparse
+
+from stog.utils import logging
+
+logger = logging.init_logger()
+
 
 def model_opts(parser : argparse.ArgumentParser):
     # Embedding Options
@@ -215,30 +221,56 @@ def train_opts(parser):
                            This is also the name of the run.
                            """)
 
-class Options(object):
+class Params(object):
     """
-    Options
+    Parameters
     """
-    def __init__(self, parser):
-        parser.add_argument("--json",
-                           help="a json file that contains all the options")
-        parser.add_argument("--debug", action="store_true", default=False,
-                            help="a json file that contains all the options")
-        opt = parser.parse_args()
+    def __init__(self):
+        self._param_dict = {}
 
-        if opt.json:
-            import json
-            with open(opt.json, 'r') as f:
-                options = json.load(f)
-        else:
-            options = vars(opt)
+    def __eq__(self, other):
+        if not isinstance(other, Params):
+            logger.info('The params you compare is not an instance of Params.')
+            return False
+        if len(self._param_dict) != len(other._param_dict):
+            logger.info('The numbers of parameters are different: {} != {}'.format(
+                len(self._param_dict),
+                len(other._param_dict)
+            ))
+            return False
+        same = True
+        for k, v in self._param_dict.items():
+            if k not in other._param_dict
+                logger.info('The parameter "{}" is not specified.'.format(k))
+                same = False
+            elif other._param_dict[k] != v:
+                logger.info('The values of "{}" not not the same: {} != {}'.format(
+                    k, v, other._param_dict[k]
+                ))
+                same = False
+        return same
 
-        self.opt_dict = {}
+    def set_param(self, k, v):
+        self._param_dict[k] = v
+        setattr(self, k, v)
 
-        for key, value in options.items():
-            setattr(self, key, value)
-            self.opt_dict[key] = value
+    @classmethod
+    def from_file(cls, params_json_file):
+        with open(params_json_file, encoding='utf-8') as f:
+            params_dict = json.load(f)
+
+        params = cls()
+        for k, v in params_dict.items():
+            params.set_param(k, v)
+
+    @classmethod
+    def from_parser(cls, parser):
+        params_dict = vars(parser.parse_args())
+
+        params = cls()
+        for k, v in params_dict.items():
+            params.set_param(k, v)
 
     def __repr__(self):
-        return '\n'.join(["*** {} : {}".format(key,value) for key, value in self.opt_dict.items()])
+        return '\n'.join(["*** {} : {}".format(key,value) for key, value in sorted(self.opt_dict.items())])
 
