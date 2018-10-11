@@ -3,14 +3,13 @@ import re
 import argparse
 
 import torch
-from torchtext.data import BucketIterator
 
 from stog.utils import logging
 from stog.utils.params import preprocess_opts, model_opts, train_opts, Params
 from stog.model_builder import build_model
 from stog.models import model as MODEL
 from preprocess import dataset_from_params
-from stog.trainer import Trainer
+from stog.training.trainer import Trainer
 from stog.modules.optimizer import build_optim
 from stog.utils import environment
 from stog.utils.checks import ConfigurationError
@@ -57,27 +56,23 @@ def create_serialization_dir(params: Params) -> None:
         os.makedirs(params.serialization_dir, exist_ok=True)
 
 
-def train_model(params: Params,
-                file_friendly_logging: bool = False):
+def train_model(params: Params):
     """
     Trains the model specified in the given :class:`Params` object, using the data and training
-    parameters also specified in that object, and saves the results in ``serialization_dir``.
+    parameters also specified in that object, and saves the results.
     Parameters
     ----------
     params : ``Params``
         A parameter object specifying an AllenNLP Experiment.
-    file_friendly_logging : ``bool``, optional (default=False)
-        If ``True``, we add newlines to tqdm output, even on an interactive terminal, and we slow
-        down tqdm's output to only once every 10 seconds.
     Returns
     -------
     best_model: ``Model``
         The model with the best epoch weights.
     """
-    environment.set_seed(params['seed'], params['numpy_seed'], params['torch_seed'])
+    environment.set_seed(params.seed, params.numpy_seed, params.torch_seed)
 
     create_serialization_dir(params)
-    environment.prepare_global_logging(params.serialization_dir, file_friendly_logging)
+    environment.prepare_global_logging(params.serialization_dir, params.file_friendly_logging)
 
     environment.check_for_gpu(params.cuda_device)
 
@@ -88,8 +83,8 @@ def train_model(params: Params,
     model = getattr(MODEL, params.model_type).from_params(params)
 
     train_data = dataset['train']
-    dev_data = dataset('dev')
-    test_data = dataset('test')
+    dev_data = dataset.get('dev')
+    test_data = dataset.get('test')
 
     no_grad_regexes = params.no_grad
     for name, parameter in model.named_parameters():
@@ -97,7 +92,7 @@ def train_model(params: Params,
             parameter.requires_grad_(False)
 
     frozen_parameter_names, tunable_parameter_names = \
-                   environment.get_frozen_and_tunable_parameter_names(model)
+        environment.get_frozen_and_tunable_parameter_names(model)
     logger.info("Following parameters are Frozen  (without gradient):")
     for name in frozen_parameter_names:
         logger.info(name)
@@ -105,50 +100,49 @@ def train_model(params: Params,
     for name in tunable_parameter_names:
         logger.info(name)
 
-    # TODO: Merge it into the trainer from_params.
-    optimizer = build_optim(params, model)
-
-    trainer = Trainer.from_params(model, optimizer, train_data, dev_data, params)
+    trainer = Trainer.from_params(model, train_data, dev_data, params)
 
 
-    evaluate_on_test = params.pop_bool("evaluate_on_test", False)
-    params.assert_empty('base train command')
+    # evaluate_on_test = params.pop_bool("evaluate_on_test", False)
+    # params.assert_empty('base train command')
 
-    try:
-        metrics = trainer.train()
-    except KeyboardInterrupt:
-        # if we have completed an epoch, try to create a model archive.
-        if os.path.exists(os.path.join(params.serialization_dir, _DEFAULT_WEIGHTS)):
-            logging.info("Training interrupted by the user. Attempting to create "
-                         "a model archive using the current best epoch weights.")
-            archive_model(params.serialization_dir)
-        raise
+    # try:
+    #     metrics = trainer.train()
+    # except KeyboardInterrupt:
+    #     # if we have completed an epoch, try to create a model archive.
+    #     if os.path.exists(os.path.join(params.serialization_dir, _DEFAULT_WEIGHTS)):
+    #         logging.info("Training interrupted by the user. Attempting to create "
+    #                      "a model archive using the current best epoch weights.")
+    #         archive_model(params.serialization_dir)
+    #     raise
 
-    # Now tar up results
-    archive_model(params.serialization_dir)
+    # # Now tar up results
+    # archive_model(params.serialization_dir)
 
-    logger.info("Loading the best epoch weights.")
-    best_model_state_path = os.path.join(params.serialization_dir, 'best.th')
-    best_model_state = torch.load(best_model_state_path)
-    best_model = model
-    best_model.load_state_dict(best_model_state)
+    # logger.info("Loading the best epoch weights.")
+    # best_model_state_path = os.path.join(params.serialization_dir, 'best.th')
+    # best_model_state = torch.load(best_model_state_path)
+    # best_model = model
+    # best_model.load_state_dict(best_model_state)
 
-    if test_data and evaluate_on_test:
-        logger.info("The model will be evaluated using the best epoch weights.")
-        test_metrics = evaluate(
-                best_model, test_data, BucketIterator,
-                cuda_device=trainer._cuda_devices[0] # pylint: disable=protected-access
-        )
-        for key, value in test_metrics.items():
-            metrics["test_" + key] = value
+    # if test_data and evaluate_on_test:
+    #     logger.info("The model will be evaluated using the best epoch weights.")
+    #     test_metrics = evaluate(
+    #             best_model, test_data, BucketIterator,
+    #             cuda_device=trainer._cuda_devices[0] # pylint: disable=protected-access
+    #     )
+    #     for key, value in test_metrics.items():
+    #         metrics["test_" + key] = value
 
-    elif test_data:
-        logger.info("To evaluate on the test set after training, pass the "
-                    "'evaluate_on_test' flag, or use the 'allennlp evaluate' command.")
+    # elif test_data:
+    #     logger.info("To evaluate on the test set after training, pass the "
+    #                 "'evaluate_on_test' flag, or use the 'allennlp evaluate' command.")
 
-    dump_metrics(os.path.join(params.serialization_dir, "metrics.json"), metrics, log=True)
+    # dump_metrics(os.path.join(params.serialization_dir, "metrics.json"), metrics, log=True)
 
-    return best_model
+    # return best_model
+
+    return None
 
 
 def main(params):
@@ -170,27 +164,27 @@ def main(params):
     # build trainer
     logger.info("Building Trainer...")
 
-    trainer = Trainer(
-        model=model,
-        optimizer=optim,
-        iterator=BucketIterator,
-        training_dataset=dataset['train'],
-        dev_dataset=dataset['dev'],
-        dev_iterator=BucketIterator,
-        dev_metric='loss',
-        use_gpu=params.gpu,
-        patience=None,
-        grad_clipping=None,
-        shuffle=params.shuffle,
-        num_epochs=params.epochs,
-        serialization_dir=params.save_model,
-        num_serialized_models_to_keep=5,
-        model_save_interval=params.model_save_interval,
-        summary_interval=100,
-        batch_size=params.batch_size
-    )
+    # trainer = Trainer(
+    #     model=model,
+    #     optimizer=optim,
+    #     iterator=BucketIterator,
+    #     training_dataset=dataset['train'],
+    #     dev_dataset=dataset['dev'],
+    #     dev_iterator=BucketIterator,
+    #     dev_metric='loss',
+    #     use_gpu=params.gpu,
+    #     patience=None,
+    #     grad_clipping=None,
+    #     shuffle=params.shuffle,
+    #     num_epochs=params.epochs,
+    #     serialization_dir=params.save_model,
+    #     num_serialized_models_to_keep=5,
+    #     model_save_interval=params.model_save_interval,
+    #     summary_interval=100,
+    #     batch_size=params.batch_size
+    # )
 
-    trainer.train()
+    # trainer.train()
 
 
 if __name__ == "__main__":
@@ -199,5 +193,5 @@ if __name__ == "__main__":
     model_opts(parser)
     train_opts(parser)
     params = Params.from_parser(parser)
-    main(params)
+    train_model(params)
 

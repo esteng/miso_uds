@@ -7,6 +7,7 @@ import traceback
 from typing import Dict, Optional, List, Union
 
 import torch
+from torchtext.data import BucketIterator
 
 from stog.utils import logging
 from stog.training.tensorboard import TensorboardWriter
@@ -14,6 +15,7 @@ from stog.utils.environment import device_mapping, peak_memory_mb, gpu_memory_mb
 from stog.utils.checks import  ConfigurationError
 from stog.utils.tqdm import Tqdm
 from stog.utils.time import time_to_str
+from stog.modules.optimizer import Optimizer
 
 
 logger = logging.init_logger()
@@ -516,5 +518,45 @@ class Trainer:
         self._optimizer._step = self._num_trained_batches
         starting_epoch = training_state['epoch'] + 1
         return starting_epoch, training_state['dev_metric_per_epoch']
+
+    @classmethod
+    def from_params(cls, model, train_data, dev_data, params):
+        logger.info('Building optimizer..')
+        optimizer = Optimizer(
+            params.optimizer_type, params.learning_rate, params.max_grad_norm,
+            lr_decay=params.learning_rate_decay,
+            start_decay_steps=params.start_decay_steps,
+            decay_steps=params.decay_steps,
+            beta1=params.adam_beta1,
+            beta2=params.adam_beta2,
+            adagrad_accum=params.adagrad_accumulator_init,
+            decay_method=params.decay_method,
+            warmup_steps=params.warmup_steps,
+        )
+
+        parameters = [[n, p] for n, p in model.named_parameters() if p.requires_grad]
+        optimizer.set_parameters(parameters)
+
+        trainer = cls(
+            model=model,
+            optimizer=optimizer,
+            iterator=BucketIterator,
+            training_dataset=train_data,
+            dev_dataset=dev_data,
+            dev_iterator=BucketIterator,
+            dev_metric=params.dev_metric,
+            use_gpu=params.gpu,
+            patience=None,
+            grad_clipping=None,
+            shuffle=params.shuffle,
+            num_epochs=params.epochs,
+            serialization_dir=params.save_model,
+            num_serialized_models_to_keep=5,
+            model_save_interval=params.model_save_interval,
+            summary_interval=100,
+            batch_size=params.batch_size
+        )
+
+        return trainer
 
 

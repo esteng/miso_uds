@@ -19,5 +19,6 @@ python -u -m train  \
   --emb_dropout 0 \
   --encoder_dropout 0 \
   --hidden_dropout 0 \
+  --file_friendly_logging \
   --gpu
   # --pretrain_token_emb ${glove} \

@@ -10,6 +10,9 @@ from stog.modules.attention import BiaffineAttention
 from stog.modules.linear import BiLinear
 from stog.metrics import UnlabeledAttachScore as UAS
 from stog.algorithms import maximum_spanning_tree as MST
+from stog.utils.logging import init_logger
+
+logger = init_logger()
 
 
 class DeepBiaffineParser(Model, torch.nn.Module):
@@ -320,3 +323,49 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             self.char_embedding.load_pretrain_from_file(vocab, file)
         if field == "tokens":
             self.token_embedding.load_pretrain_from_file(vocab, file)
+
+    @classmethod
+    def from_params(cls, train_data, params):
+        model = DeepBiaffineParser(
+            num_token_embeddings=len(train_data.fields["tokens"].vocab),
+            token_embedding_dim=params.token_emb_size,
+            num_char_embeddings=len(train_data.fields["chars"].vocab),
+            char_embedding_dim=params.char_emb_size,
+            embedding_dropout_rate=params.emb_dropout,
+            hidden_state_dropout_rate=params.hidden_dropout,
+            use_char_conv=params.use_char_conv,
+            num_filters=params.num_filters,
+            kernel_size=params.kernel_size,
+            encoder_hidden_size=params.encoder_size,
+            num_encoder_layers=params.encoder_layers,
+            encoder_dropout_rate=params.encoder_dropout,
+            edge_hidden_size=params.edge_hidden_size,
+            type_hidden_size=params.type_hidden_size,
+            num_labels=params.num_labels,
+            decode_type=params.decode_type
+        )
+
+
+        if params.pretrain_token_emb:
+            logger.info("Reading pretrained token embeddings from {} ...".format(opt.pretrain_token_emb))
+            model.load_embedding(
+                field="tokens",
+                file=params.pretrain_token_emb,
+                vocab=train_data.fields["tokens"].vocab
+            )
+            logger.info("Done.")
+
+        if params.pretrain_char_emb:
+            logger.info("Reading pretrained char embeddings from {} ...".format(opt.pretrain_char_emb))
+            model.load_embedding(
+                field="chars",
+                file=params.pretrain_char_emb,
+                vocab=train_data.fields["chars"].vocab
+            )
+            logger.info("Done.")
+
+        if params.gpu:
+            model.cuda()
+
+        logger.info(model)
+        return model
