@@ -195,7 +195,7 @@ class Model(torch.nn.Module):
             self._warn_for_unseparable_batches.add(output_key)
 
     @classmethod
-    def _load(cls,
+    def load(cls,
               config: Params,
               serialization_dir: str,
               weights_file: str = None,
@@ -218,39 +218,3 @@ class Model(torch.nn.Module):
             model.cpu()
 
         return model
-
-    @classmethod
-    def load(cls,
-             config: Params,
-             serialization_dir: str,
-             weights_file: str = None,
-             cuda_device: int = -1) -> 'Model':
-        """
-        Instantiates an already-trained model, based on the experiment
-        configuration and some optional overrides.
-        Parameters
-        ----------
-        config: Params
-            The configuration that was used to train the model. It should definitely
-            have a `model` section, and should probably have a `trainer` section
-            as well.
-        serialization_dir: str = None
-            The directory containing the serialized weights, parameters, and vocabulary
-            of the model.
-        weights_file: str = None
-            By default we load the weights from `best.th` in the serialization
-            directory, but you can override that value here.
-        cuda_device: int = -1
-            By default we load the model on the CPU, but if you want to load it
-            for GPU usage you can specify the id of your GPU here
-        Returns
-        -------
-        model: Model
-            The model specified in the configuration, loaded with the serialized
-            vocabulary and the trained weights.
-        """
-
-        # Load using an overridable _load method.
-        # This allows subclasses of Model to override _load.
-        # pylint: disable=protected-access
-        return cls._load(config, serialization_dir, weights_file, cuda_device)
