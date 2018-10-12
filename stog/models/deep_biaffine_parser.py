@@ -326,6 +326,8 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
     @classmethod
     def from_params(cls, train_data, params):
+        logger.info('Building model...')
+        
         model = DeepBiaffineParser(
             num_token_embeddings=len(train_data.fields["tokens"].vocab),
             token_embedding_dim=params.token_emb_size,

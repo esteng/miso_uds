@@ -45,7 +45,7 @@ def set_seed(seed=13370, numpy_seed=1337, torch_seed=133):
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(torch_seed)
 
-    logger.info('Init random seeds:\n\tseed: {seed}\n\tnumpy_seed: {numpy_seed}\n\ttorch_seed: {torch_seed}\n'.format(
+    logger.info('Init random seeds => tseed: {seed} numpy_seed: {numpy_seed} torch_seed: {torch_seed}'.format(
         seed=seed,
         numpy_seed=numpy_seed,
         torch_seed=torch_seed

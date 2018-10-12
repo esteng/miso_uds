@@ -13,7 +13,7 @@ import tarfile
 import shutil
 
 from stog.utils.file import cached_path
-from allennlp.common.params import Params, unflatten, with_fallback, parse_overrides
+from stog.utils.params import Params
 from stog.models.model import Model, _DEFAULT_WEIGHTS
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name

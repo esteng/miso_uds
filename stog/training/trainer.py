@@ -550,7 +550,7 @@ class Trainer:
             grad_clipping=None,
             shuffle=params.shuffle,
             num_epochs=params.epochs,
-            serialization_dir=params.save_model,
+            serialization_dir=params.serialization_dir,
             num_serialized_models_to_keep=5,
             model_save_interval=params.model_save_interval,
             summary_interval=100,

@@ -7,7 +7,7 @@ import torch
 from stog.utils import logging
 from stog.utils.params import preprocess_opts, model_opts, train_opts, Params
 from stog.model_builder import build_model
-from stog.models import model as MODEL
+from stog import models as Models
 from preprocess import dataset_from_params
 from stog.training.trainer import Trainer
 from stog.modules.optimizer import build_optim
@@ -34,7 +34,7 @@ def create_serialization_dir(params: Params) -> None:
     """
     if os.path.exists(params.serialization_dir) and os.listdir(params.serialization_dir):
         if not params.recover:
-            raise ConfigurationError(f"Serialization directory ({params.nserialization_dir}) already exists and is "
+            raise ConfigurationError(f"Serialization directory ({params.serialization_dir}) already exists and is "
                                      f"not empty. Specify --recover to recover training from existing output.")
 
         logger.info(f"Recovering from prior training at {params.serialization_dir}.")
@@ -80,11 +80,11 @@ def train_model(params: Params):
 
     dataset = dataset_from_params(params)
 
-    model = getattr(MODEL, params.model_type).from_params(params)
-
     train_data = dataset['train']
     dev_data = dataset.get('dev')
     test_data = dataset.get('test')
+
+    model = getattr(Models, params.model_type).from_params(train_data, params)
 
     no_grad_regexes = params.no_grad
     for name, parameter in model.named_parameters():
@@ -101,6 +101,8 @@ def train_model(params: Params):
         logger.info(name)
 
     trainer = Trainer.from_params(model, train_data, dev_data, params)
+    
+    trainer.train()
 
 
     # evaluate_on_test = params.pop_bool("evaluate_on_test", False)

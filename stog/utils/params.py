@@ -87,7 +87,7 @@ def train_opts(parser):
     """ Training and saving options """
 
     group = parser.add_argument_group('General')
-    group.add_argument('--save_model', default=None,
+    group.add_argument('--serialization_dir', default=None,
                        help="""Model filename (the model will be saved as
                            <save_model>_N.pt where N is the number
                            of steps""")
@@ -123,9 +123,8 @@ def train_opts(parser):
                            with support (-param_init, param_init).
                            Use 0 to not use initialization""")
 
-    group.add_argument('--train_from', default='', type=str,
-                       help="""If training from a checkpoint then this is the
-                           path to the pretrained model's state_dict.""")
+    group.add_argument('--recover', action='store_true',
+                       help='Whether to recover from previously saved states.')
 
     # Pretrained word vectors
     group.add_argument('--pre_word_vecs_enc',
@@ -156,7 +155,9 @@ def train_opts(parser):
                        help='Number of training steps')
     group.add_argument('--epochs', type=int, default=20,
                        help='Deprecated epochs see train_steps')
-    group.add_argument('--optim', default='sgd',
+    group.add_argument('--no_grad', nargs='+', default=[],
+                       help='Parameter name regexes which do not require grads.')
+    group.add_argument('--optimizer_type', default='sgd',
                        choices=['sgd', 'adagrad', 'adadelta', 'adam',
                                 'sparseadam'],
                        help="""Optimization method.""")
@@ -230,6 +231,10 @@ def train_opts(parser):
                        help="""Log directory for Tensorboard.
                            This is also the name of the run.
                            """)
+    # Metrics
+    group = parser.add_argument_group('Metrics')
+    group.add_argument('--dev_metric', default='loss',
+                       help="The metric used on dev for early stopping, etc.")
 
 class Params(object):
     """
@@ -261,15 +266,14 @@ class Params(object):
         return same
 
     def __getattr__(self, item):
-        return getattr(self, item, None)
+        return self._param_dict.get(item)
 
     def set_param(self, k, v):
         self._param_dict[k] = v
-        setattr(self, k, v)
 
     def to_file(self, output_json_file):
         with open(output_json_file, 'w', encoding='utf-8') as f:
-            json.dump(self._param_dict, f)
+            json.dump(self._param_dict, f, indent='\t')
 
     @classmethod
     def from_file(cls, params_json_file):
@@ -280,6 +284,8 @@ class Params(object):
         for k, v in params_dict.items():
             params.set_param(k, v)
 
+        return params
+
     @classmethod
     def from_parser(cls, parser):
         params_dict = vars(parser.parse_args())
@@ -288,6 +294,8 @@ class Params(object):
         for k, v in params_dict.items():
             params.set_param(k, v)
 
+        return params
+
     def __repr__(self):
-        return '\n'.join(["*** {} : {}".format(key,value) for key, value in sorted(self.opt_dict.items())])
+        return '\n'.join(["*** {} : {}".format(key,value) for key, value in sorted(self._param_dict.items())])
 
