@@ -140,6 +140,8 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         input_token = batch.tokens
         input_char = batch.chars
         headers, mask = batch.headers
+        relations = batch.relations
+        # TODO: use relations tensor
         encoder_output = self.encode(input_token, input_char, mask)
         edge = self.mlp(encoder_output)
         edge_headers, edge_modifiers = edge
