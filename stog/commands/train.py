@@ -6,14 +6,14 @@ import torch
 
 from stog.utils import logging
 from stog.utils.params import preprocess_opts, model_opts, train_opts, Params
-from stog.model_builder import build_model
 from stog import models as Models
 from preprocess import dataset_from_params
 from stog.training.trainer import Trainer
-from stog.modules.optimizer import build_optim
 from stog.utils import environment
 from stog.utils.checks import ConfigurationError
 from stog.utils.archival import CONFIG_NAME, _DEFAULT_WEIGHTS, archive_model
+from stog.commands.evaluate import evaluate
+from stog.metrics import dump_metrics
 
 logger = logging.init_logger()
 
@@ -104,89 +104,37 @@ def train_model(params: Params):
     
     trainer.train()
 
+    try:
+        metrics = trainer.train()
+    except KeyboardInterrupt:
+        # if we have completed an epoch, try to create a model archive.
+        if os.path.exists(os.path.join(params.serialization_dir, _DEFAULT_WEIGHTS)):
+            logging.info("Training interrupted by the user. Attempting to create "
+                         "a model archive using the current best epoch weights.")
+            archive_model(params.serialization_dir)
+        raise
 
-    # evaluate_on_test = params.pop_bool("evaluate_on_test", False)
-    # params.assert_empty('base train command')
+    # Now tar up results
+    archive_model(params.serialization_dir)
 
-    # try:
-    #     metrics = trainer.train()
-    # except KeyboardInterrupt:
-    #     # if we have completed an epoch, try to create a model archive.
-    #     if os.path.exists(os.path.join(params.serialization_dir, _DEFAULT_WEIGHTS)):
-    #         logging.info("Training interrupted by the user. Attempting to create "
-    #                      "a model archive using the current best epoch weights.")
-    #         archive_model(params.serialization_dir)
-    #     raise
+    logger.info("Loading the best epoch weights.")
+    best_model_state_path = os.path.join(params.serialization_dir, 'best.th')
+    best_model_state = torch.load(best_model_state_path)
+    best_model = model
+    best_model.load_state_dict(best_model_state)
 
-    # # Now tar up results
-    # archive_model(params.serialization_dir)
+    if test_data and params.evaluate_on_test:
+        logger.info("The model will be evaluated using the best epoch weights.")
+        test_metrics = evaluate(
+                best_model, test_data, trainer._dev_iterator, params.batch_size,
+                cuda_device=params.cuda_device # pylint: disable=protected-access
+        )
+        for key, value in test_metrics.items():
+            metrics["test_" + key] = value
 
-    # logger.info("Loading the best epoch weights.")
-    # best_model_state_path = os.path.join(params.serialization_dir, 'best.th')
-    # best_model_state = torch.load(best_model_state_path)
-    # best_model = model
-    # best_model.load_state_dict(best_model_state)
+    dump_metrics(os.path.join(params.serialization_dir, "metrics.json"), metrics, log=True)
 
-    # if test_data and evaluate_on_test:
-    #     logger.info("The model will be evaluated using the best epoch weights.")
-    #     test_metrics = evaluate(
-    #             best_model, test_data, BucketIterator,
-    #             cuda_device=trainer._cuda_devices[0] # pylint: disable=protected-access
-    #     )
-    #     for key, value in test_metrics.items():
-    #         metrics["test_" + key] = value
-
-    # elif test_data:
-    #     logger.info("To evaluate on the test set after training, pass the "
-    #                 "'evaluate_on_test' flag, or use the 'allennlp evaluate' command.")
-
-    # dump_metrics(os.path.join(params.serialization_dir, "metrics.json"), metrics, log=True)
-
-    # return best_model
-
-    return None
-
-
-def main(params):
-
-    logger.info('Params:\n{}'.format(params))
-
-    # preprocess data
-    logger.info("Loading data ...")
-    dataset = dataset_from_params(params)
-
-    # build model
-    logger.info("Building model ...")
-    model = build_model(params, dataset['train'])
-
-    # build optimizer
-    #logger.info("Building optimizer ...")
-    optim = build_optim(params, model)
-
-    # build trainer
-    logger.info("Building Trainer...")
-
-    # trainer = Trainer(
-    #     model=model,
-    #     optimizer=optim,
-    #     iterator=BucketIterator,
-    #     training_dataset=dataset['train'],
-    #     dev_dataset=dataset['dev'],
-    #     dev_iterator=BucketIterator,
-    #     dev_metric='loss',
-    #     use_gpu=params.gpu,
-    #     patience=None,
-    #     grad_clipping=None,
-    #     shuffle=params.shuffle,
-    #     num_epochs=params.epochs,
-    #     serialization_dir=params.save_model,
-    #     num_serialized_models_to_keep=5,
-    #     model_save_interval=params.model_save_interval,
-    #     summary_interval=100,
-    #     batch_size=params.batch_size
-    # )
-
-    # trainer.train()
+    return best_model
 
 
 if __name__ == "__main__":

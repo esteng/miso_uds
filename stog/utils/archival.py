@@ -59,8 +59,8 @@ def archive_model(serialization_dir: str, weights: str = _DEFAULT_WEIGHTS):
     with tarfile.open(archive_file, 'w:gz') as archive:
         archive.add(config_file, arcname=CONFIG_NAME)
         archive.add(weights_file, arcname=_WEIGHTS_NAME)
-        archive.add(os.path.join(serialization_dir, "vocabulary"),
-                    arcname="vocabulary")
+        # archive.add(os.path.join(serialization_dir, "vocabulary"),
+        #             arcname="vocabulary")
 
 
 def load_archive(archive_file: str,

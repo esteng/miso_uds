@@ -38,6 +38,7 @@ class Trainer:
             dev_iterator = None,
             dev_metric = 'loss',
             use_gpu = False,
+            cuda_device = None,
             patience = None,
             grad_clipping = None,
             shuffle = True,
@@ -69,6 +70,8 @@ class Trainer:
             and whether to serialize an ``is_best`` model each epoch.
         :param use_gpu:
             Whether use gpu or not.
+        :param cuda_device:
+            Specified CUDA device ID.
         :param patience:
             Number of epochs to be patient before early stopping: the training is stopped
             after ``patience`` epochs with no improvement. If given, it must be ``> 0``.
@@ -103,6 +106,7 @@ class Trainer:
         self._dev_iterator = dev_iterator
         self._dev_metric = dev_metric
         self._use_gpu = use_gpu
+        self._cuda_device = cuda_device
         self._patience = patience
         self._grad_clipping = grad_clipping
         self._shuffle = shuffle
@@ -115,6 +119,9 @@ class Trainer:
 
         self._num_trained_batches = 0
         self._serialized_paths = []
+
+        if self._use_gpu:
+            self._model.cuda(self._cuda_device)
 
         if serialization_dir is not None:
             train_log = os.path.join(serialization_dir, 'log', 'train')
@@ -153,9 +160,6 @@ class Trainer:
         self._model.train()
 
         # Get tqdm for the training batches
-        # TODO: iterator takes the following params and returns a generator.
-        # TODO: the generator should yield a dict containing parameters needed by the model.
-        # self._iterator is torchtext bucketiterator
         # TODO: How to deal with cuda device. Typically I set CUDA_VISIBLE_DEVICES before excute script, so it;s alway 0
         train_generator = self._iterator(
             dataset=self._training_dataset,
@@ -163,10 +167,9 @@ class Trainer:
             sort_key=lambda x: len(x),
             repeat=False,
             shuffle=self._shuffle,
-            device=torch.device('cuda:0') if self._use_gpu else None
+            device=self._cuda_device if self._use_gpu else None
         )
 
-        # TODO: iterator provides 'get_num_batches' method.
         num_training_batches = len(train_generator)
 
         logger.info('Training...')
@@ -278,7 +281,7 @@ class Trainer:
             sort_key=lambda x: len(x),
             repeat=False,
             shuffle=False,
-            device=torch.device('cuda:0') if self._use_gpu else None
+            device=self._cuda_device if self._use_gpu else None
         )
         num_dev_batches = len(dev_generator)
         dev_generator_tqdm = Tqdm.tqdm(dev_generator,
@@ -532,6 +535,8 @@ class Trainer:
             adagrad_accum=params.adagrad_accumulator_init,
             decay_method=params.decay_method,
             warmup_steps=params.warmup_steps,
+            use_gpu=params.gpu,
+            cuda_device=params.cuda_device
         )
 
         parameters = [[n, p] for n, p in model.named_parameters() if p.requires_grad]
@@ -546,6 +551,7 @@ class Trainer:
             dev_iterator=BucketIterator,
             dev_metric=params.dev_metric,
             use_gpu=params.gpu,
+            cuda_device=params.cuda_device,
             patience=None,
             grad_clipping=None,
             shuffle=params.shuffle,

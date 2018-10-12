@@ -103,8 +103,8 @@ def train_opts(parser):
     # GPU
     group.add_argument('--gpu', action="store_true", default=False,
                        help="deprecated see world_size and gpu_ranks.")
-    group.add_argument('--cuda_device', default=0, type=int,
-                       help="Cuda device ID.")
+    group.add_argument('--cuda_device', default=None, type=int,
+                       help="Available cuda device ID.")
 
     group.add_argument('--seed', type=int, default=1,
                        help="""Python random seed used for the experiments
@@ -231,10 +231,12 @@ def train_opts(parser):
                        help="""Log directory for Tensorboard.
                            This is also the name of the run.
                            """)
-    # Metrics
-    group = parser.add_argument_group('Metrics')
+    # Evaluation
+    group = parser.add_argument_group('Evaluation')
     group.add_argument('--dev_metric', default='loss',
                        help="The metric used on dev for early stopping, etc.")
+    group.add_argument('--evaluate_on_test', action='store_true',
+                       help="Whether to evaluate on test after training.")
 
 class Params(object):
     """

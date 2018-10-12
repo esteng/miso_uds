@@ -97,7 +97,8 @@ class Optimizer(object):
                  decay_method=None,
                  warmup_steps=4000,
                  model_size=None,
-                 use_gpu=False):
+                 use_gpu=False,
+                 cuda_device=None):
         self.last_ppl = None
         self.learning_rate = learning_rate
         self.original_lr = learning_rate
@@ -114,6 +115,7 @@ class Optimizer(object):
         self.warmup_steps = warmup_steps
         self.model_size = model_size
         self.use_gpu = use_gpu
+        self.cuda_device = cuda_device
 
     @property
     def lr(self):
@@ -169,7 +171,7 @@ class Optimizer(object):
             for state in self.optimizer.state.values():
                 for k, v in state.items():
                     if torch.is_tensor(v):
-                        state[v] = v.cuda()
+                        state[v] = v.cuda(self.cuda_device)
 
     def _set_rate(self, learning_rate):
         self.learning_rate = learning_rate
