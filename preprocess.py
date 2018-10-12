@@ -228,13 +228,18 @@ def dataset_from_params(opt):
     logger.info("Building dev datasets ...")
     dev_data = get_dataset(opt.dev_data, fields)
 
+    test_data = None
+    if opt.test_data:
+        logger.info("Building test datasets ...")
+        test_data = get_dataset(opt.test_data, fields)
+
     logger.info("Building vocabulary ...")
     build_vocab(fields, train_data)
 
     return dict(
         train=train_data,
         dev=dev_data,
-        test=None
+        test=test_data
     )
     #TODO save the preprocesse data. This is tricky since torchtext use lambda expression, which can't be serialized.
     #logger.info("Saving train data at {} ... ".format(opt.save_data + ".train.pt"))

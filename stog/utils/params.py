@@ -72,6 +72,8 @@ def preprocess_opts(parser):
                        help="Path to the training data")
     group.add_argument('--dev_data', required=True,
                        help="Path to the dev data")
+    group.add_argument('--test_data',
+                       help="Path to the test data")
     group.add_argument('--save_data', required=False,
                        help="place to same data")
     group.add_argument('--lower',

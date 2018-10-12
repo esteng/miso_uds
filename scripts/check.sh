@@ -8,6 +8,7 @@ data_dir=data/json/UD_English-EWT
 python -u -m stog.commands.train  \
   --train_data ${data_dir}/dev.json \
   --dev_data ${data_dir}/dev.json \
+  --test_data ${data_dir}/test.json \
   --token_emb_size 100 \
   --encoder_layers 2 \
   --encoder_size 100 \
@@ -22,5 +23,6 @@ python -u -m stog.commands.train  \
   --hidden_dropout 0 \
   --serialization_dir ckpt \
   --file_friendly_logging \
+  --evaluate_on_test \
   --gpu
   # --pretrain_token_emb ${glove} \
