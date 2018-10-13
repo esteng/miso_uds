@@ -420,7 +420,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             encoder_dropout_rate=params.encoder_dropout,
             edge_hidden_size=params.edge_hidden_size,
             label_hidden_size=params.label_hidden_size,
-            num_labels=params.num_labels,
+            num_labels=len(train_data.fields['relations'].vocab),
             decode_type=params.decode_type
         )
 
