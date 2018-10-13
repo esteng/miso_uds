@@ -123,7 +123,7 @@ def train_model(params: Params):
 
     if test_data and params.evaluate_on_test:
         logger.info("The model will be evaluated using the best epoch weights.")
-        test_metrics = evaluate(
+        test_metrics, predictions = evaluate(
                 best_model, test_data, trainer._dev_iterator, params.batch_size,
                 cuda_device=params.cuda_device # pylint: disable=protected-access
         )
@@ -131,6 +131,7 @@ def train_model(params: Params):
             metrics["test_" + key] = value
 
     dump_metrics(os.path.join(params.serialization_dir, "metrics.json"), metrics, log=True)
+    dump_metrics(os.path.join(params.serialization_dir, "predictions.json"), predictions, log=False)
 
     return best_model
 

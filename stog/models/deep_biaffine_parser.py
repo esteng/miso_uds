@@ -172,8 +172,9 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             pred_headers, pred_labels = self.remove_head_sentinel(pred_headers, pred_labels)
 
         return dict(
-            pred_headers=pred_headers,
-            pred_labels=pred_labels,
+            headers=pred_headers,
+            relations=pred_labels,
+            mask=mask,
             loss=loss / num_tokens,
         )
 
