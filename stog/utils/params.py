@@ -55,7 +55,7 @@ def model_opts(parser : argparse.ArgumentParser):
     group.add_argument('--edge_hidden_size', type=int, default=512,
                        help='')
 
-    group.add_argument('--type_hidden_size', type=int, default=128,
+    group.add_argument('--label_hidden_size', type=int, default=128,
                        help='')
 
     group.add_argument('--num_labels', type=int, default=50,
