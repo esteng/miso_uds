@@ -22,7 +22,7 @@ python -u -m stog.commands.train  \
   --encoder_dropout 0 \
   --hidden_dropout 0 \
   --serialization_dir ckpt \
-  --file_friendly_logging \
   --evaluate_on_test \
   --gpu
   # --pretrain_token_emb ${glove} \
+  # --file_friendly_logging \

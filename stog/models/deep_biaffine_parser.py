@@ -142,40 +142,34 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         input_char = batch.chars
         headers, mask = batch.headers
         types = batch.relations
+        num_tokens = mask.sum().item()
 
         encoder_output = self.encode(input_token, input_char, mask)
-        encoder_output, mask = self.add_head_sentinel(encoder_output, mask)
+        _encoder_output, _headers, _types, _mask = self.add_head_sentinel(encoder_output, headers, types, mask)
 
-        edge = self.mlp(encoder_output)
+        edge = self.mlp(_encoder_output)
         edge_headers, edge_modifiers, type_headers, type_modifiers = edge
-        edge_scores = self.attention(edge_headers, edge_modifiers, mask)
-        edge_log_likelihood = self.compute_edge_log_likelihood(edge_scores, mask)
-        num_tokens = mask.sum().item() - mask.size(0)
+        edge_scores = self.attention(edge_headers, edge_modifiers, _mask)
+        edge_log_likelihood = self.compute_edge_log_likelihood(edge_scores, _mask)
 
         if for_training or headers is not None:
-            type_log_likelihood = self.compute_type_log_likelihood(type_headers, type_modifiers, headers, mask)
-            loss = self.compute_loss(edge_log_likelihood, type_log_likelihood, headers, types)
+            type_log_likelihood = self.compute_type_log_likelihood(type_headers, type_modifiers, _headers, _mask)
+            loss = self.compute_loss(edge_log_likelihood, type_log_likelihood, _headers, _types)
 
-            pred_headers = self.decode(edge_log_likelihood, mask)
-            pred_type_log_likelihood = self.compute_type_log_likelihood(type_headers, type_modifiers, pred_headers, mask)
+            pred_headers = self.decode(edge_log_likelihood, _mask)
+            pred_type_log_likelihood = self.compute_type_log_likelihood(type_headers, type_modifiers, pred_headers, _mask)
             _, pred_types = pred_type_log_likelihood.max(dim=2)
-            # Remove the head sentinel.
-            pred_headers = pred_headers[:, 1:]
-            pred_types = pred_types[:, 1:]
-            mask = mask[:, 1:]
+            pred_headers, pred_types = self.remove_head_sentinel(pred_headers, pred_types)
+
             self.metrics(pred_headers, pred_types, headers, types, mask)
-            self.uas(pred_headers, headers, mask)
             self.accumulated_loss += loss.item()
             self.num_accumulated_tokens += num_tokens
         else:
             loss = 0.0
-            pred_headers = self.decode(edge_log_likelihood, mask)
-            type_log_likelihood = self.compute_type_log_likelihood(type_headers, type_modifiers, pred_headers, mask)
+            pred_headers = self.decode(edge_log_likelihood, _mask)
+            type_log_likelihood = self.compute_type_log_likelihood(type_headers, type_modifiers, pred_headers, _mask)
             _, pred_types = type_log_likelihood.max(dim=2)
-            # Remove the head sentinel.
-            pred_headers = pred_headers[:, 1:]
-            pred_types = pred_types[:, 1:]
-            mask = mask[:, 1:]
+            pred_headers, pred_types = self.remove_head_sentinel(pred_headers, pred_types)
 
         return dict(
             pred_headers=pred_headers,
@@ -183,17 +177,32 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             loss=loss / num_tokens,
         )
 
-    def add_head_sentinel(self, encoder_output, mask):
+    def add_head_sentinel(self, encoder_output, headers, types, mask):
         """
         Add a dummpy ROOT at the beginning of each sequence.
         :param encoder_output: [batch, length, hidden_size]
-        :return:  [batch, length + 1, hidden_size]
+        :param headers: [batch, length]
+        :param types: [batch, length]
+        :param mask: [batch, length]
         """
         batch_size, _, hidden_size = encoder_output.size()
         head_sentinel = self.head_sentinel.expand([batch_size, 1, hidden_size])
         encoder_output = torch.cat([head_sentinel, encoder_output], 1)
+        headers = torch.cat([headers.new_zeros(batch_size, 1), headers], 1)
+        types = torch.cat([types.new_zeros(batch_size, 1), types], 1)
         mask = torch.cat([mask.new_ones(batch_size, 1), mask], 1)
-        return  encoder_output, mask
+        return  encoder_output, headers, types, mask
+
+    def remove_head_sentinel(self, headers, types):
+        """
+        Remove the dummpy ROOT at the beginning of each sequence.
+        :param headers: [batch, length + 1]
+        :param types: [batch, length + 1]
+        """
+        headers = headers[:, 1:]
+        types = types[:, 1:]
+        return  headers, types
+
 
     def compute_edge_log_likelihood(self, edge_scores, mask):
         """
@@ -230,7 +239,10 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         # Select the corresponding header representations
         # based on gold/predicted headers.
         # [batch, length, type_hidden_size]
-        type_selected_headers = type_headers[batch_index, headers.data]
+        type_selected_headers = type_headers[batch_index, headers]
+
+        type_selected_headers = type_selected_headers.contiguous()
+        type_modifiers = type_modifiers.contiguous()
 
         # [batch, length, num_types]
         type_scores = self.bilinear(type_selected_headers, type_modifiers)
@@ -289,7 +301,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         # predition shape = [batch, length]
         _, headers = edge_scores.max(dim=1)
 
-        return headers.cpu().numpy()
+        return headers
 
     def mst_decode(self, edge_scores, mask):
         length = mask.sum(dim=1).long().cpu().numpy()
