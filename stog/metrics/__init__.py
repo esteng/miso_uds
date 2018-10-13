@@ -1,6 +1,6 @@
 import json
 
-from .attachment_score import UnlabeledAttachScore
+from .attachment_score import AttachmentScores
 
 from stog.utils import logging
 
