@@ -33,7 +33,7 @@ def write_json(
     dict_to_write['tokens'] = " ".join([item[1]  for item in stacked_lines])
     dict_to_write['lemma'] = " ".join([item[2]  for item in stacked_lines])
     dict_to_write['pos'] = " ".join([item[3]  for item in stacked_lines])
-    dict_to_write['relations'] = [(item[0], item[6], item[7]) for item in stacked_lines]
+    dict_to_write['relations'] = [item[7] for item in stacked_lines]
     dict_to_write['headers'] = [item[6] for item in stacked_lines]
 
     line_to_write = json.dumps(dict_to_write) + '\n'

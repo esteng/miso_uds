@@ -167,7 +167,7 @@ class Trainer:
             sort_key=lambda x: len(x),
             repeat=False,
             shuffle=self._shuffle,
-            device=self._cuda_device if self._use_gpu else None
+            device=torch.device('cuda', self._cuda_device) if self._use_gpu else None
         )
 
         num_training_batches = len(train_generator)
@@ -281,7 +281,7 @@ class Trainer:
             sort_key=lambda x: len(x),
             repeat=False,
             shuffle=False,
-            device=self._cuda_device if self._use_gpu else None
+            device=torch.device('cuda', self._cuda_device) if self._use_gpu else None
         )
         num_dev_batches = len(dev_generator)
         dev_generator_tqdm = Tqdm.tqdm(dev_generator,
@@ -385,7 +385,7 @@ class Trainer:
 
         if dev_metric_per_epoch:
             # We may not have had validation data, so we need to hide this behind an if.
-            best_dev_metric = max(dev_metric_per_epoch)
+            best_dev_metric = min(dev_metric_per_epoch)
             metrics.update({f"best_dev_{k}": v for k, v in best_epoch_dev_metrics.items()})
             metrics['best_epoch'] = [i for i, value in enumerate(dev_metric_per_epoch)
                                      if value == best_dev_metric][-1]
@@ -416,7 +416,7 @@ class Trainer:
         if not dev_metric_per_epoch:
             return True
         else:
-            return this_epoch_dev_metric > max(dev_metric_per_epoch)
+            return this_epoch_dev_metric < min(dev_metric_per_epoch)
 
     def _description_from_metrics(self, metrics: Dict[str, float]) -> str:
         return ', '.join(["%s: %.4f" % (name, value) for name, value in

@@ -39,7 +39,7 @@ class HeaderField(RawField):
 
     def preprocess(self, x):
         # add 0 for root node
-        return [0] + [int(item) for item in x]
+        return [int(item) for item in x]
 
     def process(self, batch, device, train):
         max_len = max(len(item) for item in batch)
@@ -53,55 +53,14 @@ class HeaderField(RawField):
         else:
             raise NotImplementedError
 
+        # TODO: Not sure about what's going on here, will check later.
+        if device == -1:
+            device = None
         batch_headers = batch_headers.to(device)
         batch_mask = batch_mask.to(device)
 
         return batch_headers, batch_mask
 
-
-class RelationField(RawField):
-    """
-    A class for relations between tokens
-    """
-    def __init__(
-            self,
-            batch_first=False,
-            is_target=False
-    ):
-        self.batch_first = batch_first
-        self.is_target = is_target
-
-    def preprocess(self, x):
-        return x
-
-    def process(self, batch, device=None, train=False):
-        max_len = max(len(item) for item in batch)
-        batch_size = len(batch)
-
-        # Batch tensors
-        batch_relation_tensor = torch.zeros(
-            [ batch_size, max_len, max_len + 1]
-        )
-        batch_relation_tensor_mask = torch.zeros(
-            [ batch_size, max_len, max_len + 1]
-        )
-        batch_relation_tensor_mask[:, :max_len,:max_len + 1] = 1
-
-        for idx_in_batch, example in enumerate(batch):
-            # map token index in UD to integer
-            index_mapper = {item[0] : i for i, item in enumerate(example)}
-            index_mapper["0"] = len(index_mapper)
-            relations_child = [index_mapper[item[0]] for item in example]
-            relations_father = [index_mapper[item[1]] for item in example]
-
-            batch_relation_tensor[idx_in_batch, relations_child, relations_father] = 1
-
-        # Move to GPU if needed
-        # TODO: Make sure this is the right way to move tensor to gpu memory.
-        batch_relation_tensor = batch_relation_tensor.to(device)
-        batch_relation_tensor_mask = batch_relation_tensor_mask.to(device)
-
-        return batch_relation_tensor, batch_relation_tensor_mask
 
 class RootNestedField(data.NestedField):
     def add_root(self, root_char):
@@ -147,15 +106,19 @@ def get_fields(opt):
         sequential=True,
         lower=opt.lower,
         batch_first=opt.batch_first,
-        preprocessing=lambda x: [ROOT_TOKEN] + x
     )
 
-    fields['chars'] = RootNestedField(
+    fields['chars'] = data.NestedField(
         data.Field(tokenize=list)
     )
 
     fields['headers'] = HeaderField(
         batch_first=opt.batch_first
+    )
+
+    fields['relations'] = data.Field(
+        sequential=True,
+        batch_first=opt.batch_first,
     )
 
     return fields
@@ -173,7 +136,8 @@ def get_dataset(data_path, fields):
         [
             ("tokens", ( "tokens", fields['tokens'] ) ),
             ("tokens", ( "chars", fields["chars"] ) ),
-            ("headers" , ( "headers", fields["headers"]))
+            ("headers", ( "headers", fields["headers"])),
+            ("relations", ("relations", fields["relations"]))
         ]
     )
     dataset = data.TabularDataset(
@@ -190,7 +154,7 @@ def build_vocab(fields, data):
     # Build vocab
     fields['tokens'].build_vocab(data)
     fields['chars'].build_vocab(data)
-    fields['chars'].add_root(ROOT_CHAR)
+    fields["relations"].build_vocab(data)
 
 
 def get_iterator(dataset, opt):
@@ -225,8 +189,14 @@ def dataset_from_params(opt):
     logger.info("Building train datasets ...")
     train_data = get_dataset(opt.train_data, fields)
 
+    import pdb; pdb.set_trace()
     logger.info("Building dev datasets ...")
     dev_data = get_dataset(opt.dev_data, fields)
+
+    test_data = None
+    if opt.test_data:
+        logger.info("Building test datasets ...")
+        test_data = get_dataset(opt.test_data, fields)
 
     logger.info("Building vocabulary ...")
     build_vocab(fields, train_data)
@@ -234,7 +204,7 @@ def dataset_from_params(opt):
     return dict(
         train=train_data,
         dev=dev_data,
-        test=None
+        test=test_data
     )
     #TODO save the preprocesse data. This is tricky since torchtext use lambda expression, which can't be serialized.
     #logger.info("Saving train data at {} ... ".format(opt.save_data + ".train.pt"))

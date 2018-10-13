@@ -102,14 +102,12 @@ def train_model(params: Params):
 
     trainer = Trainer.from_params(model, train_data, dev_data, params)
     
-    trainer.train()
-
     try:
         metrics = trainer.train()
     except KeyboardInterrupt:
         # if we have completed an epoch, try to create a model archive.
         if os.path.exists(os.path.join(params.serialization_dir, _DEFAULT_WEIGHTS)):
-            logging.info("Training interrupted by the user. Attempting to create "
+            logger.info("Training interrupted by the user. Attempting to create "
                          "a model archive using the current best epoch weights.")
             archive_model(params.serialization_dir)
         raise

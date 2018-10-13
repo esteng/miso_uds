@@ -26,7 +26,7 @@ def evaluate(model: Model,
             sort_key=None,
             repeat=False,
             shuffle=False,
-            device=cuda_device
+            device=torch.device('cuda', cuda_device)
         )
 
         logger.info("Iterating over dataset")
