@@ -9,7 +9,8 @@ from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.attention import BiaffineAttention
 from stog.modules.linear import BiLinear
 from stog.metrics import AttachmentScores
-from stog.algorithms import maximum_spanning_tree as MST
+from stog.algorithms.maximum_spanning_tree import decode_mst
+from stog.utils.nn import masked_log_softmax
 from stog.utils.logging import init_logger
 
 logger = init_logger()
@@ -145,37 +146,44 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         num_tokens = mask.sum().item()
 
         encoder_output = self.encode(input_token, input_char, mask)
-        _encoder_output, _headers, _labels, _mask = self.add_head_sentinel(encoder_output, headers, labels, mask)
+        encoder_output, headers, labels, mask = self.add_head_sentinel(encoder_output, headers, labels, mask)
 
-        edge = self.mlp(_encoder_output)
+        edge = self.mlp(encoder_output)
         edge_headers, edge_modifiers, label_headers, label_modifiers = edge
-        edge_scores = self.attention(edge_headers, edge_modifiers, _mask)
-        edge_log_likelihood = self.compute_edge_log_likelihood(edge_scores, _mask)
+        edge_scores = self.attention(edge_headers, edge_modifiers, mask)
 
-        if for_training or headers is not None:
-            label_log_likelihood = self.compute_label_log_likelihood(label_headers, label_modifiers, _headers, _mask)
-            loss = self.compute_loss(edge_log_likelihood, label_log_likelihood, _headers, _labels)
+        predicted_headers, predicted_header_labels = self.predict(
+            label_headers, label_modifiers, edge_scores, mask)
 
-            pred_headers = self.decode(edge_log_likelihood, _mask)
-            pred_label_log_likelihood = self.compute_label_log_likelihood(label_headers, label_modifiers, pred_headers, _mask)
-            _, pred_labels = pred_label_log_likelihood.max(dim=2)
-            pred_headers, pred_labels = self.remove_head_sentinel(pred_headers, pred_labels)
+        if for_training or (headers is not None and labels is not None):
+            edge_nll, label_nll = self.compute_loss(
+                label_headers, label_modifiers, edge_scores, headers, labels, mask)
+            loss = edge_nll + label_nll
 
-            self.metrics(pred_headers, pred_labels, headers, labels, mask)
-            self.accumulated_loss += loss.item()
+            self.metrics(
+                predicted_headers[:, 1:],
+                predicted_header_labels[: 1:],
+                headers[:, 1:],
+                labels[:, 1:],
+                mask[:, 1:])
+
+            self.accumulated_edge_loss += edge_nll.item()
+            self.accumulated_label_loss += label_nll.item()
+
             self.num_accumulated_tokens += num_tokens
         else:
-            loss = 0.0
-            pred_headers = self.decode(edge_log_likelihood, _mask)
-            label_log_likelihood = self.compute_label_log_likelihood(label_headers, label_modifiers, pred_headers, _mask)
-            _, pred_labels = label_log_likelihood.max(dim=2)
-            pred_headers, pred_labels = self.remove_head_sentinel(pred_headers, pred_labels)
+            edge_nll, label_nll = self.compute_loss(
+                label_headers, label_modifiers, edge_scores, predicted_headers, predicted_header_labels, mask)
+
+            loss = edge_nll + label_nll
 
         return dict(
-            headers=pred_headers,
-            relations=pred_labels,
-            mask=mask,
+            headers=predicted_headers,
+            relations=predicted_header_labels,
+            mask=mask[:, 1:],
             loss=loss / num_tokens,
+            edge_loss=edge_nll / num_tokens,
+            label_loss=label_nll / num_tokens
         )
 
     def add_head_sentinel(self, encoder_output, headers, labels, mask):
@@ -223,9 +231,9 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
         return edge_log_likelihood
 
-    def compute_label_log_likelihood(self, label_headers, label_modifiers, headers, mask):
+    def compute_header_label_logits(self, label_headers, label_modifiers, headers):
         """
-        Compute the edge label log likeliloods.
+        Compute the edge label logits.
         :param label_headers: [batch, length, label_hidden_size]
         :param label_modifiers: [batch, length, label_hidden_size]
         :param headers: [batch, length] -- header at [i, j] means the header index of token_j at batch_i.
@@ -246,24 +254,24 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         label_modifiers = label_modifiers.contiguous()
 
         # [batch, length, num_labels]
-        label_scores = self.bilinear(label_selected_headers, label_modifiers)
+        label_logits = self.bilinear(label_selected_headers, label_modifiers)
 
-        label_log_likelihood = F.log_softmax(label_scores, dim=2)
+        return label_logits
 
-        # Mask out pads.
-        label_log_likelihood = label_log_likelihood * mask.unsqueeze(2)
-
-        return label_log_likelihood
-
-    def compute_loss(self, edge_log_likelihood, label_log_likelihood, headers, labels):
+    def compute_loss(self, label_headers, label_modifiers, edge_scores, headers, header_labels, mask):
         """
-        :param edge_log_likelihood: [batch, header_length, modifier_length]
-        :param label_log_likelihood: [batch, length, num_labels]
-        :param headers: [batch, length] -- header at [i, j] means the header index of token_j at batch_i.
-        :param labels: [batch, length]
+        :param label_headers: [batch, length, label_hidden_size]
+        :param label_modifiers: [batch, length, label_hidden_size]
+        :param edge_scores: [batch, header_length, modifier_length]
+        :param mask: [batch, length]
         """
-        # Total number of headers to predict (ROOT excluded).
-        batch_size, max_len, _ = edge_log_likelihood.size()
+        batch_size, max_len, _ = edge_scores.size()
+        float_mask = mask.float()
+
+        edge_log_likelihood = masked_log_softmax(edge_scores, mask.unsqueeze(2) + mask.unsqueeze(1), dim=1)
+
+        header_label_logits = self.compute_header_label_logits(label_headers, label_modifiers, headers)
+        label_log_likelihood = masked_log_softmax(header_label_logits)
 
         # Create indexing matrix for batch: [batch, 1]
         batch_index = torch.arange(0, batch_size).view(batch_size, 1)
@@ -274,45 +282,93 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         # Index the log likelihood of gold edges (ROOT excluded).
         # Output [batch, length - 1]
         gold_edge_log_likelihood = edge_log_likelihood[batch_index, headers.data, modifier_index][:, 1:]
-        gold_label_log_likelihood = label_log_likelihood[batch_index, modifier_index, labels.data][:, 1:]
+        gold_label_log_likelihood = label_log_likelihood[batch_index, modifier_index, header_labels.data][:, 1:]
 
-        return -(gold_edge_log_likelihood.sum() + gold_label_log_likelihood.sum())
+        return -gold_edge_log_likelihood.sum(), -gold_label_log_likelihood.sum()
 
-    def decode(self, scores, mask):
-        # TODO: Change the interface.
+    def predict(self, label_headers, label_modifiers, edge_scores, mask):
         if self.decode_type == 'mst':
-            return self.mst_decode(scores, mask)
+            return self.mst_decode(label_headers, label_modifiers, edge_scores, mask)
         else:
-            return self.greedy_decode(scores, mask)
+            return self.greedy_decode(label_headers, label_modifiers, edge_scores, mask)
 
-    def greedy_decode(self, edge_scores, mask=None):
+    def greedy_decode(self, label_headers, label_modifiers, edge_scores, mask):
         # out_arc shape [batch, length, length]
         edge_scores = edge_scores.data
-        batch, max_len, _ = edge_scores.size()
+        max_len = edge_scores.size(1)
 
-        # set diagonal elements to -inf
-        edge_scores += torch.diag(edge_scores.new(max_len).fill_(-np.inf))
+        # Set diagonal elements to -inf
+        edge_scores = edge_scores + torch.diag(edge_scores.new(max_len).fill_(-np.inf))
 
-        # set invalid positions to -inf
-        # minus_mask = (1 - mask.data).byte().view(batch, max_len, 1)
-        minus_mask = (1 - mask.data).byte().unsqueeze(2)
-        edge_scores.masked_fill_(minus_mask, -np.inf)
+        # Set invalid positions to -inf
+        minus_mask = (1 - mask.float()) * self.minus_inf
+        edge_scores = edge_scores + minus_mask.unsqueeze(2) + minus_mask.unsqueeze(1)
 
-        # compute naive predictions.
+        # Compute naive predictions.
         # predition shape = [batch, length]
-        _, headers = edge_scores.max(dim=1)
+        _, header_indices = edge_scores.max(dim=1)
 
-        return headers
+        # Based on predicted headers, compute the edge label logits.
+        # [batch, length, num_labels]
+        header_label_logits = self.compute_header_label_logits(label_headers, label_modifiers, header_indices)
+        _, header_labels = header_label_logits.max(dim=2)
 
-    def mst_decode(self, edge_scores, mask):
-        length = mask.sum(dim=1).long().cpu().numpy()
-        pred_headers, _ = MST.decode(
-            edge_scores.detach().cpu().numpy(),
-            length,
-            num_leading_symbols=1,
-            labeled=False
-        )
-        return pred_headers
+        return header_indices, header_labels
+
+    def mst_decode(self, label_headers, label_modifiers, edge_scores, mask):
+        batch_size, max_length, label_hidden_size = label_headers.size()
+        lengths = mask.data.sum(dim=1).long().cpu().numpy()
+
+        expanded_shape = [batch_size, max_length, max_length, label_hidden_size]
+        label_headers = label_headers.unsqueeze(2).expand(*expanded_shape).contiguous()
+        label_modifiers = label_modifiers.unsqueeze(1).expand(*expanded_shape).contiguous()
+        # [batch, max_header_length, max_modifier_length, num_labels]
+        pairwise_label_logits = self.bilinear(label_headers, label_modifiers)
+
+        normalized_edge_label_logits = F.log_softmax(pairwise_label_logits, dim=3).permute(0, 3, 1, 2)
+
+        # Set invalid positions to -inf
+        minus_mask = (1 - mask.float()) * self.minus_inf
+        edge_scores = edge_scores + minus_mask.unsqueeze(2) + minus_mask.unsqueeze(1)
+        # [batch, max_header_length, max_modifier_length]
+        normalized_edge_logits = F.log_softmax(edge_scores, dim=1)
+
+        # [batch, num_labels, max_header_length, max_modifier_length]
+        batch_energy = torch.exp(normalized_edge_logits.unsqueeze(1) + normalized_edge_label_logits)
+
+        return self._run_mst_decoding(batch_energy, lengths)
+
+    @staticmethod
+    def _run_mst_decoding(batch_energy, lengths):
+        heads = []
+        head_labels = []
+        for energy, length in zip(batch_energy.detach().cpu(), lengths):
+            # energy: [num_labels, max_header_length, max_modifier_length]
+            # scores | label_ids : [max_header_length, max_modifier_length]
+            scores, label_ids = energy.max(dim=0)
+            # Although we need to include the root node so that the MST includes it,
+            # we do not want any word to be the parent of the root node.
+            # Here, we enforce this by setting the scores for all word -> ROOT edges
+            # edges to be 0.
+            # TODO: This seems wrong?
+            scores[0, :] = 0
+            # Decode the heads. Because we modify the scores to prevent
+            # adding in word -> ROOT edges, we need to find the labels ourselves.
+            instance_heads, _ = decode_mst(scores.numpy(), length, has_labels=False)
+
+            # Find the labels which correspond to the edges in the max spanning tree.
+            instance_head_labels = []
+            for child, parent in enumerate(instance_heads):
+                instance_head_labels.append(label_ids[parent, child].item())
+            # We don't care what the head or tag is for the root token, but by default it's
+            # not necessarily the same in the batched vs unbatched case, which is annoying.
+            # Here we'll just set them to zero.
+            instance_heads[0] = 0
+            instance_head_labels[0] = 0
+            heads.append(instance_heads)
+            head_labels.append(instance_head_labels)
+        return torch.from_numpy(np.stack(heads)), torch.from_numpy(np.stack(head_labels))
+
 
     def encode(self, input_token, input_char, mask):
         """

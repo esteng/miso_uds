@@ -132,7 +132,7 @@ class Model(torch.nn.Module):
         """
         raise NotImplementedError
 
-    def decode(self, output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def decode(self, **output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         Takes the result of :func:`forward` and runs inference / decoding / whatever
         post-processing you need to do your model.  The intent is that ``model.forward()`` should
