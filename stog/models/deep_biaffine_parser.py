@@ -364,7 +364,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             # Here, we enforce this by setting the scores for all word -> ROOT edges
             # edges to be 0.
             # TODO: This seems wrong?
-            scores[0, :] = 0
+            scores[0, :] = -1
             # Decode the heads. Because we modify the scores to prevent
             # adding in word -> ROOT edges, we need to find the labels ourselves.
             instance_heads, _ = decode_mst(scores.numpy(), length, has_labels=False)

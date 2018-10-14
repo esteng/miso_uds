@@ -20,6 +20,7 @@ def evaluate(model: Model,
 
     with torch.no_grad():
         model.eval()
+        model.decode_type = 'mst'
 
         iterator = Iterator(
             instances,
@@ -36,7 +37,7 @@ def evaluate(model: Model,
         for batch in generator_tqdm:
             output_dict = model(batch, for_training=False)
             predictions = add_predictions(output_dict, instances.fields, predictions)
-            metrics = model.get_metrics()
+            metrics = model.get_metrics(for_training=False)
             description = ', '.join(["%s: %.2f" % (name, value) for name, value in metrics.items()]) + " ||"
             generator_tqdm.set_description(description, refresh=False)
 

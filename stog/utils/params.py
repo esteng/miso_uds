@@ -251,6 +251,7 @@ class Params(object):
         if not isinstance(other, Params):
             logger.info('The params you compare is not an instance of Params.')
             return False
+
         if len(self._param_dict) != len(other._param_dict):
             logger.info('The numbers of parameters are different: {} != {}'.format(
                 len(self._param_dict),
@@ -259,6 +260,8 @@ class Params(object):
             return False
         same = True
         for k, v in self._param_dict.items():
+            if k == 'recover':
+                continue
             if k not in other._param_dict:
                 logger.info('The parameter "{}" is not specified.'.format(k))
                 same = False
