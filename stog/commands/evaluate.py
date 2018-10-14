@@ -56,7 +56,9 @@ def add_predictions(output_dict, fields, predictions):
             instances.append(instance)
         return instances
 
-    output_dict.pop('loss', None)
+    ignored_names = [name for name in output_dict if 'loss' in name]
+    for name in ignored_names:
+        output_dict.pop(name, None)
     lengths = output_dict.pop('mask').detach().cpu().sum(dim=1)
     for name, pred in output_dict.items():
         pred = pred.detach().cpu()

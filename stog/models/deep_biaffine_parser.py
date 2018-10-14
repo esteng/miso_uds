@@ -122,17 +122,24 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
         # Metrics
         self.accumulated_loss = 0.0
+        self.accumulated_edge_loss = 0.0
+        self.accumulated_label_loss = 0.0
         self.num_accumulated_tokens = 0
         self.metrics = AttachmentScores()
 
-    def get_metrics(self, reset=False):
+    def get_metrics(self, for_training=False, reset=False):
         metrics = dict(
             loss=self.accumulated_loss / self.num_accumulated_tokens,
+            edge_loss=self.accumulated_edge_loss / self.num_accumulated_tokens,
+            label_loss=self.accumulated_label_loss / self.num_accumulated_tokens
         )
         if reset:
             self.accumulated_loss = 0.0
+            self.accumulated_edge_loss = 0.0
+            self.accumulated_label_loss = 0.0
             self.num_accumulated_tokens = 0
-        metrics.update(self.metrics.get_metric(reset))
+        if not for_training:
+            metrics.update(self.metrics.get_metric(reset))
         return metrics
 
     def get_regularization_penalty(self):
@@ -152,34 +159,40 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         edge_headers, edge_modifiers, label_headers, label_modifiers = edge
         edge_scores = self.attention(edge_headers, edge_modifiers, mask)
 
-        predicted_headers, predicted_header_labels = self.predict(
-            label_headers, label_modifiers, edge_scores, mask)
-
-        if for_training or (headers is not None and labels is not None):
+        if headers is not None and labels is not None:
             edge_nll, label_nll = self.compute_loss(
                 label_headers, label_modifiers, edge_scores, headers, labels, mask)
             loss = edge_nll + label_nll
 
-            self.metrics(
-                predicted_headers[:, 1:],
-                predicted_header_labels[: 1:],
-                headers[:, 1:],
-                labels[:, 1:],
-                mask[:, 1:])
-
             self.accumulated_edge_loss += edge_nll.item()
             self.accumulated_label_loss += label_nll.item()
+            self.accumulated_loss += loss.item()
 
             self.num_accumulated_tokens += num_tokens
+
+            predicted_headers, predicted_header_labels = headers, labels
+            if not for_training:
+                predicted_headers, predicted_header_labels = self.predict(
+                    label_headers, label_modifiers, edge_scores, mask)
+
+                self.metrics(
+                    predicted_headers[:, 1:],
+                    predicted_header_labels[:, 1:],
+                    headers[:, 1:],
+                    labels[:, 1:],
+                    mask[:, 1:])
         else:
+
+            predicted_headers, predicted_header_labels = self.predict(
+                label_headers, label_modifiers, edge_scores, mask)
             edge_nll, label_nll = self.compute_loss(
                 label_headers, label_modifiers, edge_scores, predicted_headers, predicted_header_labels, mask)
 
             loss = edge_nll + label_nll
 
         return dict(
-            headers=predicted_headers,
-            relations=predicted_header_labels,
+            headers=predicted_headers[:, 1:],
+            relations=predicted_header_labels[:, 1:],
             mask=mask[:, 1:],
             loss=loss / num_tokens,
             edge_loss=edge_nll / num_tokens,
@@ -271,7 +284,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         edge_log_likelihood = masked_log_softmax(edge_scores, mask.unsqueeze(2) + mask.unsqueeze(1), dim=1)
 
         header_label_logits = self.compute_header_label_logits(label_headers, label_modifiers, headers)
-        label_log_likelihood = masked_log_softmax(header_label_logits)
+        label_log_likelihood = F.log_softmax(header_label_logits, dim=2)
 
         # Create indexing matrix for batch: [batch, 1]
         batch_index = torch.arange(0, batch_size).view(batch_size, 1)

@@ -188,7 +188,7 @@ class Trainer:
             self._optimizer.step()
 
             # Update the description with the latest metrics
-            metrics = self._model.get_metrics()
+            metrics = self._model.get_metrics(for_training=True)
             description = self._description_from_metrics(metrics)
 
             train_generator_tqdm.set_description(description, refresh=False)
@@ -210,7 +210,7 @@ class Trainer:
                     '{0}.{1}'.format(epoch, time_to_str(int(last_save_time))), [], is_best=False
                 )
         logger.info('Finish one epoch.')
-        return self._model.get_metrics(reset=True)
+        return self._model.get_metrics(for_training=True, reset=True)
 
     def _metrics_to_tensorboard(self,
                                 epoch: int,
@@ -301,11 +301,11 @@ class Trainer:
                 dev_loss += loss.item()
 
             # Update the description with the latest metrics
-            dev_metrics = self._model.get_metrics()
+            dev_metrics = self._model.get_metrics(for_training=True)
             description = self._description_from_metrics(dev_metrics)
             dev_generator_tqdm.set_description(description, refresh=False)
 
-        return self._model.get_metrics(reset=True)
+        return self._model.get_metrics(for_training=False, reset=True)
 
     def train(self):
         """Trains the supplied model with the supplied parameters.
