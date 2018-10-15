@@ -189,7 +189,7 @@ def dataset_from_params(opt):
     logger.info("Building train datasets ...")
     train_data = get_dataset(opt.train_data, fields)
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     logger.info("Building dev datasets ...")
     dev_data = get_dataset(opt.dev_data, fields)
 

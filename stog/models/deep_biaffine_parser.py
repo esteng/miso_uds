@@ -8,8 +8,9 @@ from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
 from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.attention import BiaffineAttention
 from stog.modules.linear import BiLinear
-from stog.metrics import UnlabeledAttachScore as UAS
-from stog.algorithms import maximum_spanning_tree as MST
+from stog.metrics import AttachmentScores
+from stog.algorithms.maximum_spanning_tree import decode_mst
+from stog.utils.nn import masked_log_softmax
 from stog.utils.logging import init_logger
 from stog.models.utils import get_text_field_mask
 logger = init_logger()
@@ -46,8 +47,8 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             encoder_dropout_rate,
             # Attention
             edge_hidden_size,
-            # Edge type classifier
-            type_hidden_size,
+            # Edge label classifier
+            label_hidden_size,
             num_labels,
             # Decode
             decode_type
@@ -68,10 +69,9 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         self.num_encoder_layers = num_encoder_layers
         self.encoder_dropout = encoder_dropout_rate
         self.edge_hidden_size = edge_hidden_size
-        self.type_hidden_size = type_hidden_size
+        self.label_hidden_size = label_hidden_size
         self.num_labels = num_labels
         self.decode_type = decode_type
-
 
         self.token_embedding = Embedding(
             num_token_embeddings,
@@ -100,8 +100,11 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             num_encoder_layers,
             encoder_dropout_rate
         ))
-
         encoder_output_size = self.encoder_hidden_size * 2
+
+        # Hidden representation for ROOT.
+        self.head_sentinel = torch.nn.Parameter(torch.randn([1, 1, encoder_output_size]))
+
         # Linear transformation for edge headers.
         self.edge_h = torch.nn.Linear(encoder_output_size, edge_hidden_size)
         # Linear transformation for edge modifiers.
@@ -109,62 +112,119 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
         self._attention = BiaffineAttention(edge_hidden_size, edge_hidden_size)
 
-        # Comment out because currently we don't consider edge types.
-        # Linear transformation for type headers.
-        # self.type_h = torch.nn.Linear(encoder_output_size, type_hidden_size)
-        # Linear transformation for type modifiers.
-        # self.type_m = torch.nn.Linear(encoder_output_size, type_hidden_size)
+        # Comment out because currently we don't consider edge labels.
+        # Linear transformation for label headers.
+        self.label_h = torch.nn.Linear(encoder_output_size, label_hidden_size)
+        # Linear transformation for label modifiers.
+        self.label_m = torch.nn.Linear(encoder_output_size, label_hidden_size)
 
-        self.bilinear = BiLinear(type_hidden_size, type_hidden_size, num_labels)
+        self.bilinear = BiLinear(label_hidden_size, label_hidden_size, num_labels)
 
         # Metrics
         self.accumulated_loss = 0.0
+        self.accumulated_edge_loss = 0.0
+        self.accumulated_label_loss = 0.0
         self.num_accumulated_tokens = 0
-        self.uas = UAS()
+        self.metrics = AttachmentScores()
 
-    def get_metrics(self, reset=False):
+    def get_metrics(self, for_training=False, reset=False):
         metrics = dict(
             loss=self.accumulated_loss / self.num_accumulated_tokens,
-            UAS=self.uas.score
+            edge_loss=self.accumulated_edge_loss / self.num_accumulated_tokens,
+            label_loss=self.accumulated_label_loss / self.num_accumulated_tokens
         )
         if reset:
             self.accumulated_loss = 0.0
+            self.accumulated_edge_loss = 0.0
+            self.accumulated_label_loss = 0.0
             self.num_accumulated_tokens = 0
-            self.uas.reset()
+        if not for_training:
+            metrics.update(self.metrics.get_metric(reset))
         return metrics
 
     def get_regularization_penalty(self):
         return 0.0
 
-    def forward(self, batch, for_training=True,):
-        input_token = batch["words"]["tokens"]
-        input_char = batch["words"]["characters"]
-        headers = batch["head_indices"]
-        relations = batch["head_tags"]
-        mask = get_text_field_mask(batch["words"]).float()
-        # TODO: use relations tensor
-        encoder_output = self.encode(input_token, input_char, mask)
-        edge = self.mlp(encoder_output)
-        edge_headers, edge_modifiers = edge
-        edge_scores = self.attention(edge_headers, edge_modifiers, mask)
-        edge_log_likelihood = self.compute_edge_log_likelihood(edge_scores, mask)
-        num_tokens = mask.sum().item() - mask.size(0)
+    def forward(self, batch, for_training=True):
+        input_token = batch.tokens
+        input_char = batch.chars
+        headers, mask = batch.headers
+        labels = batch.relations
+        num_tokens = mask.sum().item()
 
-        if for_training or headers is not None:
-            loss = self.compute_loss(edge_log_likelihood, headers)
-            #TODO: Metric for graph includes type.
-            pred_headers = self.decode(edge_log_likelihood, mask)
-            self.uas(pred_headers, headers, mask)
+        encoder_output = self.encode(input_token, input_char, mask)
+        encoder_output, headers, labels, mask = self.add_head_sentinel(encoder_output, headers, labels, mask)
+
+        edge = self.mlp(encoder_output)
+        edge_headers, edge_modifiers, label_headers, label_modifiers = edge
+        edge_scores = self.attention(edge_headers, edge_modifiers, mask)
+
+        if headers is not None and labels is not None:
+            edge_nll, label_nll = self.compute_loss(
+                label_headers, label_modifiers, edge_scores, headers, labels, mask)
+            loss = edge_nll + label_nll
+
+            self.accumulated_edge_loss += edge_nll.item()
+            self.accumulated_label_loss += label_nll.item()
             self.accumulated_loss += loss.item()
+
             self.num_accumulated_tokens += num_tokens
+
+            predicted_headers, predicted_header_labels = headers, labels
+            if not for_training:
+                predicted_headers, predicted_header_labels = self.predict(
+                    label_headers, label_modifiers, edge_scores, mask)
+
+                self.metrics(
+                    predicted_headers[:, 1:],
+                    predicted_header_labels[:, 1:],
+                    headers[:, 1:],
+                    labels[:, 1:],
+                    mask[:, 1:])
         else:
-            loss = 0.0
-            pred_headers = self.decode(edge_log_likelihood, mask)
+
+            predicted_headers, predicted_header_labels = self.predict(
+                label_headers, label_modifiers, edge_scores, mask)
+            edge_nll, label_nll = self.compute_loss(
+                label_headers, label_modifiers, edge_scores, predicted_headers, predicted_header_labels, mask)
+
+            loss = edge_nll + label_nll
 
         return dict(
-            pred_headers=pred_headers,
+            headers=predicted_headers[:, 1:],
+            relations=predicted_header_labels[:, 1:],
+            mask=mask[:, 1:],
             loss=loss / num_tokens,
+            edge_loss=edge_nll / num_tokens,
+            label_loss=label_nll / num_tokens
         )
+
+    def add_head_sentinel(self, encoder_output, headers, labels, mask):
+        """
+        Add a dummpy ROOT at the beginning of each sequence.
+        :param encoder_output: [batch, length, hidden_size]
+        :param headers: [batch, length]
+        :param labels: [batch, length]
+        :param mask: [batch, length]
+        """
+        batch_size, _, hidden_size = encoder_output.size()
+        head_sentinel = self.head_sentinel.expand([batch_size, 1, hidden_size])
+        encoder_output = torch.cat([head_sentinel, encoder_output], 1)
+        headers = torch.cat([headers.new_zeros(batch_size, 1), headers], 1)
+        labels = torch.cat([labels.new_zeros(batch_size, 1), labels], 1)
+        mask = torch.cat([mask.new_ones(batch_size, 1), mask], 1)
+        return  encoder_output, headers, labels, mask
+
+    def remove_head_sentinel(self, headers, labels):
+        """
+        Remove the dummpy ROOT at the beginning of each sequence.
+        :param headers: [batch, length + 1]
+        :param labels: [batch, length + 1]
+        """
+        headers = headers[:, 1:]
+        labels = labels[:, 1:]
+        return  headers, labels
+
 
     def compute_edge_log_likelihood(self, edge_scores, mask):
         """
@@ -184,13 +244,47 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
         return edge_log_likelihood
 
-    def compute_loss(self, edge_log_likelihood, headers):
+    def compute_header_label_logits(self, label_headers, label_modifiers, headers):
         """
-        :param edge_log_likelihood: [batch, header_length, modifier_length]
+        Compute the edge label logits.
+        :param label_headers: [batch, length, label_hidden_size]
+        :param label_modifiers: [batch, length, label_hidden_size]
         :param headers: [batch, length] -- header at [i, j] means the header index of token_j at batch_i.
+        :param mask: [batch, length]
+        :return: [batch, length, num_labels]
         """
-        # Total number of headers to predict (ROOT excluded).
-        batch_size, max_len, _ = edge_log_likelihood.size()
+        batch_size = label_headers.size(0)
+        # Create indexing matrix for batch: [batch, 1]
+        batch_index = torch.arange(0, batch_size).view(batch_size, 1)
+        batch_index = batch_index.type_as(label_headers.data).long()
+
+        # Select the corresponding header representations
+        # based on gold/predicted headers.
+        # [batch, length, label_hidden_size]
+        label_selected_headers = label_headers[batch_index, headers]
+
+        label_selected_headers = label_selected_headers.contiguous()
+        label_modifiers = label_modifiers.contiguous()
+
+        # [batch, length, num_labels]
+        label_logits = self.bilinear(label_selected_headers, label_modifiers)
+
+        return label_logits
+
+    def compute_loss(self, label_headers, label_modifiers, edge_scores, headers, header_labels, mask):
+        """
+        :param label_headers: [batch, length, label_hidden_size]
+        :param label_modifiers: [batch, length, label_hidden_size]
+        :param edge_scores: [batch, header_length, modifier_length]
+        :param mask: [batch, length]
+        """
+        batch_size, max_len, _ = edge_scores.size()
+        float_mask = mask.float()
+
+        edge_log_likelihood = masked_log_softmax(edge_scores, mask.unsqueeze(2) + mask.unsqueeze(1), dim=1)
+
+        header_label_logits = self.compute_header_label_logits(label_headers, label_modifiers, headers)
+        label_log_likelihood = F.log_softmax(header_label_logits, dim=2)
 
         # Create indexing matrix for batch: [batch, 1]
         batch_index = torch.arange(0, batch_size).view(batch_size, 1)
@@ -201,43 +295,93 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         # Index the log likelihood of gold edges (ROOT excluded).
         # Output [batch, length - 1]
         gold_edge_log_likelihood = edge_log_likelihood[batch_index, headers.data, modifier_index][:, 1:]
+        gold_label_log_likelihood = label_log_likelihood[batch_index, modifier_index, header_labels.data][:, 1:]
 
-        return -gold_edge_log_likelihood.sum()
+        return -gold_edge_log_likelihood.sum(), -gold_label_log_likelihood.sum()
 
-    def decode(self, edge_scores, mask):
+    def predict(self, label_headers, label_modifiers, edge_scores, mask):
         if self.decode_type == 'mst':
-            return self.mst_decode(edge_scores, mask)
+            return self.mst_decode(label_headers, label_modifiers, edge_scores, mask)
         else:
-            return self.greedy_decode(edge_scores, mask)
+            return self.greedy_decode(label_headers, label_modifiers, edge_scores, mask)
 
-    def greedy_decode(self, edge_scores, mask=None):
+    def greedy_decode(self, label_headers, label_modifiers, edge_scores, mask):
         # out_arc shape [batch, length, length]
         edge_scores = edge_scores.data
-        batch, max_len, _ = edge_scores.size()
+        max_len = edge_scores.size(1)
 
-        # set diagonal elements to -inf
-        edge_scores += torch.diag(edge_scores.new(max_len).fill_(-np.inf))
+        # Set diagonal elements to -inf
+        edge_scores = edge_scores + torch.diag(edge_scores.new(max_len).fill_(-np.inf))
 
-        # set invalid positions to -inf
-        # minus_mask = (1 - mask.data).byte().view(batch, max_len, 1)
-        minus_mask = (1 - mask.data).byte().unsqueeze(2)
-        edge_scores.masked_fill_(minus_mask, -np.inf)
+        # Set invalid positions to -inf
+        minus_mask = (1 - mask.float()) * self.minus_inf
+        edge_scores = edge_scores + minus_mask.unsqueeze(2) + minus_mask.unsqueeze(1)
 
-        # compute naive predictions.
+        # Compute naive predictions.
         # predition shape = [batch, length]
-        _, headers = edge_scores.max(dim=1)
+        _, header_indices = edge_scores.max(dim=1)
 
-        return headers.cpu().numpy()
+        # Based on predicted headers, compute the edge label logits.
+        # [batch, length, num_labels]
+        header_label_logits = self.compute_header_label_logits(label_headers, label_modifiers, header_indices)
+        _, header_labels = header_label_logits.max(dim=2)
 
-    def mst_decode(self, edge_scores, mask):
-        length = mask.sum(dim=1).long().cpu().numpy()
-        pred_headers, _ = MST.decode(
-            edge_scores.detach().cpu().numpy(),
-            length,
-            num_leading_symbols=1,
-            labeled=False
-        )
-        return pred_headers
+        return header_indices, header_labels
+
+    def mst_decode(self, label_headers, label_modifiers, edge_scores, mask):
+        batch_size, max_length, label_hidden_size = label_headers.size()
+        lengths = mask.data.sum(dim=1).long().cpu().numpy()
+
+        expanded_shape = [batch_size, max_length, max_length, label_hidden_size]
+        label_headers = label_headers.unsqueeze(2).expand(*expanded_shape).contiguous()
+        label_modifiers = label_modifiers.unsqueeze(1).expand(*expanded_shape).contiguous()
+        # [batch, max_header_length, max_modifier_length, num_labels]
+        pairwise_label_logits = self.bilinear(label_headers, label_modifiers)
+
+        normalized_edge_label_logits = F.log_softmax(pairwise_label_logits, dim=3).permute(0, 3, 1, 2)
+
+        # Set invalid positions to -inf
+        minus_mask = (1 - mask.float()) * self.minus_inf
+        edge_scores = edge_scores + minus_mask.unsqueeze(2) + minus_mask.unsqueeze(1)
+        # [batch, max_header_length, max_modifier_length]
+        normalized_edge_logits = F.log_softmax(edge_scores, dim=1)
+
+        # [batch, num_labels, max_header_length, max_modifier_length]
+        batch_energy = torch.exp(normalized_edge_logits.unsqueeze(1) + normalized_edge_label_logits)
+
+        return self._run_mst_decoding(batch_energy, lengths)
+
+    @staticmethod
+    def _run_mst_decoding(batch_energy, lengths):
+        heads = []
+        head_labels = []
+        for energy, length in zip(batch_energy.detach().cpu(), lengths):
+            # energy: [num_labels, max_header_length, max_modifier_length]
+            # scores | label_ids : [max_header_length, max_modifier_length]
+            scores, label_ids = energy.max(dim=0)
+            # Although we need to include the root node so that the MST includes it,
+            # we do not want any word to be the parent of the root node.
+            # Here, we enforce this by setting the scores for all word -> ROOT edges
+            # edges to be 0.
+            # TODO: This seems wrong?
+            scores[0, :] = -1
+            # Decode the heads. Because we modify the scores to prevent
+            # adding in word -> ROOT edges, we need to find the labels ourselves.
+            instance_heads, _ = decode_mst(scores.numpy(), length, has_labels=False)
+
+            # Find the labels which correspond to the edges in the max spanning tree.
+            instance_head_labels = []
+            for child, parent in enumerate(instance_heads):
+                instance_head_labels.append(label_ids[parent, child].item())
+            # We don't care what the head or tag is for the root token, but by default it's
+            # not necessarily the same in the batched vs unbatched case, which is annoying.
+            # Here we'll just set them to zero.
+            instance_heads[0] = 0
+            instance_head_labels[0] = 0
+            heads.append(instance_heads)
+            head_labels.append(instance_head_labels)
+        return torch.from_numpy(np.stack(heads)), torch.from_numpy(np.stack(head_labels))
+
 
     def encode(self, input_token, input_char, mask):
         """
@@ -285,28 +429,28 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         :param input: [batch, length, encoder_hidden_size]
         :return:
             edge: a tuple of (header, modifier) hidden state with size [batch, length, edge_hidden_size]
-            type: a tuple of (header, modifier) hidden state with size [batch, length, type_hidden_size]
+            label: a tuple of (header, modifier) hidden state with size [batch, length, label_hidden_size]
         """
 
         # Output: [batch, length, edge_hidden_size]
         edge_h = F.elu(self.edge_h(input))
         edge_m = F.elu(self.edge_m(input))
 
-        # Output: [batch, length, type_hidden_size]
-        # type_h = F.elu(self.type_h(input))
-        # type_m = F.elu(self.type_m(input))
+        # Output: [batch, length, label_hidden_size]
+        label_h = F.elu(self.label_h(input))
+        label_m = F.elu(self.label_m(input))
 
         # Apply dropout to certain node?
         # [batch, length * 2, hidden_size]
         edge = torch.cat([edge_h, edge_m], dim=1)
-        # type = torch.cat([type_h, type_m], dim=1)
+        label = torch.cat([label_h, label_m], dim=1)
         edge = self.hidden_state_dropout(edge.transpose(1, 2)).transpose(1, 2)
-        # type = self.hidden_state_dropout(type.transpose(1, 2)).transpose(1, 2)
+        label = self.hidden_state_dropout(label.transpose(1, 2)).transpose(1, 2)
 
         edge_h, edge_m = edge.chunk(2, 1)
-        # type_h, type_m = type.chunk(2, 1)
+        label_h, label_m = label.chunk(2, 1)
 
-        return edge_h, edge_m
+        return edge_h, edge_m, label_h, label_m
 
     def attention(self, input_header, input_modifier, mask):
         """
@@ -345,8 +489,8 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             num_encoder_layers=params.encoder_layers,
             encoder_dropout_rate=params.encoder_dropout,
             edge_hidden_size=params.edge_hidden_size,
-            type_hidden_size=params.type_hidden_size,
-            num_labels=params.num_labels,
+            label_hidden_size=params.label_hidden_size,
+            num_labels=len(train_data.fields['relations'].vocab),
             decode_type=params.decode_type
         )
 

@@ -171,7 +171,7 @@ class Optimizer(object):
             for state in self.optimizer.state.values():
                 for k, v in state.items():
                     if torch.is_tensor(v):
-                        state[v] = v.cuda(self.cuda_device)
+                        state[k] = v.cuda(self.cuda_device)
 
     def _set_rate(self, learning_rate):
         self.learning_rate = learning_rate
