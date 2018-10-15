@@ -1,122 +1,150 @@
-from typing import Dict, Tuple, List
+
+from typing import Dict, List, Tuple
 import logging
+import os
 
 from overrides import overrides
-from conllu.parser import parse_line, DEFAULT_FIELDS
-
+# NLTK is so performance orientated (ha ha) that they have lazy imports. Why? Who knows.
+from stog.data.amr import AMRTree
 from stog.utils.file import cached_path
 from stog.data.dataset_readers.dataset_reader import DatasetReader
-from stog.data.fields import Field, TextField, SequenceLabelField, MetadataField
+from stog.data.fields import TextField, SpanField, SequenceLabelField, ListField, MetadataField, Field
 from stog.data.instance import Instance
-from stog.data.token_indexers import SingleIdTokenIndexer, TokenIndexer
+from stog.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
 from stog.data.tokenizers import Token
+from stog.data.dataset_readers.dataset_utils.span_utils import enumerate_spans
+from stog.utils.checks import ConfigurationError
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-def lazy_parse(text: str, fields: Tuple = DEFAULT_FIELDS):
-    for sentence in text.split("\n\n"):
-        if sentence:
-            yield [parse_line(line, fields)
-                   for line in sentence.split("\n")
-                   if line and not line.strip().startswith("#")]
-
-
-@DatasetReader.register("universal_dependencies")
+@DatasetReader.register("amr_trees")
 class AbstractMeaningRepresentationDatasetReader(DatasetReader):
     """
-    Reads a file in the conllu Universal Dependencies format.
+    Reads constituency parses from the WSJ part of the Penn Tree Bank from the LDC.
+    This ``DatasetReader`` is designed for use with a span labelling model, so
+    it enumerates all possible spans in the sentence and returns them, along with gold
+    labels for the relevant spans present in a gold tree, if provided.
 
     Parameters
     ----------
     token_indexers : ``Dict[str, TokenIndexer]``, optional (default=``{"tokens": SingleIdTokenIndexer()}``)
-        The token indexers to be applied to the words TextField.
-    use_language_specific_pos : ``bool``, optional (default = False)
-        Whether to use UD POS tags, or to use the language specific POS tags
-        provided in the conllu format.
+        We use this to define the input representation for the text.  See :class:`TokenIndexer`.
+        Note that the `output` tags will always correspond to single token IDs based on how they
+        are pre-tokenised in the data file.
+    use_pos_tags : ``bool``, optional, (default = ``True``)
+        Whether or not the instance should contain gold POS tags
+        as a field.
+    lazy : ``bool``, optional, (default = ``False``)
+        Whether or not instances can be consumed lazily.
+    label_namespace_prefix : ``str``, optional, (default = ``""``)
+        Prefix used for the label namespace.  The ``span_labels`` will use
+        namespace ``label_namespace_prefix + 'labels'``, and if using POS
+        tags their namespace is ``label_namespace_prefix + pos_label_namespace``.
+    pos_label_namespace : ``str``, optional, (default = ``"pos"``)
+        The POS tag namespace is ``label_namespace_prefix + pos_label_namespace``.
     """
     def __init__(self,
                  token_indexers: Dict[str, TokenIndexer] = None,
-                 use_language_specific_pos: bool = False,
-                 lazy: bool = False) -> None:
-        super().__init__(lazy)
+                 use_pos_tags: bool = True,
+                 lazy: bool = False,
+                 label_namespace_prefix: str = "",
+                 pos_label_namespace: str = "pos") -> None:
+        super().__init__(lazy=lazy)
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
-        self.use_language_specific_pos = use_language_specific_pos
+        self._use_pos_tags = use_pos_tags
+        self._label_namespace_prefix = label_namespace_prefix
+        self._pos_label_namespace = pos_label_namespace
 
     @overrides
-    def _read(self, file_path: str):
+    def _read(self, file_path):
         # if `file_path` is a URL, redirect to the cache
         file_path = cached_path(file_path)
+        directory, filename = os.path.split(file_path)
+        logger.info("Reading instances from lines in file at: %s", file_path)
 
-        with open(file_path, 'r') as conllu_file:
-            logger.info("Reading UD instances from conllu dataset at: %s", file_path)
-            for annotation in  lazy_parse(conllu_file.read()):
-                # CoNLLU annotations sometimes add back in words that have been elided
-                # in the original sentence; we remove these, as we're just predicting
-                # dependencies for the original sentence.
-                # We filter by None here as elided words have a non-integer word id,
-                # and are replaced with None by the conllu python library.
-                annotation = [x for x in annotation if x["id"] is not None]
+        stacked_lines = []
+        sentence_conter = 0
+        sentence_id = ""
+        sentence_text = ""
+        with open(file_path, 'r') as f:
+            f.readline()
+            for line in f:
+                if len(line) <= 1 and len(stacked_lines) > 0:
+                    sequence = ""
+                    for line in stacked_lines:
+                        if line[0] != "#":
+                            sequence += line.strip()
+                            sequence += " "
+                        elif "# ::id" in line:
+                            sentence_id = line.split(" ")[2]
+                        elif "# ::snt" in line:
+                            sentence_text = line.strip().split("snt")[-1]
 
-                heads = [x["head"] for x in annotation]
-                tags = [x["deprel"] for x in annotation]
-                words = [x["form"] for x in annotation]
-                if self.use_language_specific_pos:
-                    pos_tags = [x["xpostag"] for x in annotation]
+                    tree = AMRTree(sequence.strip())
+                    stacked_lines = []
+                    sentence_conter += 1
+                    yield self.text_to_instance(tree, sentence_text, sentence_id)
                 else:
-                    pos_tags = [x["upostag"] for x in annotation]
-                yield self.text_to_instance(words, pos_tags, list(zip(tags, heads)))
+                    stacked_lines.append(line)
 
     @overrides
-    def text_to_instance(self,  # type: ignore
-                         words: List[str],
-                         upos_tags: List[str],
-                         dependencies: List[Tuple[str, int]] = None) -> Instance:
-        # pylint: disable=arguments-differ
+    def text_to_instance(self, # type: ignore
+                         tree : AMRTree,
+                         sentence_text : str,
+                         sentence_id : str) -> Instance:
         """
+        We take `pre-tokenized` input here, because we don't have a tokenizer in this class.
+
         Parameters
         ----------
-        words : ``List[str]``, required.
-            The words in the sentence to be encoded.
-        upos_tags : ``List[str]``, required.
-            The universal dependencies POS tags for each word.
-        dependencies ``List[Tuple[str, int]]``, optional (default = None)
-            A list of  (head tag, head index) tuples. Indices are 1 indexed,
-            meaning an index of 0 corresponds to that word being the root of
-            the dependency tree.
+        tokens : ``List[str]``, required.
+            The tokens in a given sentence.
+        pos_tags ``List[str]``, optional, (default = None).
+            The POS tags for the words in the sentence.
+        gold_tree : ``Tree``, optional (default = None).
+            The gold parse tree to create span labels from.
 
         Returns
         -------
-        An instance containing words, upos tags, dependency head tags and head
-        indices as fields.
+        An ``Instance`` containing the following fields:
+            tokens : ``TextField``
+                The tokens in the sentence.
+            pos_tags : ``SequenceLabelField``
+                The POS tags of the words in the sentence.
+                Only returned if ``use_pos_tags`` is ``True``
+            spans : ``ListField[SpanField]``
+                A ListField containing all possible subspans of the
+                sentence.
+            span_labels : ``SequenceLabelField``, optional.
+                The constiutency tags for each of the possible spans, with
+                respect to a gold parse tree. If a span is not contained
+                within the tree, a span will have a ``NO-LABEL`` label.
+            gold_tree : ``MetadataField(Tree)``
+                The gold NLTK parse tree for use in evaluation.
         """
+        # pylint: disable=arguments-differ
         fields: Dict[str, Field] = {}
-        # TODO:Leave non-integer indexed token for now
-        new_words = []
-        new_upos_tags = []
-        new_dependencies = []
-        for i in range(len(dependencies)):
-            if dependencies[i][1] is not None:
-                new_words.append(words[i])
-                new_upos_tags.append(upos_tags[i])
-                new_dependencies.append(dependencies[i])
-
-        dependencies = new_dependencies
-        upos_tags = new_upos_tags
-        words = new_words
-
-        tokens = TextField([Token(w) for w in words], self._token_indexers)
+        tokens = TextField([Token(x) for x in tree.get_instance()], token_indexers=self._token_indexers)
         fields["words"] = tokens
-        fields["pos_tags"] = SequenceLabelField(upos_tags, tokens, label_namespace="pos_tags")
-        if dependencies is not None:
-            # We don't want to expand the label namespace with an additional dummy token, so we'll
-            # always give the 'ROOT_HEAD' token a label of 'root'.
-            fields["head_tags"] = SequenceLabelField([x[0] for x in dependencies],
-                                                     tokens,
-                                                     label_namespace="head_tags")
-            fields["head_indices"] = SequenceLabelField([int(x[1]) for x in dependencies],
-                                                        tokens,
-                                                        label_namespace="head_index_tags")
 
-        fields["metadata"] = MetadataField({"words": words, "pos": upos_tags})
+        fields["head_tags"] = SequenceLabelField(tree.get_relation(),
+                                                 tokens,
+                                                 label_namespace="head_tags")
+        fields["head_indices"] = SequenceLabelField(tree.get_parent(),
+                                                    tokens,
+                                                    label_namespace="head_index_tags")
+        fields["coref"] = SequenceLabelField(tree.get_coref(),
+                                             tokens,
+                                             label_namespace="coref_tags"
+                                             )
+        fields["metadata"] = MetadataField(
+            {
+                "sentence" : sentence_text,
+                "idx" : sentence_id
+            }
+        )
+
         return Instance(fields)
+
+

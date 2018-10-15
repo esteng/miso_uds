@@ -24,6 +24,7 @@ from stog.data.dataset_readers.seq2seq import Seq2SeqDatasetReader
 #from stog.data.dataset_readers.sequence_tagging import SequenceTaggingDatasetReader
 #from stog.data.dataset_readers.snli import SnliReader
 from stog.data.dataset_readers.universal_dependencies import UniversalDependenciesDatasetReader
+from stog.data.dataset_readers.abstract_meaning_representation import AbstractMeaningRepresentationDatasetReader
 #from stog.data.dataset_readers.stanford_sentiment_tree_bank import (
 #        StanfordSentimentTreeBankDatasetReader)
 #from stog.data.dataset_readers.quora_paraphrase import QuoraParaphraseDatasetReader

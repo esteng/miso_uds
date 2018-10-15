@@ -200,7 +200,6 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         modifier_index = modifier_index.type_as(edge_log_likelihood.data).long()
         # Index the log likelihood of gold edges (ROOT excluded).
         # Output [batch, length - 1]
-        import pdb;pdb.set_trace()
         gold_edge_log_likelihood = edge_log_likelihood[batch_index, headers.data, modifier_index][:, 1:]
 
         return -gold_edge_log_likelihood.sum()
