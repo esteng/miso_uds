@@ -64,8 +64,8 @@ def model_opts(parser : argparse.ArgumentParser):
                        help='Algorithm for graph decoding.')
 
 
-def preprocess_opts(parser):
-    """ Pre-procesing options """
+def data_opts(parser):
+    """ data related options options """
     # Data options
     group = parser.add_argument_group('Data')
     group.add_argument('--train_data', required=True,
@@ -80,10 +80,18 @@ def preprocess_opts(parser):
                        help="truecase the tokens")
     # Data processing options
     group = parser.add_argument_group('Random')
-    group.add_argument('--shuffle', action="store_true", default=False,
-                       help="Shuffle data")
+    group.add_argument('--data_type', required=True,
+                       help="Data type")
+
+    # Iterator optionss
+    group.add_argument('--iter_type', default="BucketIterator",
+                       help="Iterator type, BucketIterator or BasicIterator")
+    group.add_argument('--batch_size', type=int, default=64,
+                       help='Maximum batch size for training')
     group.add_argument('--batch_first', action="store_true", default=False,
                        help="Batch first")
+    group.add_argument('--shuffle', action="store_true", default=False,
+                       help="Shuffle data")
 
 def train_opts(parser):
     """ Training and saving options """
@@ -147,8 +155,6 @@ def train_opts(parser):
 
     # Optimization options
     group = parser.add_argument_group('Optimization- Type')
-    group.add_argument('--batch_size', type=int, default=64,
-                       help='Maximum batch size for training')
     group.add_argument('--valid_steps', type=int, default=10000,
                        help='Perfom validation every X steps')
     group.add_argument('--valid_batch_size', type=int, default=32,

@@ -5,9 +5,10 @@ import argparse
 import torch
 
 from stog.utils import logging
-from stog.utils.params import preprocess_opts, model_opts, train_opts, Params
+from stog.utils.params import data_opts, model_opts, train_opts, Params
 from stog import models as Models
-from preprocess import dataset_from_params
+from stog.data.dataset_builder import dataset_from_params, iterator_from_params
+from stog.data.vocabulary import Vocabulary
 from stog.training.trainer import Trainer
 from stog.utils import environment
 from stog.utils.checks import ConfigurationError
@@ -84,7 +85,12 @@ def train_model(params: Params):
     dev_data = dataset.get('dev')
     test_data = dataset.get('test')
 
-    model = getattr(Models, params.model_type).from_params(train_data, params)
+    # Vocabulary and iterator are created here.
+    vocab = Vocabulary.from_instances(train_data)
+    iterator = iterator_from_params(params)
+    iterator.index_with(vocab)
+
+    model = getattr(Models, params.model_type).from_params(vocab, params)
 
     no_grad_regexes = params.no_grad
     for name, parameter in model.named_parameters():
@@ -100,7 +106,7 @@ def train_model(params: Params):
     for name in tunable_parameter_names:
         logger.info(name)
 
-    trainer = Trainer.from_params(model, train_data, dev_data, params)
+    trainer = Trainer.from_params(model, train_data, dev_data, iterator, params)
     
     try:
         metrics = trainer.train()
@@ -137,7 +143,7 @@ def train_model(params: Params):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser('train.py')
-    preprocess_opts(parser)
+    data_opts(parser)
     model_opts(parser)
     train_opts(parser)
     params = Params.from_parser(parser)
