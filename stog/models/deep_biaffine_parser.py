@@ -146,10 +146,11 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         return 0.0
 
     def forward(self, batch, for_training=True):
-        input_token = batch.tokens
-        input_char = batch.chars
-        headers, mask = batch.headers
-        labels = batch.relations
+        input_token = batch["words"]["tokens"]
+        input_char = batch["words"]["characters"]
+        headers = batch["head_indices"]
+        labels = batch["head_tags"]
+        mask = get_text_field_mask(batch["words"]).float()
         num_tokens = mask.sum().item()
 
         encoder_output = self.encode(input_token, input_char, mask)
@@ -490,7 +491,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             encoder_dropout_rate=params.encoder_dropout,
             edge_hidden_size=params.edge_hidden_size,
             label_hidden_size=params.label_hidden_size,
-            num_labels=len(train_data.fields['relations'].vocab),
+            num_labels=vocab.get_vocab_size("head_tags"),
             decode_type=params.decode_type
         )
 
