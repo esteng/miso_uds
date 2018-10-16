@@ -8,6 +8,7 @@ data_dir=data/json/UD_English-EWT
 python -u -m stog.commands.train  \
   --train_data ${data_dir}/train.json \
   --dev_data ${data_dir}/dev.json \
+  --test_data ${data_dir}/test.json \
   --token_emb_size 300 \
   --batch_first \
   --shuffle \
@@ -15,6 +16,7 @@ python -u -m stog.commands.train  \
   --learning_rate 0.001 \
   --use_char_conv \
   --epochs 40 \
+  --serialization_dir ckpt \
+  --evaluate_on_test \
   --gpu \
-  --serialization_dir ckpt
-  # --pretrain_token_emb ${glove}
+  --pretrain_token_emb ${glove}
