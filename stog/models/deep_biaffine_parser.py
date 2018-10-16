@@ -2,8 +2,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .model import Model
-from stog.modules.embedding import Embedding
+from .model import  Model
+from stog.modules.token_embedders import Embedding
 from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
 from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.attention import BiaffineAttention
@@ -12,7 +12,7 @@ from stog.metrics import AttachmentScores
 from stog.algorithms.maximum_spanning_tree import decode_mst
 from stog.utils.nn import masked_log_softmax
 from stog.utils.logging import init_logger
-
+from stog.models.utils import get_text_field_mask
 logger = init_logger()
 
 
@@ -146,10 +146,11 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         return 0.0
 
     def forward(self, batch, for_training=True):
-        input_token = batch.tokens
-        input_char = batch.chars
-        headers, mask = batch.headers
-        labels = batch.relations
+        input_token = batch["words"]["tokens"]
+        input_char = batch["words"]["characters"]
+        headers = batch["head_indices"]
+        labels = batch["head_tags"]
+        mask = get_text_field_mask(batch["words"]).float()
         num_tokens = mask.sum().item()
 
         encoder_output = self.encode(input_token, input_char, mask)
@@ -472,13 +473,13 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             self.token_embedding.load_pretrain_from_file(vocab, file)
 
     @classmethod
-    def from_params(cls, train_data, params):
+    def from_params(cls, vocab, params):
         logger.info('Building model...')
-        
+
         model = DeepBiaffineParser(
-            num_token_embeddings=len(train_data.fields["tokens"].vocab),
+            num_token_embeddings=vocab.get_vocab_size("token_ids"),
             token_embedding_dim=params.token_emb_size,
-            num_char_embeddings=len(train_data.fields["chars"].vocab),
+            num_char_embeddings=vocab.get_vocab_size("token_characters"),
             char_embedding_dim=params.char_emb_size,
             embedding_dropout_rate=params.emb_dropout,
             hidden_state_dropout_rate=params.hidden_dropout,
@@ -490,7 +491,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             encoder_dropout_rate=params.encoder_dropout,
             edge_hidden_size=params.edge_hidden_size,
             label_hidden_size=params.label_hidden_size,
-            num_labels=len(train_data.fields['relations'].vocab),
+            num_labels=vocab.get_vocab_size("head_tags"),
             decode_type=params.decode_type
         )
 
@@ -500,7 +501,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             model.load_embedding(
                 field="tokens",
                 file=params.pretrain_token_emb,
-                vocab=train_data.fields["tokens"].vocab
+                vocab=vocab
             )
             logger.info("Done.")
 
@@ -509,7 +510,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             model.load_embedding(
                 field="chars",
                 file=params.pretrain_char_emb,
-                vocab=train_data.fields["chars"].vocab
+                vocab=vocab
             )
             logger.info("Done.")
 

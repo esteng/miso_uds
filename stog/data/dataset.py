@@ -1,176 +1,177 @@
-import argparse
-import sys
+"""
+A :class:`~Batch` represents a collection of ``Instance`` s to be fed
+through a model.
+"""
+
+import logging
+from collections import defaultdict
+from typing import Dict, List, Union, Iterator, Iterable
+
+import numpy
 import torch
-from torchtext import data
-from torchtext.data.field import RawField
 
-class StupidDict(dict):
-    def __init__(self, list):
-        self.list = list
+from stog.utils.checks import ConfigurationError
+from stog.utils import ensure_list
+from stog.data.instance import Instance
+from stog.data.vocabulary import Vocabulary
 
-    def items(self):
-        return self.list
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-    def values(self):
-        return [ (name, value) for _, (name , value) in self.list]
-
-    def __getitem__(self, i):
-        return self.list[i]
-
-class RelationField(RawField):
+class Batch(Iterable):
     """
-    A class for relations between tokens
+    A batch of Instances. In addition to containing the instances themselves,
+    it contains helper functions for converting the data into tensors.
     """
-    def __init__(
-            self,
-            batch_first=False,
-            is_target=False
-    ):
-        self.batch_first = batch_first
-        self.is_target = is_target
+    def __init__(self, instances: Iterable[Instance]) -> None:
+        """
+        A Batch just takes an iterable of instances in its constructor and hangs onto them
+        in a list.
+        """
+        super().__init__()
 
-    def preprocess(self, x):
-        return x
+        self.instances: List[Instance] = ensure_list(instances)
+        self._check_types()
 
-    def process(self, batch, device=None, train=False):
-        max_len = max(len(item) for item in batch)
-        batch_size = len(batch)
+    def _check_types(self) -> None:
+        """
+        Check that all the instances have the same types.
+        """
+        all_instance_fields_and_types: List[Dict[str, str]] = [{k: v.__class__.__name__
+                                                                for k, v in x.fields.items()}
+                                                               for x in self.instances]
+        # Check all the field names and Field types are the same for every instance.
+        if not all([all_instance_fields_and_types[0] == x for x in all_instance_fields_and_types]):
+            raise ConfigurationError("You cannot construct a Batch with non-homogeneous Instances.")
 
-        # Batch tensors
-        batch_relation_tensor = torch.zeros(
-            [ batch_size, max_len, max_len + 1]
-        )
-        batch_relation_tensor_mask = torch.zeros(
-            [ batch_size, max_len, max_len + 1]
-        )
-        batch_relation_tensor_mask[:, :max_len,:max_len + 1] = 1
+    def get_padding_lengths(self) -> Dict[str, Dict[str, int]]:
+        """
+        Gets the maximum padding lengths from all ``Instances`` in this batch.  Each ``Instance``
+        has multiple ``Fields``, and each ``Field`` could have multiple things that need padding.
+        We look at all fields in all instances, and find the max values for each (field_name,
+        padding_key) pair, returning them in a dictionary.
 
-        for idx_in_batch, example in enumerate(batch):
-            # map token index in UD to integer
-            index_mapper = {item[0] : i for i, item in enumerate(example)}
-            index_mapper["0"] = len(index_mapper)
-            relations_child = [index_mapper[item[0]] for item in example]
-            relations_father = [index_mapper[item[1]] for item in example]
+        This can then be used to convert this batch into arrays of consistent length, or to set
+        model parameters, etc.
+        """
+        padding_lengths: Dict[str, Dict[str, int]] = defaultdict(dict)
+        all_instance_lengths: List[Dict[str, Dict[str, int]]] = [instance.get_padding_lengths()
+                                                                 for instance in self.instances]
+        if not all_instance_lengths:
+            return {**padding_lengths}
+        all_field_lengths: Dict[str, List[Dict[str, int]]] = defaultdict(list)
+        for instance_lengths in all_instance_lengths:
+            for field_name, instance_field_lengths in instance_lengths.items():
+                all_field_lengths[field_name].append(instance_field_lengths)
+        for field_name, field_lengths in all_field_lengths.items():
+            for padding_key in field_lengths[0].keys():
+                max_value = max(x[padding_key] if padding_key in x else 0 for x in field_lengths)
+                padding_lengths[field_name][padding_key] = max_value
+        return {**padding_lengths}
 
-            batch_relation_tensor[idx_in_batch, relations_child, relations_father] = 1
+    def as_tensor_dict(self,
+                       padding_lengths: Dict[str, Dict[str, int]] = None,
+                       verbose: bool = False) -> Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]:
+        # This complex return type is actually predefined elsewhere as a DataArray,
+        # but we can't use it because mypy doesn't like it.
+        """
+        This method converts this ``Batch`` into a set of pytorch Tensors that can be passed
+        through a model.  In order for the tensors to be valid tensors, all ``Instances`` in this
+        batch need to be padded to the same lengths wherever padding is necessary, so we do that
+        first, then we combine all of the tensors for each field in each instance into a set of
+        batched tensors for each field.
 
-        # Move to GPU if needed
-        batch_relation_tensor.to(device)
-        batch_relation_tensor_mask.to(device)
+        Parameters
+        ----------
+        padding_lengths : ``Dict[str, Dict[str, int]]``
+            If a key is present in this dictionary with a non-``None`` value, we will pad to that
+            length instead of the length calculated from the data.  This lets you, e.g., set a
+            maximum value for sentence length if you want to throw out long sequences.
 
-        return batch_relation_tensor, batch_relation_tensor_mask
+            Entries in this dictionary are keyed first by field name (e.g., "question"), then by
+            padding key (e.g., "num_tokens").
+        verbose : ``bool``, optional (default=``False``)
+            Should we output logging information when we're doing this padding?  If the batch is
+            large, this is nice to have, because padding a large batch could take a long time.
+            But if you're doing this inside of a data generator, having all of this output per
+            batch is a bit obnoxious (and really slow).
 
+        Returns
+        -------
+        tensors : ``Dict[str, DataArray]``
+            A dictionary of tensors, keyed by field name, suitable for passing as input to a model.
+            This is a `batch` of instances, so, e.g., if the instances have a "question" field and
+            an "answer" field, the "question" fields for all of the instances will be grouped
+            together into a single tensor, and the "answer" fields for all instances will be
+            similarly grouped in a parallel set of tensors, for batched computation. Additionally,
+            for complex ``Fields``, the value of the dictionary key is not necessarily a single
+            tensor.  For example, with the ``TextField``, the output is a dictionary mapping
+            ``TokenIndexer`` keys to tensors. The number of elements in this sub-dictionary
+            therefore corresponds to the number of ``TokenIndexers`` used to index the
+            ``TextField``.  Each ``Field`` class is responsible for batching its own output.
+        """
+        if padding_lengths is None:
+            padding_lengths = defaultdict(dict)
+        # First we need to decide _how much_ to pad.  To do that, we find the max length for all
+        # relevant padding decisions from the instances themselves.  Then we check whether we were
+        # given a max length for a particular field and padding key.  If we were, we use that
+        # instead of the instance-based one.
+        if verbose:
+            logger.info("Padding batch of size %d to lengths %s", len(self.instances), str(padding_lengths))
+            logger.info("Getting max lengths from instances")
+        instance_padding_lengths = self.get_padding_lengths()
+        if verbose:
+            logger.info("Instance max lengths: %s", str(instance_padding_lengths))
+        lengths_to_use: Dict[str, Dict[str, int]] = defaultdict(dict)
+        for field_name, instance_field_lengths in instance_padding_lengths.items():
+            for padding_key in instance_field_lengths.keys():
+                if padding_lengths[field_name].get(padding_key) is not None:
+                    lengths_to_use[field_name][padding_key] = padding_lengths[field_name][padding_key]
+                else:
+                    lengths_to_use[field_name][padding_key] = instance_field_lengths[padding_key]
 
+        # Now we actually pad the instances to tensors.
+        field_tensors: Dict[str, list] = defaultdict(list)
+        if verbose:
+            logger.info("Now actually padding instances to length: %s", str(lengths_to_use))
+        for instance in self.instances:
+            for field, tensors in instance.as_tensor_dict(lengths_to_use).items():
+                field_tensors[field].append(tensors)
 
+        # Finally, we combine the tensors that we got for each instance into one big tensor (or set
+        # of tensors) per field.  The `Field` classes themselves have the logic for batching the
+        # tensors together, so we grab a dictionary of field_name -> field class from the first
+        # instance in the batch.
+        field_classes = self.instances[0].fields
+        final_fields = {}
+        for field_name, field_tensor_list in field_tensors.items():
+            final_fields[field_name] = field_classes[field_name].batch_tensors(field_tensor_list)
+        return final_fields
 
-def get_fields(opt):
-    """
-    Build fields, include token and relations
-    :param opt:
-    :return:
-    """
-    fields = {}
+    def __iter__(self) -> Iterator[Instance]:
+        return iter(self.instances)
 
-    fields['tokens'] = data.Field(
-        sequential=True,
-        lower=opt.lower,
-        batch_first=opt.batch_first
-    )
+    def index_instances(self, vocab: Vocabulary) -> None:
+        for instance in self.instances:
+            instance.index_fields(vocab)
 
-    fields['chars'] = data.NestedField(
-        data.Field(
-            tokenize=list,
-            init_token="<bos>",
-            eos_token="<eos>"
-        ),
-    )
+    def print_statistics(self) -> None:
+        # Make sure if has been indexed first
+        sequence_field_lengths: Dict[str, List] = defaultdict(list)
+        for instance in self.instances:
+            if not instance.indexed:
+                raise ConfigurationError("Instances must be indexed with vocabulary "
+                                         "before asking to print dataset statistics.")
+            for field, field_padding_lengths in instance.get_padding_lengths().items():
+                for key, value in field_padding_lengths.items():
+                    sequence_field_lengths[f"{field}.{key}"].append(value)
 
-    #fields['relations'] = RelationField(
-    #    batch_first=opt.batch_first,
-    #    is_target=True
-    #)
+        print("\n\n----Dataset Statistics----\n")
+        for name, lengths in sequence_field_lengths.items():
+            print(f"Statistics for {name}:")
+            print(f"\tLengths: Mean: {numpy.mean(lengths)}, Standard Dev: {numpy.std(lengths)}, "
+                  f"Max: {numpy.max(lengths)}, Min: {numpy.min(lengths)}")
 
-    fields['headers'] = data.Field(
-        sequential=True,
-    )
-
-    return fields
-
-def get_dataset_splits(opt):
-    """
-    Build train dev test data set
-    :param opt: some options
-    :return: three data set splits
-    """
-
-    # get fields first
-    fields = get_fields(opt)
-
-    # It's quite hacky here, but that's the best I can do without modifying torch text
-    stupid_dict = StupidDict(
-        [
-            ("tokens", ( "tokens", fields['tokens'] ) ),
-            ("tokens", ( "chars", fields["chars"] ) ),
-            ("relations" , ( "relations", fields["relations"]))
-        ]
-    )
-    train, dev, test = data.TabularDataset.splits(
-        path=opt.data, format="JSON",
-        train='train.json', validation='dev.json', test='test.json',
-        fields=stupid_dict
-    )
-
-    for dataset in [train, dev, test]:
-        dataset.fields = fields
-
-    # Build vocab
-    fields['tokens'].build_vocab(train)
-    fields['chars'].build_vocab(train)
-
-    return train, dev, test
-
-def get_dataset(path):
-    """
-    Build only one data set
-    :param path: path to json data
-    :return: data set
-    """
-    dataset = data.TabularDataset(
-        path=path, format="JSON"
-    )
-    return dataset
-
-def get_iterator(dataset, batch_size):
-    """
-    Build an iterator for training or inference given dataset
-    :param dataset: torchtext.dataset
-    :param batch_size:
-    :return: iterator
-    """
-    train_iter = data.BucketIterator(
-        dataset = dataset, batch_size = batch_size,
-        sort_key = lambda x: len(x)
-    )
-    return train_iter
-
-if __name__== "__main__":
-    parser = argparse.ArgumentParser('dataset')
-    parser.add_argument("--data", required=True,
-                        help="The path of data directory. The the files in data path should be {train,dev,test}.json")
-    parser.add_argument("--save", required=True,
-                        help="The place to save data")
-    parser.add_argument("--lower", action="store_true", default=False,
-                        help="Whether lower the tokens")
-    parser.add_argument("--batch_first", action="store_true", default=False,
-                        help="Whether let the batch dim first")
-    parser.add_argument("--debug", action="store_true", default=False,
-                        help="Debug mode, will stop at an exception")
-    opt = parser.parse_args()
-
-    sys.stderr.write("We can process data in training scripts for now since the data set is quite small\n")
-
-
-
-
-
-
+        print("\n10 Random instances: ")
+        for i in list(numpy.random.randint(len(self.instances), size=10)):
+            print(f"Instance {i}:")
+            print(f"\t{self.instances[i]}")

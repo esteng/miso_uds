@@ -19,6 +19,10 @@ import requests
 
 from stog.utils.tqdm import Tqdm
 
+import spacy
+from spacy.cli.download import download as spacy_download
+from spacy.language import Language as SpacyModelType
+
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 CACHE_ROOT = Path(os.getenv('ALLENNLP_CACHE_ROOT', Path.home() / '.allennlp'))
@@ -218,3 +222,29 @@ def get_file_extension(path: str, dot=True, lower: bool = True):
     ext = os.path.splitext(path)[1]
     ext = ext if dot else ext[1:]
     return ext.lower() if lower else ext
+
+def get_spacy_model(spacy_model_name: str, pos_tags: bool, parse: bool, ner: bool) -> SpacyModelType:
+    """
+    In order to avoid loading spacy models a whole bunch of times, we'll save references to them,
+    keyed by the options we used to create the spacy model, so any particular configuration only
+    gets loaded once.
+    """
+
+    options = (spacy_model_name, pos_tags, parse, ner)
+    if options not in LOADED_SPACY_MODELS:
+        disable = ['vectors', 'textcat']
+        if not pos_tags:
+            disable.append('tagger')
+        if not parse:
+            disable.append('parser')
+        if not ner:
+            disable.append('ner')
+        try:
+            spacy_model = spacy.load(spacy_model_name, disable=disable)
+        except OSError:
+            logger.warning(f"Spacy models '{spacy_model_name}' not found.  Downloading and installing.")
+            spacy_download(spacy_model_name)
+            spacy_model = spacy.load(spacy_model_name, disable=disable)
+
+        LOADED_SPACY_MODELS[options] = spacy_model
+    return LOADED_SPACY_MODELS[options]

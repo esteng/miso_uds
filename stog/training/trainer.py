@@ -5,10 +5,7 @@ import time
 import datetime
 import traceback
 from typing import Dict, Optional, List, Union
-
 import torch
-from torchtext.data import BucketIterator
-
 from stog.utils import logging
 from stog.training.tensorboard import TensorboardWriter
 from stog.utils.environment import device_mapping, peak_memory_mb, gpu_memory_mb
@@ -16,6 +13,7 @@ from stog.utils.checks import  ConfigurationError
 from stog.utils.tqdm import Tqdm
 from stog.utils.time import time_to_str
 from stog.modules.optimizer import Optimizer
+from stog.models.utils import move_to_device
 
 
 logger = logging.init_logger()
@@ -105,7 +103,7 @@ class Trainer:
         self._dev_dataset = dev_dataset
         self._dev_iterator = dev_iterator
         self._dev_metric = dev_metric
-        self._use_gpu = use_gpu
+        self._use_gpu = cuda_device >= 0
         self._cuda_device = cuda_device
         self._patience = patience
         self._grad_clipping = grad_clipping
@@ -120,7 +118,7 @@ class Trainer:
         self._num_trained_batches = 0
         self._serialized_paths = []
 
-        if self._use_gpu:
+        if self._cuda_device >= 0:
             self._model.cuda(self._cuda_device)
 
         if serialization_dir is not None:
@@ -135,6 +133,7 @@ class Trainer:
         Does a forward pass on the given batch and returns the ``loss`` value in the result.
         If ``for_training`` is `True` also applies regularization penalty.
         """
+        batch = move_to_device(batch, self._cuda_device)
         output_dict = self._model(batch, for_training=for_training)
 
         try:
@@ -162,15 +161,12 @@ class Trainer:
         # Get tqdm for the training batches
         # TODO: How to deal with cuda device. Typically I set CUDA_VISIBLE_DEVICES before excute script, so it;s alway 0
         train_generator = self._iterator(
-            dataset=self._training_dataset,
-            batch_size=self._batch_size,
-            sort_key=lambda x: len(x),
-            repeat=False,
+            instances=self._training_dataset,
             shuffle=self._shuffle,
-            device=torch.device('cuda', self._cuda_device) if self._use_gpu else None
+            num_epochs = 1
         )
 
-        num_training_batches = len(train_generator)
+        num_training_batches = self._iterator.get_num_batches(self._training_dataset)
 
         logger.info('Training...')
         last_save_time = time.time()
@@ -276,14 +272,12 @@ class Trainer:
             dev_iterator = self._iterator
 
         dev_generator = dev_iterator(
-            self._dev_dataset,
-            batch_size=self._batch_size,
-            sort_key=lambda x: len(x),
-            repeat=False,
+            instances=self._dev_dataset,
             shuffle=False,
-            device=torch.device('cuda', self._cuda_device) if self._use_gpu else None
+            num_epochs = 1
         )
-        num_dev_batches = len(dev_generator)
+
+        num_dev_batches = dev_iterator.get_num_batches(self._dev_dataset)
         dev_generator_tqdm = Tqdm.tqdm(dev_generator,
                                        total=num_dev_batches)
         batches_this_epoch = 0
@@ -523,7 +517,7 @@ class Trainer:
         return starting_epoch, training_state['dev_metric_per_epoch']
 
     @classmethod
-    def from_params(cls, model, train_data, dev_data, params):
+    def from_params(cls, model, train_data, dev_data, iterator, params):
         logger.info('Building optimizer..')
         optimizer = Optimizer(
             params.optimizer_type, params.learning_rate, params.max_grad_norm,
@@ -535,7 +529,7 @@ class Trainer:
             adagrad_accum=params.adagrad_accumulator_init,
             decay_method=params.decay_method,
             warmup_steps=params.warmup_steps,
-            use_gpu=params.gpu,
+            use_gpu=params.cuda_device >= 0,
             cuda_device=params.cuda_device
         )
 
@@ -545,12 +539,12 @@ class Trainer:
         trainer = cls(
             model=model,
             optimizer=optimizer,
-            iterator=BucketIterator,
+            iterator=iterator,
             training_dataset=train_data,
             dev_dataset=dev_data,
-            dev_iterator=BucketIterator,
+            dev_iterator=iterator,
             dev_metric=params.dev_metric,
-            use_gpu=params.gpu,
+            use_gpu=params.cuda_device >= 0,
             cuda_device=params.cuda_device,
             patience=None,
             grad_clipping=None,
