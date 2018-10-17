@@ -465,12 +465,12 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         output = self._attention(input_header, input_modifier, mask_d=mask, mask_e=mask).squeeze(dim=1)
         return output
 
-    def load_embedding(self, field, file, vocab):
+    def load_embedding(self, field, file, vocab, data_type):
         assert field in ["chars", "tokens"]
-        if field == "chars":
-            self.char_embedding.load_pretrain_from_file(vocab, file)
         if field == "tokens":
-            self.token_embedding.load_pretrain_from_file(vocab, file)
+            self.token_embedding.load_pretrain_from_file(vocab, file, "token_ids", data_type=="AMR")
+        if field == "chars":
+            self.char_embedding.load_pretrain_from_file(vocab, file, "token_characters", data_type=="AMR")
 
     @classmethod
     def from_params(cls, vocab, params):
@@ -501,7 +501,8 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             model.load_embedding(
                 field="tokens",
                 file=params.pretrain_token_emb,
-                vocab=vocab
+                vocab=vocab,
+                data_type=params.data_type
             )
             logger.info("Done.")
 
@@ -510,7 +511,8 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             model.load_embedding(
                 field="chars",
                 file=params.pretrain_char_emb,
-                vocab=vocab
+                vocab=vocab,
+                data_type=params.data_type
             )
             logger.info("Done.")
 

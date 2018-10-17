@@ -93,6 +93,8 @@ class Embedding(TokenEmbedder):
         self.norm_type = norm_type
         self.scale_grad_by_freq = scale_grad_by_freq
         self.sparse = sparse
+        self.trainable = trainable
+        self.embedding_dim = embedding_dim
 
         self.output_dim = projection_dim or embedding_dim
 
@@ -138,6 +140,14 @@ class Embedding(TokenEmbedder):
         return embedded
 
     # Custom logic requires custom from_params.
+    def load_pretrain_from_file(self, vocab: Vocabulary, pretrained_file, vocab_namespace, amr=False):
+        weight = _read_pretrained_embeddings_file(pretrained_file,
+                                                  self.embedding_dim,
+                                                  vocab,
+                                                  vocab_namespace,
+                                                  amr)
+        self.weight = torch.nn.Parameter(weight, requires_grad=self.trainable)
+
     @classmethod
     def from_params(cls, vocab: Vocabulary, params) -> 'Embedding':  # type: ignore
         """
@@ -210,7 +220,8 @@ class Embedding(TokenEmbedder):
 def _read_pretrained_embeddings_file(file_uri: str,
                                      embedding_dim: int,
                                      vocab: Vocabulary,
-                                     namespace: str = "tokens") -> torch.FloatTensor:
+                                     namespace: str = "tokens",
+                                     amr: bool =False) -> torch.FloatTensor:
     """
     Returns and embedding matrix for the given vocabulary using the pretrained embeddings
     contained in the given file. Embeddings for tokens not found in the pretrained embedding file
@@ -257,17 +268,18 @@ def _read_pretrained_embeddings_file(file_uri: str,
     if file_ext in ['.h5', '.hdf5']:
         return _read_embeddings_from_hdf5(file_uri,
                                           embedding_dim,
-                                          vocab, namespace)
+                                          vocab, namespace, amr)
 
     return _read_embeddings_from_text_file(file_uri,
                                            embedding_dim,
-                                           vocab, namespace)
+                                           vocab, namespace, amr)
 
 
 def _read_embeddings_from_text_file(file_uri: str,
                                     embedding_dim: int,
                                     vocab: Vocabulary,
-                                    namespace: str = "tokens") -> torch.FloatTensor:
+                                    namespace: str = "tokens",
+                                    amr: bool = False) -> torch.FloatTensor:
     """
     Read pre-trained word vectors from an eventually compressed text file, possibly contained
     inside an archive with multiple files. The text file is assumed to be utf-8 encoded with
@@ -278,7 +290,17 @@ def _read_embeddings_from_text_file(file_uri: str,
     The remainder of the docstring is identical to ``_read_pretrained_embeddings_file``.
     """
     tokens_to_keep = set(vocab.get_index_to_token_vocabulary(namespace).values())
+
+    tokens_to_find_dict = {}
+    for token in tokens_to_keep:
+        if amr and '-' in token:
+            key = token.split('-')[0]
+        else:
+            key = token
+        tokens_to_find_dict[key] = token
+
     vocab_size = vocab.get_vocab_size(namespace)
+
     embeddings = {}
 
     # First we read the embeddings from the file, only keeping vectors for the words we need.
@@ -287,7 +309,7 @@ def _read_embeddings_from_text_file(file_uri: str,
     with EmbeddingsTextFile(file_uri) as embeddings_file:
         for line in Tqdm.tqdm(embeddings_file):
             token = line.split(' ', 1)[0]
-            if token in tokens_to_keep:
+            if token in tokens_to_find_dict:
                 fields = line.rstrip().split(' ')
                 if len(fields) - 1 != embedding_dim:
                     # Sometimes there are funny unicode parsing problems that lead to different
@@ -302,7 +324,7 @@ def _read_embeddings_from_text_file(file_uri: str,
                     continue
 
                 vector = numpy.asarray(fields[1:], dtype='float32')
-                embeddings[token] = vector
+                embeddings[tokens_to_find_dict[token]] = vector
 
     if not embeddings:
         raise ConfigurationError("No embeddings of correct dimension found; you probably "
@@ -339,7 +361,8 @@ def _read_embeddings_from_text_file(file_uri: str,
 def _read_embeddings_from_hdf5(embeddings_filename: str,
                                embedding_dim: int,
                                vocab: Vocabulary,
-                               namespace: str = "tokens") -> torch.FloatTensor:
+                               namespace: str = "tokens",
+                               amr: bool = False) -> torch.FloatTensor:
     """
     Reads from a hdf5 formatted file. The embedding matrix is assumed to
     be keyed by 'embedding' and of size ``(num_tokens, embedding_dim)``.
