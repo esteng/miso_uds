@@ -1,15 +1,16 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 class AMRNode():
     def __init__(self, name, instance):
         self.name = name
         self.instance = instance
-        self.children = OrderedDict()
+        self.children = []
         self.parent = None
         self.relation = None
+        self.id = None
 
     def add_children(self,relation, node):
-        self.children[relation] = node
-        self.children[relation].parent = self
+        self.children.append((relation, node))
+        self.children[-1][-1].parent = self
 
     def set_relation(self, relation):
         self.relation = relation
@@ -19,12 +20,12 @@ class AMRNode():
 
 
 class AMRTree():
-    def __init__(self, string):
+    def __init__(self, string=""):
         self.root_node = None
         self.node_list = []
-        self.id = None
-        self._parse_string(string)
-        self._cal_corefenrence()
+        if len(string) > 0:
+            self._parse_string(string)
+            self._cal_corefenrence()
 
     def _parse_string(self, string):
         stack = []
@@ -41,7 +42,7 @@ class AMRTree():
                 if self.root_node is None:
                     new_node.set_relation("root")
                     self.root_node = new_node
-                    self.root_node.parent = self.root_node
+                    self.root_node.parent = 0
                     current_node = self.root_node
 
                 else:
@@ -52,7 +53,7 @@ class AMRTree():
                         new_node
                     )
                     new_node.set_relation(relation)
-                    current_node = self._change_position(item, current_node.children[relation])
+                    current_node = self._change_position(item, current_node.children[-1][-1])
 
 
                 stack = []
@@ -70,7 +71,7 @@ class AMRTree():
 
                 stack = []
 
-                self._register_node(current_node.children[relation])
+                self._register_node(current_node.children[-1][-1])
 
 
             elif self._is_end(item) and len(stack) > 0 and self._is_relation(stack[-1]):
@@ -84,7 +85,7 @@ class AMRTree():
 
                 stack = []
 
-                self._register_node(current_node.children[relation])
+                self._register_node(current_node.children[-1][-1])
 
                 current_node = self._change_position(item, current_node)
 
@@ -127,8 +128,11 @@ class AMRTree():
             return token.replace("\"", "")
 
     def _register_node(self, node):
-        node.id = len(self.node_list)
+        node.id = 1 + len(self.node_list)
         self.node_list.append(node)
+
+    def _get_node_by_idx(self, idx):
+        return self.node_list[idx]
 
     def _cal_corefenrence(self):
         name_list = [item.name for item in self.node_list]
@@ -160,3 +164,83 @@ class AMRTree():
             else:
                 parents.append(0)
         return parents
+
+
+    def recover_from_list(self, all_list):
+        head_tags = all_list['head_tags']
+        head_indices = all_list['head_indices']
+        tokens = all_list['tokens']
+        corefs = all_list['coref']
+
+        name_dict = defaultdict(int)
+
+        def get_name(instance):
+            name_dict[instance[0]] += 1
+            if name_dict[instance[0]] > 1:
+                return instance[0] + str(name_dict[instance[0]])
+            else:
+                return instance[0]
+
+        for idx, (relation, token, coref) in enumerate(zip(
+            head_tags, tokens, corefs
+        )):
+            if coref == -1:
+                name = get_name(token)
+                instance = token
+            else:
+                name = self._get_node_by_idx(coref).name
+                instance=None
+
+            self._register_node(
+                AMRNode(
+                    name,
+                    instance
+                )
+            )
+
+        for node_idx in range(len(tokens)):
+
+           current_node = self._get_node_by_idx(node_idx)
+
+           if head_indices[node_idx] == 0:
+                self.root_node = current_node
+                self.root_node.set_relation('root')
+
+           # find children node
+           for my_idx, head_idx in enumerate(head_indices):
+               if head_idx - 1 == node_idx:
+                   child_node = self._get_node_by_idx(my_idx)
+                   relation = head_tags[my_idx]
+                   child_node.set_relation(relation)
+                   current_node.add_children(relation, child_node)
+
+        print(self.pretty_str())
+        import pdb;pdb.set_trace()
+
+    def pretty_str(self):
+
+        def _print_node(node, level):
+            if len(node.children) == 0:
+                if node.name == node.instance and node.name !='i' or node.instance is None:
+                    return "{}".format(node.name)
+                else:
+                    return "({} / {})".format(node.name, node.instance)
+            else:
+                string = "({} / {}".format(node.name, node.instance)
+                for relation, child in node.children:
+                    string += "\n{} :{} {}".format('\t'*level, relation, _print_node(child, level + 1))
+                string += ")"
+                return string
+
+        return _print_node(self.root_node, 1)
+
+    def __repr__(self):
+        return self.pretty_str()
+
+
+
+
+
+
+
+
