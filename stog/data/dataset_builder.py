@@ -55,19 +55,28 @@ def dataset_from_params(opt):
         test=test_data
     )
 
-def iterator_from_params(opt):
+def iterator_from_params(vocab, opt):
     # TODO: There are some other options for iterator, I think we consider about it later.
     if opt.iter_type == "BucketIterator":
-        return BucketIterator(
+        train_iterator = BucketIterator(
             sorting_keys=[("words", "num_tokens")],
             batch_size=opt.batch_size,
         )
     elif opt.iter_type == "BasicIterator":
-        return BasicIterator(
+        train_iterator = BasicIterator(
             batch_size=opt.batch_size
         )
     else:
         raise NotImplementedError
+
+    dev_iterator = BasicIterator(
+        batch_size=opt.batch_size
+    )
+
+    train_iterator.index_with(vocab)
+    dev_iterator.index_with(vocab)
+
+    return train_iterator, dev_iterator
 
 
 if __name__ == "__main__":
