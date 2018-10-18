@@ -87,7 +87,7 @@ def train_model(params: Params):
 
     # Vocabulary and iterator are created here.
     vocab = Vocabulary.from_instances(train_data)
-    train_iterator, dev_iterater = iterator_from_params(vocab, params)
+    train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, params)
 
     model = getattr(Models, params.model_type).from_params(vocab, params)
 
@@ -129,14 +129,21 @@ def train_model(params: Params):
     if test_data and params.evaluate_on_test:
         logger.info("The model will be evaluated using the best epoch weights.")
         test_metrics, predictions = evaluate(
-                best_model, test_data, trainer._dev_iterator, params.batch_size,
+                best_model, test_data, test_iterater, params.batch_size,
                 cuda_device=params.cuda_device # pylint: disable=protected-access
         )
         for key, value in test_metrics.items():
             metrics["test_" + key] = value
 
-    dump_metrics(os.path.join(params.serialization_dir, "metrics.json"), metrics, log=True)
-    dump_metrics(os.path.join(params.serialization_dir, "predictions.json"), predictions, log=False)
+        dump_metrics(os.path.join(params.serialization_dir, "metrics.json"), metrics, log=True)
+
+        #dump_metrics(os.path.join(params.serialization_dir, "predictions.txt"), predictions, log=False)
+        # TODO: May not be a good way, but leave it for now
+        with open(os.path.join(params.serialization_dir, 'predictions.txt'), 'w') as f:
+            for tree in predictions['tree']:
+                f.write(tree.pretty_str())
+                f.write('\n\n')
+
 
     return best_model
 

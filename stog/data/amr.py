@@ -214,8 +214,8 @@ class AMRTree():
                    child_node.set_relation(relation)
                    current_node.add_children(relation, child_node)
 
-        print(self.pretty_str())
-        import pdb;pdb.set_trace()
+        #print(self.pretty_str())
+        #import pdb;pdb.set_trace()
 
     def pretty_str(self):
 

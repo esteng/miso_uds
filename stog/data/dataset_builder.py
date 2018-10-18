@@ -46,7 +46,7 @@ def dataset_from_params(opt):
         logger.info("Building test datasets ...")
         test_data = load_dataset(opt.test_data, opt.data_type)
 
-    logger.info("Building vocabulary ...")
+    #logger.info("Building vocabulary ...")
     #build_vocab(fields, train_data)
 
     return dict(
@@ -73,10 +73,15 @@ def iterator_from_params(vocab, opt):
         batch_size=opt.batch_size
     )
 
+    test_iterator = BasicIterator(
+        batch_size=opt.batch_size
+    )
+
     train_iterator.index_with(vocab)
     dev_iterator.index_with(vocab)
+    test_iterator.index_with(vocab)
 
-    return train_iterator, dev_iterator
+    return train_iterator, dev_iterator, test_iterator
 
 
 if __name__ == "__main__":

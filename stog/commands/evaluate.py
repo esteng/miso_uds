@@ -6,37 +6,47 @@ from stog.models.model import Model
 from stog.utils import environment
 from stog.utils import logging
 from stog.utils.tqdm import Tqdm
-
+from stog.utils.exception_hook import ExceptionHook
+from stog.data.amr import AMRTree
+from stog.data.data_writers import AbstractMeaningRepresentationDataWriter
+from collections import defaultdict
+import sys
+sys.excepthook = ExceptionHook
 
 logger = logging.init_logger()
 
+#if params.data_type == "AMR":
+#    data_writer = AbstractMeaningRepresentationDataWriter()
+#    data_writer.set_vocab(train_iterator.vocab)
+#   self._data_writer.reset_file_epoch(epoch)
 
 def evaluate(model: Model,
              instances,
-             Iterator,
+             iterator,
              batch_size,
              cuda_device: int):
     environment.check_for_gpu(cuda_device)
-
     with torch.no_grad():
         model.eval()
         model.decode_type = 'mst'
 
-        iterator = Iterator(
-            instances,
-            batch_size=batch_size,
-            sort_key=None,
-            repeat=False,
+        test_generator = iterator(
+            instances=instances,
             shuffle=False,
-            device=torch.device('cuda', cuda_device)
+            num_epochs = 1
         )
 
-        predictions = {}
+        predictions = defaultdict(list)
         logger.info("Iterating over dataset")
-        generator_tqdm = Tqdm.tqdm(iterator, total=len(iterator))
+        generator_tqdm = Tqdm.tqdm(
+            test_generator,
+            total=iterator.get_num_batches(test_generator)
+        )
+        data_writer = AbstractMeaningRepresentationDataWriter()
+        data_writer.set_vocab(iterator.vocab)
         for batch in generator_tqdm:
             output_dict = model(batch, for_training=False)
-            predictions = add_predictions(output_dict, instances.fields, predictions)
+            predictions = add_predictions(output_dict, batch, predictions, data_writer)
             metrics = model.get_metrics(for_training=False)
             description = ', '.join(["%s: %.2f" % (name, value) for name, value in metrics.items()]) + " ||"
             generator_tqdm.set_description(description, refresh=False)
@@ -44,32 +54,35 @@ def evaluate(model: Model,
         return model.get_metrics(reset=True), predictions
 
 
-def add_predictions(output_dict, fields, predictions):
+def add_predictions(output_dict, batch, predictions, data_writer):
     def _interpret(data, lengths, vocab=None):
         instances = []
         assert data.size(0) == lengths.size(0)
         lengths = lengths.long().tolist()
         for instance_ids, length in zip(data, lengths):
             if vocab:
-                instance = [vocab.itos[i] for i in instance_ids[:length].tolist()]
+                instance = [ vocab.get_token_from_index(i, "head_tags") for i in instance_ids[:length].tolist()]
             else:
                 instance = instance_ids[:length].tolist()
             instances.append(instance)
         return instances
 
+    # decode tree
+    batch_tree = list(data_writer.predict_instance_batch(output_dict, batch))
+    predictions['tree'] += batch_tree
+
     ignored_names = [name for name in output_dict if 'loss' in name]
     for name in ignored_names:
         output_dict.pop(name, None)
+
+
     lengths = output_dict.pop('mask').detach().cpu().sum(dim=1)
     for name, pred in output_dict.items():
         pred = pred.detach().cpu()
-        if name in fields and hasattr(fields[name], 'vocab'):
-            instances = _interpret(pred, lengths, fields[name].vocab)
+        if name in ['relations']:
+            instances = _interpret(pred, lengths, vocab=data_writer.vocab)
         else:
             instances = _interpret(pred, lengths)
-        if name in predictions:
-            predictions[name] += instances
-        else:
-            predictions[name] = instances
-    return predictions
 
+        predictions[name] += instances
+    return predictions
