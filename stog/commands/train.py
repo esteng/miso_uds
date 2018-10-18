@@ -87,8 +87,7 @@ def train_model(params: Params):
 
     # Vocabulary and iterator are created here.
     vocab = Vocabulary.from_instances(train_data)
-    iterator = iterator_from_params(params)
-    iterator.index_with(vocab)
+    train_iterator, dev_iterater = iterator_from_params(vocab, params)
 
     model = getattr(Models, params.model_type).from_params(vocab, params)
 
@@ -106,7 +105,7 @@ def train_model(params: Params):
     for name in tunable_parameter_names:
         logger.info(name)
 
-    trainer = Trainer.from_params(model, train_data, dev_data, iterator, params)
+    trainer = Trainer.from_params(model, train_data, dev_data, train_iterator, dev_iterater, params)
     
     try:
         metrics = trainer.train()

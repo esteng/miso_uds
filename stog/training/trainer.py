@@ -328,7 +328,6 @@ class Trainer:
         for epoch in range(epoch_counter, self._num_epochs):
             epoch_start_time = time.time()
             training_metrics = self._train_epoch(epoch)
-
             # Validate on the dev set.
             if self._dev_dataset is not None:
                 with torch.no_grad():
@@ -517,7 +516,7 @@ class Trainer:
         return starting_epoch, training_state['dev_metric_per_epoch']
 
     @classmethod
-    def from_params(cls, model, train_data, dev_data, iterator, params):
+    def from_params(cls, model, train_data, dev_data, train_iterator, dev_iterator, params):
         logger.info('Building optimizer..')
         optimizer = Optimizer(
             params.optimizer_type, params.learning_rate, params.max_grad_norm,
@@ -539,10 +538,10 @@ class Trainer:
         trainer = cls(
             model=model,
             optimizer=optimizer,
-            iterator=iterator,
+            iterator=train_iterator,
             training_dataset=train_data,
             dev_dataset=dev_data,
-            dev_iterator=iterator,
+            dev_iterator=dev_iterator,
             dev_metric=params.dev_metric,
             use_gpu=params.cuda_device >= 0,
             cuda_device=params.cuda_device,
