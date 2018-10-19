@@ -86,7 +86,7 @@ def train_model(params: Params):
     test_data = dataset.get('test')
 
     # Vocabulary and iterator are created here.
-    vocab = Vocabulary.from_instances(train_data)
+    vocab = Vocabulary.from_instances(instances=train_data, non_padded_namespaces=())
     train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, params)
 
     model = getattr(Models, params.model_type).from_params(vocab, params)

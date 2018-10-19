@@ -11,7 +11,6 @@ from stog.data.amr import AMRTree
 from stog.data.data_writers import AbstractMeaningRepresentationDataWriter
 from collections import defaultdict
 import sys
-sys.excepthook = ExceptionHook
 
 logger = logging.init_logger()
 

@@ -175,11 +175,12 @@ class AMRTree():
         name_dict = defaultdict(int)
 
         def get_name(instance):
-            name_dict[instance[0]] += 1
-            if name_dict[instance[0]] > 1:
-                return instance[0] + str(name_dict[instance[0]])
+            letter = instance[0] if instance[0] != '@' else instance[2]
+            name_dict[letter] += 1
+            if name_dict[letter] > 1:
+                return letter + str(name_dict[letter])
             else:
-                return instance[0]
+                return letter
 
         for idx, (relation, token, coref) in enumerate(zip(
             head_tags, tokens, corefs
@@ -221,12 +222,16 @@ class AMRTree():
 
         def _print_node(node, level):
             if len(node.children) == 0:
-                if node.name == node.instance and node.name !='i' or node.instance is None:
+                if node.instance is None or (node.name == node.instance and node.name !='i'):
                     return "{}".format(node.name)
                 else:
                     return "({} / {})".format(node.name, node.instance)
             else:
-                string = "({} / {}".format(node.name, node.instance)
+                if node.instance:
+                    string = "({} / {}".format(node.name, node.instance)
+                else:
+                    string = "({}".format(node.name)
+
                 for relation, child in node.children:
                     string += "\n{} :{} {}".format('\t'*level, relation, _print_node(child, level + 1))
                 string += ")"
