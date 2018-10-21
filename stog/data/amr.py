@@ -1,4 +1,5 @@
 from collections import OrderedDict, defaultdict
+import re
 class AMRNode():
     def __init__(self, name, instance):
         self.name = name
@@ -31,8 +32,6 @@ class AMRTree():
         stack = []
         current_node = None
         for item in string.split(' '):
-            #if item == ":topic":
-            #   import pdb;pdb.set_trace()
             if len(stack) > 1 and stack[-1] == "/":
                 name = self._strip_token(stack[-2])
                 instance = self._strip_token(item)
@@ -64,7 +63,7 @@ class AMRTree():
                 relation = self._strip_token(stack[-2])
                 instance = self._strip_token(stack[-1])
 
-                new_node = AMRNode(instance, None)
+                new_node = AMRNode(instance, instance)
                 new_node.set_relation(relation)
 
                 current_node.add_children(relation, new_node)
@@ -123,9 +122,9 @@ class AMRTree():
             i = 1
             while token[-i] == ")":
                 i = i+1
-            return token[:-(i-1)].replace("\"", "")
+            return token[:-(i-1)]
         else:
-            return token.replace("\"", "")
+            return token
 
     def _register_node(self, node):
         node.id = 1 + len(self.node_list)
@@ -174,46 +173,47 @@ class AMRTree():
 
         name_dict = defaultdict(int)
 
-        def get_name(instance):
-            letter = instance[0] if instance[0] != '@' else instance[2]
+        def get_name_instance(token):
+            if token[0] == "\"":
+                return token, token
+
+            if re.match('[+-]?([0-9]*[.])?[0-9]+', token):
+                return token, None
+
+            letter = token[0] if token[0] != '@' else token[2]
+
             name_dict[letter] += 1
             if name_dict[letter] > 1:
                 return letter + str(name_dict[letter])
             else:
                 return letter
 
-        for idx, (relation, token, coref) in enumerate(zip(
-            head_tags, tokens, corefs
-        )):
-            if coref == -1:
-                name = get_name(token)
-                instance = token
-            else:
-                name = self._get_node_by_idx(coref).name
-                instance=None
 
-            self._register_node(
-                AMRNode(
-                    name,
-                    instance
-                )
-            )
+        # add node first, without coref or relations
+        for idx, token in enumerate(tokens):
+            name, instance = get_name_instance(token)
+            self._register_node(AMRNode(name, instance))
 
-        for node_idx in range(len(tokens)):
+        # add coref and relations
+        for node_idx, (relation, coref, head) in enumerate(zip(head_tags, corefs, head_indices)):
+            current_node = self._get_node_by_idx(node_idx)
 
-           current_node = self._get_node_by_idx(node_idx)
+            # 1. coref
+            if coref != -1:
+                current_node.name = self._get_node_by_idx(head).name
+                current_node.instance = None
 
-           if head_indices[node_idx] == 0:
+            # 2. relation
+            if head_indices[node_idx] == 0:
                 self.root_node = current_node
                 self.root_node.set_relation('root')
 
-           # find children node
-           for my_idx, head_idx in enumerate(head_indices):
-               if head_idx - 1 == node_idx:
-                   child_node = self._get_node_by_idx(my_idx)
-                   relation = head_tags[my_idx]
-                   child_node.set_relation(relation)
-                   current_node.add_children(relation, child_node)
+            # find children node
+            for child_idx, parent_idx in enumerate(head_indices):
+                if parent_idx - 1 == node_idx:
+                    child_node = self._get_node_by_idx(child_idx)
+                    child_node.set_relation(relation)
+                    current_node.add_children(relation, child_node)
 
         #print(self.pretty_str())
         #import pdb;pdb.set_trace()
@@ -222,7 +222,7 @@ class AMRTree():
 
         def _print_node(node, level):
             if len(node.children) == 0:
-                if node.instance is None or (node.name == node.instance and node.name !='i'):
+                if node.instance is None or (node.name == node.instance and len(node.instance) > 1):
                     return "{}".format(node.name)
                 else:
                     return "({} / {})".format(node.name, node.instance)

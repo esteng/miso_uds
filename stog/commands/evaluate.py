@@ -39,7 +39,7 @@ def evaluate(model: Model,
         logger.info("Iterating over dataset")
         generator_tqdm = Tqdm.tqdm(
             test_generator,
-            total=iterator.get_num_batches(test_generator)
+            total=iterator.get_num_batches(instances)
         )
         data_writer = AbstractMeaningRepresentationDataWriter()
         data_writer.set_vocab(iterator.vocab)
