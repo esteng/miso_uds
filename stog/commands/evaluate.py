@@ -9,6 +9,7 @@ from stog.utils.tqdm import Tqdm
 from stog.utils.exception_hook import ExceptionHook
 from stog.data.amr import AMRTree
 from stog.data.data_writers import AbstractMeaningRepresentationDataWriter
+from stog.models.utils import move_to_device
 from collections import defaultdict
 import sys
 
@@ -44,6 +45,7 @@ def evaluate(model: Model,
         data_writer = AbstractMeaningRepresentationDataWriter()
         data_writer.set_vocab(iterator.vocab)
         for batch in generator_tqdm:
+            batch = move_to_device(batch, cuda_device)
             output_dict = model(batch, for_training=False)
             predictions = add_predictions(output_dict, batch, predictions, data_writer)
             metrics = model.get_metrics(for_training=False)
