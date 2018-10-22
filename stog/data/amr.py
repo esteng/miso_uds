@@ -170,6 +170,8 @@ class AMRTree():
         head_indices = all_list['head_indices']
         tokens = all_list['tokens']
         corefs = all_list['coref']
+        #corefs = [-1 for _ in corefs]
+        #import pdb; pdb.set_trace()
 
         name_dict = defaultdict(int)
 
@@ -184,9 +186,9 @@ class AMRTree():
 
             name_dict[letter] += 1
             if name_dict[letter] > 1:
-                return letter + str(name_dict[letter])
+                return letter + str(name_dict[letter]), token
             else:
-                return letter
+                return letter, token
 
 
         # add node first, without coref or relations
@@ -195,12 +197,12 @@ class AMRTree():
             self._register_node(AMRNode(name, instance))
 
         # add coref and relations
-        for node_idx, (relation, coref, head) in enumerate(zip(head_tags, corefs, head_indices)):
+        for node_idx, (coref, head) in enumerate(zip(corefs, head_indices)):
             current_node = self._get_node_by_idx(node_idx)
 
             # 1. coref
             if coref != -1:
-                current_node.name = self._get_node_by_idx(head).name
+                current_node.name = self._get_node_by_idx(coref).name
                 current_node.instance = None
 
             # 2. relation
@@ -212,6 +214,7 @@ class AMRTree():
             for child_idx, parent_idx in enumerate(head_indices):
                 if parent_idx - 1 == node_idx:
                     child_node = self._get_node_by_idx(child_idx)
+                    relation = head_tags[child_idx]
                     child_node.set_relation(relation)
                     current_node.add_children(relation, child_node)
 
@@ -220,20 +223,25 @@ class AMRTree():
 
     def pretty_str(self):
 
-        def _print_node(node, level):
+        def _print_node(node, level, relation=None):
+            if relation == "mode":
+                return node.instance
+
             if len(node.children) == 0:
-                if node.instance is None or (node.name == node.instance and len(node.instance) > 1):
+                if node.instance is None or (node.name == node.instance and node.instance != "i"):
                     return "{}".format(node.name)
                 else:
                     return "({} / {})".format(node.name, node.instance)
             else:
                 if node.instance:
                     string = "({} / {}".format(node.name, node.instance)
+                elif re.match('[+-]?([0-9]*[.])?[0-9]+', node.name):
+                    string = "({} / {}".format(node.name, node.name)
                 else:
                     string = "({}".format(node.name)
 
                 for relation, child in node.children:
-                    string += "\n{} :{} {}".format('\t'*level, relation, _print_node(child, level + 1))
+                    string += "\n {} :{} {}".format('\t'*level, relation, _print_node(child, level + 1, relation))
                 string += ")"
                 return string
 
