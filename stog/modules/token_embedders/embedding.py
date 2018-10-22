@@ -24,7 +24,7 @@ from stog.utils.file import get_file_extension, cached_path
 from stog.data import Vocabulary
 from stog.modules.token_embedders.token_embedder import TokenEmbedder
 from stog.modules.time_distributed import TimeDistributed
-
+import re
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
@@ -293,7 +293,7 @@ def _read_embeddings_from_text_file(file_uri: str,
 
     tokens_to_find_dict = {}
     for token in tokens_to_keep:
-        if amr and '-' in token:
+        if amr and re.match("[a-zA-Z]+-[0-9]+", token):
             key = token.split('-')[0]
         else:
             key = token
