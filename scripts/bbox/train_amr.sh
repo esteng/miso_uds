@@ -23,3 +23,5 @@ python -u -m stog.commands.train  \
   --cuda_device 1 \
   --pretrain_token_emb ${glove}\
   --recover
+
+python ${path_to_smatch}/smatch.py -f ./ckpt/predictions.txt ${data_dir}/test_amr.txt --pr
