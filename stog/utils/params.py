@@ -113,7 +113,7 @@ def train_opts(parser):
     # GPU
     group.add_argument('--gpu', action="store_true", default=False,
                        help="deprecated see world_size and gpu_ranks.")
-    group.add_argument('--cuda_device', default=-1, type=int,
+    group.add_argument('--cuda_device', default=0, type=int,
                        help="Available cuda device ID.")
 
     group.add_argument('--seed', type=int, default=1,
