@@ -140,8 +140,14 @@ class AMRTree():
             if node.name in name_list[:idx]:
                 copy_idx = name_list[:idx].index(node.name)
                 self.coref[idx] = copy_idx
+                if self.coref[copy_idx] == -1:
+                    self.coref[copy_idx] = copy_idx
             if node.instance is None:
-                node.instance = node.name if self.coref[idx] == -1 else self.node_list[self.coref[idx]].instance
+                if self.coref[idx] == -1 or self.coref[idx] == idx:
+                    node.instance = node.name
+                else:
+                    node.instance = self.node_list[self.coref[idx]].instance
+
 
     def get_names(self):
         return [node.name for node in self.node_list]
@@ -199,7 +205,7 @@ class AMRTree():
             current_node = self._get_node_by_idx(node_idx)
 
             # 1. coref
-            if coref != -1:
+            if coref != -1 and coref != node_idx:
                 current_node.name = self._get_node_by_idx(head).name
                 current_node.instance = None
 
