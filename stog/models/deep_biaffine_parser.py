@@ -11,8 +11,8 @@ from stog.modules.linear import BiLinear
 from stog.metrics import AttachmentScores
 from stog.algorithms.maximum_spanning_tree import decode_mst
 from stog.utils.nn import masked_log_softmax
+from stog.utils.nn import get_text_field_mask
 from stog.utils.logging import init_logger
-from stog.models.utils import get_text_field_mask
 logger = init_logger()
 
 
