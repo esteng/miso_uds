@@ -6,10 +6,10 @@ from stog.models.model import Model
 from stog.utils import environment
 from stog.utils import logging
 from stog.utils.tqdm import Tqdm
+from stog.utils.environment import move_to_device
 from stog.utils.exception_hook import ExceptionHook
 from stog.data.amr import AMRTree
 from stog.data.data_writers import AbstractMeaningRepresentationDataWriter
-from stog.models.utils import move_to_device
 from collections import defaultdict
 import sys
 
