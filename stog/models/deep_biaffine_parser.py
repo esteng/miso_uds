@@ -361,10 +361,11 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             # scores | label_ids : [max_header_length, max_modifier_length]
             scores, label_ids = energy.max(dim=0)
             # Although we need to include the root node so that the MST includes it,
-            # we do not want any word to be the parent of the root node.
+            # we do not want the dummpy root node to be the head of more than one nodes,
+            # since there should be only one root in a sentence.
             # Here, we enforce this by setting the scores for all word -> ROOT edges
             # edges to be 0.
-            # TODO: This seems wrong?
+            # TODO: set it to -1 seems better?
             scores[0, :] = -1
             # Decode the heads. Because we modify the scores to prevent
             # adding in word -> ROOT edges, we need to find the labels ourselves.
