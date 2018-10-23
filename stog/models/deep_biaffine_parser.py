@@ -496,7 +496,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         )
 
 
-        if params.pretrain_token_emb:
+        if not params.recover and params.pretrain_token_emb:
             logger.info("Reading pretrained token embeddings from {} ...".format(params.pretrain_token_emb))
             model.load_embedding(
                 field="tokens",
@@ -506,7 +506,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             )
             logger.info("Done.")
 
-        if params.pretrain_char_emb:
+        if not params.recover and params.pretrain_char_emb:
             logger.info("Reading pretrained char embeddings from {} ...".format(params.pretrain_char_emb))
             model.load_embedding(
                 field="chars",
