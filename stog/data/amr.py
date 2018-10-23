@@ -126,6 +126,15 @@ class AMRTree():
         else:
             return token
 
+    def isNodeCoref(self, idx):
+        # whether a node is a coreference of another node
+        if self.coref[idx] != idx + 1:
+            return True
+        else:
+            return False
+
+
+
     def _register_node(self, node):
         node.id = 1 + len(self.node_list)
         self.node_list.append(node)
@@ -135,18 +144,18 @@ class AMRTree():
 
     def _cal_corefenrence(self):
         name_list = [item.name for item in self.node_list]
-        self.coref = [-1 for item in self.node_list]
-        for idx, node in enumerate(self.node_list):
-            if node.name in name_list[:idx]:
-                copy_idx = name_list[:idx].index(node.name)
-                self.coref[idx] = copy_idx
-                if self.coref[copy_idx] == -1:
-                    self.coref[copy_idx] = copy_idx
+        self.coref = [ii + 1 for ii in range(len(self.node_list))]
+
+        for node_idx, node in enumerate(self.node_list):
+            if node.name in name_list[:node_idx]:
+                copy_node_idx = name_list[:node_idx].index(node.name)
+                self.coref[node_idx] = copy_node_idx + 1
+
             if node.instance is None:
-                if self.coref[idx] == -1 or self.coref[idx] == idx:
-                    node.instance = node.name
+                if self.isNodeCoref(node_idx):
+                    node.instance = self._get_node_by_idx(self.coref[node_idx] - 1).instance
                 else:
-                    node.instance = self.node_list[self.coref[idx]].instance
+                    node.instance = node.name
 
 
     def get_names(self):
@@ -175,7 +184,7 @@ class AMRTree():
         head_tags = all_list['head_tags']
         head_indices = all_list['head_indices']
         tokens = all_list['tokens']
-        corefs = all_list['coref']
+        self.coref = all_list['coref']
 
         name_dict = defaultdict(int)
 
@@ -201,12 +210,12 @@ class AMRTree():
             self._register_node(AMRNode(name, instance))
 
         # add coref and relations
-        for node_idx, (coref, head) in enumerate(zip(corefs, head_indices)):
+        for node_idx, head in enumerate(head_indices):
             current_node = self._get_node_by_idx(node_idx)
 
             # 1. coref
-            if coref != -1 or coref != node_idx:
-                current_node.name = self._get_node_by_idx(coref).name
+            if self.isNodeCoref(node_idx):
+                current_node.name = self._get_node_by_idx(self.coref[node_idx] - 1).name
                 current_node.instance = None
 
             # 2. relation
