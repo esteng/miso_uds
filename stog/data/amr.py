@@ -133,8 +133,6 @@ class AMRTree():
         else:
             return False
 
-
-
     def _register_node(self, node):
         node.id = 1 + len(self.node_list)
         self.node_list.append(node)
@@ -156,7 +154,6 @@ class AMRTree():
                     node.instance = self._get_node_by_idx(self.coref[node_idx] - 1).instance
                 else:
                     node.instance = node.name
-
 
     def get_names(self):
         return [node.name for node in self.node_list]

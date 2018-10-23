@@ -629,4 +629,8 @@ def _validate(final_edges, length, original_score_matrix, coreference):
                     # Update the counter.
                     modified += 1
                     break
+                # else:
+                #     print('* Could not find another parent. Use the old one.')
+    # if modified > 0:
+    #     print('* Validate')
     return modified
