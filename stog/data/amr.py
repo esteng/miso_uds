@@ -63,7 +63,7 @@ class AMRTree():
                 relation = self._strip_token(stack[-2])
                 instance = self._strip_token(stack[-1])
 
-                new_node = AMRNode(instance, instance)
+                new_node = AMRNode(instance, None)
                 new_node.set_relation(relation)
 
                 current_node.add_children(relation, new_node)
@@ -251,11 +251,13 @@ class AMRTree():
                 elif re.match('[+-]?([0-9]*[.])?[0-9]+', node.name):
                     string = "({} / {}".format(node.name, node.name)
                 else:
-                    string = "({}".format(node.name)
+                    string = "{}".format(node.name)
 
                 for relation, child in node.children:
                     string += "\n {} :{} {}".format('\t'*level, relation, _print_node(child, level + 1, relation))
-                string += ")"
+
+                if node.instance:
+                    string += ")"
                 return string
 
         return _print_node(self.root_node, 1)
