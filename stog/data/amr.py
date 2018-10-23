@@ -205,7 +205,7 @@ class AMRTree():
             current_node = self._get_node_by_idx(node_idx)
 
             # 1. coref
-            if coref != -1:
+            if coref != -1 or coref != node_idx:
                 current_node.name = self._get_node_by_idx(coref).name
                 current_node.instance = None
 
