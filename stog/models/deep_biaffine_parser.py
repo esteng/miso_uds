@@ -9,7 +9,7 @@ from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.attention import BiaffineAttention
 from stog.modules.linear import BiLinear
 from stog.metrics import AttachmentScores
-from stog.algorithms.maximum_spanning_tree import decode_mst
+from stog.algorithms.maximum_spanning_tree import decode_mst_with_coreference, decode_mst
 from stog.utils.nn import masked_log_softmax
 from stog.utils.nn import get_text_field_mask
 from stog.utils.logging import init_logger
@@ -150,11 +150,13 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         input_char = batch["words"]["characters"]
         headers = batch["head_indices"]
         labels = batch["head_tags"]
+        coreference = batch.get('coref', None)
         mask = get_text_field_mask(batch["words"]).float()
         num_tokens = mask.sum().item()
 
         encoder_output = self.encode(input_token, input_char, mask)
-        encoder_output, headers, labels, mask = self.add_head_sentinel(encoder_output, headers, labels, mask)
+        encoder_output, headers, labels, mask, coreference = self.add_head_sentinel(
+            encoder_output, headers, labels, mask, coreference)
 
         edge = self.mlp(encoder_output)
         edge_headers, edge_modifiers, label_headers, label_modifiers = edge
@@ -174,7 +176,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             predicted_headers, predicted_header_labels = headers, labels
             if not for_training:
                 predicted_headers, predicted_header_labels = self.predict(
-                    label_headers, label_modifiers, edge_scores, mask)
+                    label_headers, label_modifiers, edge_scores, mask, coreference)
 
                 self.metrics(
                     predicted_headers[:, 1:],
@@ -185,7 +187,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         else:
 
             predicted_headers, predicted_header_labels = self.predict(
-                label_headers, label_modifiers, edge_scores, mask)
+                label_headers, label_modifiers, edge_scores, mask, coreference)
             edge_nll, label_nll = self.compute_loss(
                 label_headers, label_modifiers, edge_scores, predicted_headers, predicted_header_labels, mask)
 
@@ -200,13 +202,14 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             label_loss=label_nll / num_tokens
         )
 
-    def add_head_sentinel(self, encoder_output, headers, labels, mask):
+    def add_head_sentinel(self, encoder_output, headers, labels, mask, coreference):
         """
         Add a dummpy ROOT at the beginning of each sequence.
         :param encoder_output: [batch, length, hidden_size]
         :param headers: [batch, length]
         :param labels: [batch, length]
         :param mask: [batch, length]
+        :param coreference: [batch, length] or None
         """
         batch_size, _, hidden_size = encoder_output.size()
         head_sentinel = self.head_sentinel.expand([batch_size, 1, hidden_size])
@@ -214,7 +217,9 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         headers = torch.cat([headers.new_zeros(batch_size, 1), headers], 1)
         labels = torch.cat([labels.new_zeros(batch_size, 1), labels], 1)
         mask = torch.cat([mask.new_ones(batch_size, 1), mask], 1)
-        return  encoder_output, headers, labels, mask
+        if coreference is not None:
+            coreference = torch.cat([coreference.new_zeros(batch_size, 1), coreference], 1)
+        return  encoder_output, headers, labels, mask, coreference
 
     def remove_head_sentinel(self, headers, labels):
         """
@@ -300,9 +305,9 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
         return -gold_edge_log_likelihood.sum(), -gold_label_log_likelihood.sum()
 
-    def predict(self, label_headers, label_modifiers, edge_scores, mask):
+    def predict(self, label_headers, label_modifiers, edge_scores, mask, coreference=None):
         if self.decode_type == 'mst':
-            return self.mst_decode(label_headers, label_modifiers, edge_scores, mask)
+            return self.mst_decode(label_headers, label_modifiers, edge_scores, mask, coreference)
         else:
             return self.greedy_decode(label_headers, label_modifiers, edge_scores, mask)
 
@@ -329,7 +334,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
         return header_indices, header_labels
 
-    def mst_decode(self, label_headers, label_modifiers, edge_scores, mask):
+    def mst_decode(self, label_headers, label_modifiers, edge_scores, mask, coreference=None):
         batch_size, max_length, label_hidden_size = label_headers.size()
         lengths = mask.data.sum(dim=1).long().cpu().numpy()
 
@@ -350,13 +355,13 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         # [batch, num_labels, max_header_length, max_modifier_length]
         batch_energy = torch.exp(normalized_edge_logits.unsqueeze(1) + normalized_edge_label_logits)
 
-        return self._run_mst_decoding(batch_energy, lengths)
+        return self._run_mst_decoding(batch_energy, lengths, mask, coreference)
 
     @staticmethod
-    def _run_mst_decoding(batch_energy, lengths):
+    def _run_mst_decoding(batch_energy, lengths, mask, coreference=None):
         heads = []
         head_labels = []
-        for energy, length in zip(batch_energy.detach().cpu(), lengths):
+        for i, (energy, length) in enumerate(zip(batch_energy.detach().cpu(), lengths)):
             # energy: [num_labels, max_header_length, max_modifier_length]
             # scores | label_ids : [max_header_length, max_modifier_length]
             scores, label_ids = energy.max(dim=0)
@@ -366,10 +371,15 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             # Here, we enforce this by setting the scores for all word -> ROOT edges
             # edges to be 0.
             # TODO: set it to -1 seems better?
-            scores[0, :] = -1
+            scores[0, :] = 0
             # Decode the heads. Because we modify the scores to prevent
             # adding in word -> ROOT edges, we need to find the labels ourselves.
-            instance_heads, _ = decode_mst(scores.numpy(), length, has_labels=False)
+            if coreference is not None:
+                coref = coreference[i].detach().cpu().tolist()[:length]
+                instance_heads, _ = decode_mst_with_coreference(
+                    scores.numpy(), coref, length, has_labels=False)
+            else:
+                instance_heads, _ = decode_mst(scores.numpy(), length, has_labels=False)
 
             # Find the labels which correspond to the edges in the max spanning tree.
             instance_head_labels = []

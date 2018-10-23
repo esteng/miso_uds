@@ -106,7 +106,7 @@ def train_model(params: Params):
         logger.info(name)
 
     trainer = Trainer.from_params(model, train_data, dev_data, train_iterator, dev_iterater, params)
-    
+
     try:
         metrics = trainer.train()
     except KeyboardInterrupt:
@@ -137,7 +137,7 @@ def train_model(params: Params):
 
         dump_metrics(os.path.join(params.serialization_dir, "metrics.json"), metrics, log=True)
 
-        #dump_metrics(os.path.join(params.serialization_dir, "predictions.txt"), predictions, log=False)
+        # dump_metrics(os.path.join(params.serialization_dir, "predictions.txt"), predictions, log=False)
         # TODO: May not be a good way, but leave it for now
         with open(os.path.join(params.serialization_dir, 'predictions.txt'), 'w') as f:
             for tree in predictions['tree']:
