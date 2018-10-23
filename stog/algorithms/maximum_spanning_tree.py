@@ -109,6 +109,9 @@ def chu_liu_edmonds(length: int,
         An empty dictionary which will be populated with the
         nodes which are connected in the maximum spanning tree.
     old_input: ``numpy.ndarray``, required.
+        a map from an edge to its head node.
+        Key: The edge is a tuple, and elements in a tuple
+        could be a node or a representative of a cycle.
     old_output: ``numpy.ndarray``, required.
     representatives : ``List[Set[int]]``, required.
         A list containing the nodes that a particular node
@@ -118,10 +121,15 @@ def chu_liu_edmonds(length: int,
     Nothing - all variables are modified in place.
     """
     # Set the initial graph to be the greedy best one.
+    # TODO: confirm that the node '0' always the root node.
     parents = [-1]
     for node1 in range(1, length):
+        # Init the parent of each node to be the root node.
         parents.append(0)
         if current_nodes[node1]:
+            # If the node is a representative,
+            # find the max outgoing edge to other non-root representative,
+            # and update its parent.
             max_score = score_matrix[0, node1]
             for node2 in range(1, length):
                 if node2 == node1 or not current_nodes[node2]:
@@ -159,6 +167,7 @@ def chu_liu_edmonds(length: int,
     # and outgoing edge into the cycle.
     cycle_representative = cycle[0]
     for node in range(length):
+        # Nodes not in the cycle.
         if not current_nodes[node] or node in cycle:
             continue
 
@@ -215,6 +224,8 @@ def chu_liu_edmonds(length: int,
     # Expansion stage.
     # check each node in cycle, if one of its representatives
     # is a key in the final_edges, it is the one we need.
+    # The node we are looking for is the node which is the child
+    # of the incoming edge to the cycle.
     found = False
     key_node = -1
     for i, node in enumerate(cycle):
@@ -226,6 +237,7 @@ def chu_liu_edmonds(length: int,
         if found:
             break
 
+    # break the cycle.
     previous = parents[key_node]
     while previous != key_node:
         child = old_output[parents[previous], previous]
@@ -237,7 +249,13 @@ def chu_liu_edmonds(length: int,
 def _find_cycle(parents: List[int],
                 length: int,
                 current_nodes: List[bool]) -> Tuple[bool, List[int]]:
+    """
+    :return:
+        has_cycle: whether the graph has at least a cycle.
+        cycle: a list of nodes which form a cycle in the graph.
+    """
 
+    # 'added' means that the node has been visited.
     added = [False for _ in range(length)]
     added[0] = True
     cycle = set()
@@ -260,6 +278,10 @@ def _find_cycle(parents: List[int],
             # If we see a node we've already processed,
             # we can stop, because the node we are
             # processing would have been in that cycle.
+            # Note that in the first pass of the for loop,
+            # every node except that the root has been assigned
+            # a head, if there's no cycle, the while loop
+            # will finally arrive at the root
             if added[next_node]:
                 has_cycle = False
                 break
