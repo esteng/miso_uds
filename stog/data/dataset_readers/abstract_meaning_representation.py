@@ -12,6 +12,7 @@ from stog.data.fields import TextField, SpanField, SequenceLabelField, ListField
 from stog.data.instance import Instance
 from stog.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
 from stog.data.tokenizers import Token
+from stog.data.tokenizers.word_splitter import SpacyWordSplitter
 from stog.data.dataset_readers.dataset_utils.span_utils import enumerate_spans
 from stog.utils.checks import ConfigurationError
 
@@ -49,12 +50,14 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                  use_pos_tags: bool = True,
                  lazy: bool = False,
                  label_namespace_prefix: str = "",
-                 pos_label_namespace: str = "pos") -> None:
+                 pos_label_namespace: str = "pos",
+                 word_splitter = None) -> None:
         super().__init__(lazy=lazy)
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
         self._use_pos_tags = use_pos_tags
         self._label_namespace_prefix = label_namespace_prefix
         self._pos_label_namespace = pos_label_namespace
+        self._word_splitter = word_splitter or SpacyWordSplitter()
 
     @overrides
     def _read(self, file_path):
@@ -126,7 +129,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         # pylint: disable=arguments-differ
         fields: Dict[str, Field] = {}
         tokens = TextField([Token(x) for x in tree.get_instance()], token_indexers=self._token_indexers)
-        fields["words"] = tokens
+        fields["amr_tokens"] = tokens
 
         fields["head_tags"] = SequenceLabelField(tree.get_relation(),
                                                  tokens,
@@ -138,11 +141,9 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                                              tokens,
                                              label_namespace="coref_tags"
                                              )
-        fields["metadata"] = MetadataField(
-            {
-                "sentence" : sentence_text,
-                "idx" : sentence_id
-            }
+        fields["src_tokens"] = TextField(
+            self._word_splitter.split_words(sentence_text),
+            token_indexers=self._token_indexers
         )
 
         return Instance(fields)

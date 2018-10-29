@@ -146,12 +146,12 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         return 0.0
 
     def forward(self, batch, for_training=True):
-        input_token = batch["words"]["tokens"]
-        input_char = batch["words"]["characters"]
+        input_token = batch["amr_tokens"]["tokens"]
+        input_char = batch["amr_tokens"]["characters"]
         headers = batch["head_indices"]
         labels = batch["head_tags"]
         coreference = batch.get('coref', None)
-        mask = get_text_field_mask(batch["words"]).float()
+        mask = get_text_field_mask(batch["amr_tokens"]).float()
         num_tokens = mask.sum().item()
 
         encoder_output = self.encode(input_token, input_char, mask)

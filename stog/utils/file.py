@@ -9,7 +9,7 @@ import tempfile
 import json
 from urllib.parse import urlparse
 from pathlib import Path
-from typing import Optional, Tuple, Union, IO, Callable
+from typing import Optional, Tuple, Union, IO, Callable, Dict
 from hashlib import sha256
 from functools import wraps
 
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 CACHE_ROOT = Path(os.getenv('ALLENNLP_CACHE_ROOT', Path.home() / '.allennlp'))
 DATASET_CACHE = str(CACHE_ROOT / "datasets")
+LOADED_SPACY_MODELS: Dict[Tuple[str, bool, bool, bool], SpacyModelType] = {}
 
 
 def url_to_filename(url: str, etag: str = None) -> str:
