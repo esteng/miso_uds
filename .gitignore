@@ -108,3 +108,5 @@ venv.bak/
 .idea/
 experiment/
 smatch/
+
+.DS_Store
