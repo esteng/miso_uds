@@ -1,0 +1,107 @@
+""" Global attention modules (Luong / Bahdanau) """
+import torch
+import torch.nn.functional as F
+
+
+# This class is mainly used by decoder.py for RNNs but also
+# by the CNN / transformer decoder when copy attention is used
+# CNN has its own attention mechanism ConvMultiStepAttention
+# Transformer has its own MultiHeadedAttention
+
+
+class GlobalAttention(torch.nn.Module):
+    """
+    Global attention takes a matrix and a query vector. It
+    then computes a parameterized convex combination of the matrix
+    based on the input query.
+    Constructs a unit mapping a query `q` of size `dim`
+    and a source matrix `H` of size `n x dim`, to an output
+    of size `dim`.
+    .. mermaid::
+       graph BT
+          A[Query]
+          subgraph RNN
+            C[H 1]
+            D[H 2]
+            E[H N]
+          end
+          F[Attn]
+          G[Output]
+          A --> F
+          C --> F
+          D --> F
+          E --> F
+          C -.-> G
+          D -.-> G
+          E -.-> G
+          F --> G
+    All models compute the output as
+    :math:`c = sum_{j=1}^{SeqLength} a_j H_j` where
+    :math:`a_j` is the softmax of a score function.
+    Then then apply a projection layer to [q, c].
+    However they
+    differ on how they compute the attention score.
+    * Luong Attention (dot, general):
+       * dot: :math:`score(H_j,q) = H_j^T q`
+       * general: :math:`score(H_j, q) = H_j^T W_a q`
+    * Bahdanau Attention (mlp):
+       * :math:`score(H_j, q) = v_a^T tanh(W_a q + U_a h_j)`
+    Args:
+       dim (int): dimensionality of query and key
+       coverage (bool): use coverage term
+       attn_type (str): type of attention to use, options [dot,general,mlp]
+    """
+
+    def __init__(self, hidden_size, attention):
+        super(GlobalAttention, self).__init__()
+        self.hidden_size = hidden_size
+        self.attention = attention
+        self.output_layer = torch.nn.Linear(hidden_size * 2, hidden_size)
+
+    def forward(self, source, memory_bank, mask=None):
+        """
+        Args:
+          source (`FloatTensor`): query vectors `[batch x tgt_len x dim]`
+          memory_bank (`FloatTensor`): source vectors `[batch x src_len x dim]`
+          mask (`LongTensor`): the source context mask `[batch, length]`
+        Returns:
+          (`FloatTensor`, `FloatTensor`):
+          * Computed vector `[tgt_len x batch x dim]`
+          * Attention distribtutions for each query
+             `[tgt_len x batch x src_len]`
+        """
+
+        # one step input
+        if source.dim() == 2:
+            one_step = True
+            source = source.unsqueeze(1)
+        else:
+            one_step = False
+
+        batch, source_l, dim = memory_bank.size()
+        batch_, target_l, dim_ = source.size()
+
+        align = self.attention(source, memory_bank)
+
+        if mask is not None:
+            mask = mask.unsqueeze(1)  # Make it broadcastable.
+            align.masked_fill_(1 - mask, -float('inf'))
+
+        align_vectors = F.softmax(align.view(batch*target_l, source_l), -1)
+        align_vectors = align_vectors.view(batch, target_l, source_l)
+
+        # each context vector c_t is the weighted average
+        # over all the source hidden states
+        c = torch.bmm(align_vectors, memory_bank)
+
+        # concatenate
+        concat_c = torch.cat([c, source], 2).view(batch*target_l, dim*2)
+        attn_h = self.output_layer(concat_c).view(batch, target_l, dim)
+
+        attn_h = torch.tanh(attn_h)
+
+        if one_step:
+            attn_h = attn_h.squeeze(1)
+            align_vectors = align_vectors.squeeze(1)
+
+        return attn_h, align_vectors
