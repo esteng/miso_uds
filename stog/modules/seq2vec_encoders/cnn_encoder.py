@@ -5,10 +5,8 @@ import torch
 from torch.nn import Conv1d, Linear
 
 from stog.modules.seq2vec_encoders.seq2vec_encoder import Seq2VecEncoder
-from stog.utils.nn import Activation
 
 
-@Seq2VecEncoder.register("cnn")
 class CnnEncoder(Seq2VecEncoder):
     """
     A ``CnnEncoder`` is a combination of multiple convolution layers and max pooling layers.  As a
@@ -51,13 +49,13 @@ class CnnEncoder(Seq2VecEncoder):
                  embedding_dim: int,
                  num_filters: int,
                  ngram_filter_sizes: Tuple[int, ...] = (2, 3, 4, 5),  # pylint: disable=bad-whitespace
-                 conv_layer_activation: Activation = None,
+                 conv_layer_activation=torch.nn.functional.relu,
                  output_dim: Optional[int] = None) -> None:
         super(CnnEncoder, self).__init__()
         self._embedding_dim = embedding_dim
         self._num_filters = num_filters
         self._ngram_filter_sizes = ngram_filter_sizes
-        self._activation = conv_layer_activation or Activation.by_name('relu')()
+        self._activation = conv_layer_activation
         self._output_dim = output_dim
 
         self._convolution_layers = [Conv1d(in_channels=self._embedding_dim,

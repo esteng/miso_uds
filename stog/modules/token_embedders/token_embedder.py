@@ -1,8 +1,6 @@
 import torch
 
-from stog.utils.registrable import Registrable
-
-class TokenEmbedder(torch.nn.Module, Registrable):
+class TokenEmbedder(torch.nn.Module):
     """
     A ``TokenEmbedder`` is a ``Module`` that takes as input a tensor with integer ids that have
     been output from a :class:`~allennlp.data.TokenIndexer` and outputs a vector per token in the

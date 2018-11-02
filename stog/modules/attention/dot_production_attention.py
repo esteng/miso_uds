@@ -1,21 +1,16 @@
 import torch
 
-from stog.utils.checks import check_dimensions_match
-
 
 class DotProductAttention(torch.nn.Module):
 
-    def __init__(self, decoder_hidden_size, encoder_hidden_size, attention_hidden_size=-1):
+    def __init__(self, decoder_hidden_size, encoder_hidden_size, add_linear=True):
         super(DotProductAttention, self).__init__()
         self.decoder_hidden_size = decoder_hidden_size
         self.encoder_hidden_size = encoder_hidden_size
-        self.attention_hidden_size = attention_hidden_size
-        if attention_hidden_size == -1:
-            check_dimensions_match(decoder_hidden_size, encoder_hidden_size, 'decoder hidden size', 'encoder hidden size')
-            self.linear_layer = None
+        if add_linear:
+            self.linear_layer = torch.nn.Linear(decoder_hidden_size, encoder_hidden_size, bias=False)
         else:
-            check_dimensions_match(attention_hidden_size, encoder_hidden_size, 'attention hidden size', 'encoder hidden size')
-            self.linear_layer = torch.nn.Linear(decoder_hidden_size, attention_hidden_size, bias=False)
+            self.linear_layer = None
 
     def forward(self, decoder_input, encoder_input):
         """

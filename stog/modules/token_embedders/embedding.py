@@ -179,20 +179,19 @@ class Embedding(TokenEmbedder):
                     "(http://nlp.stanford.edu/data/glove.twitter.27B.zip)#glove.twitter.27B.200d.txt"
         """
         # pylint: disable=arguments-differ
-        num_embeddings = params.pop_int('num_embeddings', None)
-        vocab_namespace = params.pop("vocab_namespace", "tokens")
+        num_embeddings = params.get('num_embeddings', None)
+        vocab_namespace = params.get("vocab_namespace", "tokens")
         if num_embeddings is None:
             num_embeddings = vocab.get_vocab_size(vocab_namespace)
-        embedding_dim = params.pop_int('embedding_dim')
-        pretrained_file = params.pop("pretrained_file", None)
-        projection_dim = params.pop_int("projection_dim", None)
-        trainable = params.pop_bool("trainable", True)
-        padding_index = params.pop_int('padding_index', None)
-        max_norm = params.pop_float('max_norm', None)
-        norm_type = params.pop_float('norm_type', 2.)
-        scale_grad_by_freq = params.pop_bool('scale_grad_by_freq', False)
-        sparse = params.pop_bool('sparse', False)
-        params.assert_empty(cls.__name__)
+        embedding_dim = params.get('embedding_dim')
+        pretrained_file = params.get("pretrained_file", None)
+        projection_dim = params.get("projection_dim", None)
+        trainable = params.get("trainable", True)
+        padding_index = params.get('padding_index', None)
+        max_norm = params.get('max_norm', None)
+        norm_type = params.get('norm_type', 2.)
+        scale_grad_by_freq = params.get('scale_grad_by_freq', False)
+        sparse = params.get('sparse', False)
 
         if pretrained_file:
             # If we're loading a saved model, we don't want to actually read a pre-trained

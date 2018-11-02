@@ -8,7 +8,6 @@ from stog.modules.time_distributed import TimeDistributed
 from stog.modules.token_embedders.token_embedder import TokenEmbedder
 
 
-@TokenEmbedder.register("character_encoding")
 class TokenCharactersEncoder(TokenEmbedder):
     """
     A ``TokenCharactersEncoder`` takes the output of a
@@ -19,7 +18,7 @@ class TokenCharactersEncoder(TokenEmbedder):
 
     We take the embedding and encoding modules.embedding as input, so this class is itself quite simple.
     """
-    def __init__(self, embedding: Embedding, encoder: Seq2VecEncoder, dropout: float = 0.0) -> None:
+    def __init__(self, embedding, encoder: Seq2VecEncoder, dropout: float = 0.0) -> None:
         super(TokenCharactersEncoder, self).__init__()
         self._embedding = TimeDistributed(embedding)
         self._encoder = TimeDistributed(encoder)

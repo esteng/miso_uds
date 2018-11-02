@@ -52,11 +52,12 @@ class GlobalAttention(torch.nn.Module):
        attn_type (str): type of attention to use, options [dot,general,mlp]
     """
 
-    def __init__(self, hidden_size, attention):
+    def __init__(self, decoder_hidden_size, encoder_hidden_size, attention):
         super(GlobalAttention, self).__init__()
-        self.hidden_size = hidden_size
+        self.decoder_hidden_size = decoder_hidden_size
+        self.encoder_hidden_size = encoder_hidden_size
         self.attention = attention
-        self.output_layer = torch.nn.Linear(hidden_size * 2, hidden_size)
+        self.output_layer = torch.nn.Linear(decoder_hidden_size + encoder_hidden_size, decoder_hidden_size)
 
     def forward(self, source, memory_bank, mask=None):
         """
@@ -95,8 +96,8 @@ class GlobalAttention(torch.nn.Module):
         c = torch.bmm(align_vectors, memory_bank)
 
         # concatenate
-        concat_c = torch.cat([c, source], 2).view(batch*target_l, dim*2)
-        attn_h = self.output_layer(concat_c).view(batch, target_l, dim)
+        concat_c = torch.cat([c, source], 2).view(batch*target_l, -1)
+        attn_h = self.output_layer(concat_c).view(batch, target_l, -1)
 
         attn_h = torch.tanh(attn_h)
 

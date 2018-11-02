@@ -111,3 +111,13 @@ class StackedBidirectionalLstm(torch.nn.Module):
 
         final_state_tuple = (torch.cat(state_list, 0) for state_list in zip(*final_states))
         return output_sequence, final_state_tuple
+
+    @classmethod
+    def from_params(cls, params):
+        return cls(
+            input_size=params['input_size'],
+            hidden_size=params['hidden_size'],
+            num_layers=params['num_layers'],
+            recurrent_dropout_probability=params.get('dropout', 0.0),
+            use_highway=params.get('use_highway', True)
+        )

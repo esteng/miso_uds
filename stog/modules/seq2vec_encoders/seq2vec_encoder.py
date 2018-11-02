@@ -1,8 +1,7 @@
 from stog.modules.encoder_base import _EncoderBase
-from stog.utils.registrable import Registrable
 
 
-class Seq2VecEncoder(_EncoderBase, Registrable):
+class Seq2VecEncoder(_EncoderBase):
     """
     A ``Seq2VecEncoder`` is a ``Module`` that takes as input a sequence of vectors and returns a
     single vector.  Input shape: ``(batch_size, sequence_length, input_dim)``; output shape:
