@@ -13,7 +13,7 @@ class AbstractMeaningRepresentationDataWriter(DataWriter):
             head_tags = [self.vocab.get_token_from_index(x, "head_tags") for x in torch_dict['relations'][i][:current_len].tolist()]
             head_indices = torch_dict['headers'][i][:current_len].tolist()
             head_indices = [x for x in head_indices]
-            tokens = [ self.vocab.get_token_from_index(x,"token_ids") for x in batch['words']['tokens'][i][:current_len].tolist() ]
+            tokens = [ self.vocab.get_token_from_index(x,"token_ids") for x in batch['amr_tokens']['tokens'][i][:current_len].tolist() ]
             coref = batch['coref'][i][:current_len].tolist()
 
             yield self.predict_instance(

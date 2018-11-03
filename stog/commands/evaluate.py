@@ -32,7 +32,7 @@ def evaluate(model, instances, iterator, device):
             batch = move_to_device(batch, device)
             output_dict = model(batch, for_training=False)
             predictions = add_predictions(output_dict, batch, predictions, data_writer)
-            metrics = model.get_metrics(for_training=False)
+            metrics = model.get_metrics()
             description = ', '.join(["%s: %.2f" % (name, value) for name, value in metrics.items()]) + " ||"
             generator_tqdm.set_description(description, refresh=False)
 

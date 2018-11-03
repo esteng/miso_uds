@@ -127,19 +127,18 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         self.num_accumulated_tokens = 0
         self.metrics = AttachmentScores()
 
-    def get_metrics(self, for_training=False, reset=False):
+    def get_metrics(self, reset=False):
         metrics = dict(
             loss=self.accumulated_loss / self.num_accumulated_tokens,
-            edge_loss=self.accumulated_edge_loss / self.num_accumulated_tokens,
-            label_loss=self.accumulated_label_loss / self.num_accumulated_tokens
+            eloss=self.accumulated_edge_loss / self.num_accumulated_tokens,
+            lloss=self.accumulated_label_loss / self.num_accumulated_tokens
         )
+        metrics.update(self.metrics.get_metric(reset))
         if reset:
             self.accumulated_loss = 0.0
             self.accumulated_edge_loss = 0.0
             self.accumulated_label_loss = 0.0
             self.num_accumulated_tokens = 0
-        if not for_training:
-            metrics.update(self.metrics.get_metric(reset))
         return metrics
 
     def get_regularization_penalty(self):

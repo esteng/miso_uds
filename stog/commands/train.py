@@ -168,5 +168,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     params = Params.from_file(args.params)
+    logger.info(params)
+    
     train_model(params)
 
