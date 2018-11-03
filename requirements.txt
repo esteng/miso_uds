@@ -8,6 +8,7 @@ spacy
 ftfy
 nltk
 conllu
+yaml
 
 # Write logs for training visualisation with the Tensorboard application
 # Install the Tensorboard application separately (part of tensorflow) to view them.

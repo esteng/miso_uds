@@ -1,0 +1,69 @@
+# Parameters for the deep biaffine parser.
+
+# Device-sensitive parameters
+amr_data_dir: &amr_data_dir data/all_amr
+glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
+
+# Model parameters
+model:
+  model_type: DeepBiaffineParser
+  # Embeddings
+  tokem_emb_size: 300
+  char_emb_size: 100
+  emb_dropout: 0.33
+  # Char Conv
+  use_char_conv: True
+  num_filters: 100
+  kernal_size: 3
+  # Encoder
+  hidden_dropout: 0.33
+  encoder_size: 512
+  encoder_layers: 3
+  encoder_dropout: 0.33
+  # Biaffine
+  edge_hidden_size: 512
+  label_hidden_size: 128
+  # Decoder
+  num_labels: 50
+  deocde_type: greedy
+
+# Data parameters
+data:
+  data_dir: *amr_data_dir
+  train_data: train_amr.txt
+  dev_data: dev_amr.txt
+  test_data: test_amr.txt
+  data_type: AMR
+  batch_first: True
+  train_batch_size: &train_batch_size 64
+  test_batch_size: 32
+  iter_type: BucketIterator
+  pretraim_token_emb: *glove
+  pretrain_char_emb:
+
+# Training parameters
+ennvironment:
+  recover: False
+  seed: 1
+  numpy_seed: 1
+  torch_seed: 1
+  serialization_dir: &serialization_dir ckpt
+  file_friendly_logging: True
+  gpu: False
+  cuda_device: 0
+
+trainer:
+  device: # No need to be specified, will be updated at runtime
+  # Optimizer
+  optimizer_type: adam
+  learning_rate: 0.001
+  max_grad_norm: 5.0
+  batch_size: *train_batch_size
+  shuffle: True
+  epochs: 20
+  dev_metric: loss
+  serialization_dir: *serialization_dir
+  model_save_iterval:
+
+test:
+  evaluate_on_test: True

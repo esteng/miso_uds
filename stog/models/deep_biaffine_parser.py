@@ -484,49 +484,67 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             self.char_embedding.load_pretrain_from_file(vocab, file, "token_characters", data_type=="AMR")
 
     @classmethod
-    def from_params(cls, vocab, params):
+    def from_params(cls, vocab, recover, params, data_params):
         logger.info('Building model...')
+        token_emb_size = params['token_emb_size']
+        char_emb_size = params['char_emb_size']
+        emb_dropout = params['emb_dropout']
+        hidden_dropout = params['hidden_dropout']
+        use_char_conv = params['use_char_conv']
+        num_filters = params['num_filters']
+        kernel_size = params['kernel_size']
+        encoder_size = params['encoder_size']
+        encoder_layers = params['encoder_layers']
+        encoder_dropout = params['encoder_dropout']
+        edge_hidden_size = params['edge_hidden_size']
+        label_hidden_size = params['label_hidden_size']
+        decode_type = params['decode_type']
+
+        pretrain_token_emb = data_params['pretrain_token_emb']
+        pretrain_char_emb = data_params['pretrain_char_emb']
+        data_type = data_params['data_type']
 
         model = DeepBiaffineParser(
             num_token_embeddings=vocab.get_vocab_size("token_ids"),
-            token_embedding_dim=params.token_emb_size,
+            token_embedding_dim=token_emb_size,
             num_char_embeddings=vocab.get_vocab_size("token_characters"),
-            char_embedding_dim=params.char_emb_size,
-            embedding_dropout_rate=params.emb_dropout,
-            hidden_state_dropout_rate=params.hidden_dropout,
-            use_char_conv=params.use_char_conv,
-            num_filters=params.num_filters,
-            kernel_size=params.kernel_size,
-            encoder_hidden_size=params.encoder_size,
-            num_encoder_layers=params.encoder_layers,
-            encoder_dropout_rate=params.encoder_dropout,
-            edge_hidden_size=params.edge_hidden_size,
-            label_hidden_size=params.label_hidden_size,
+            char_embedding_dim=char_emb_size,
+            embedding_dropout_rate=emb_dropout,
+            hidden_state_dropout_rate=hidden_dropout,
+            use_char_conv=use_char_conv,
+            num_filters=num_filters,
+            kernel_size=kernel_size,
+            encoder_hidden_size=encoder_size,
+            num_encoder_layers=encoder_layers,
+            encoder_dropout_rate=encoder_dropout,
+            edge_hidden_size=edge_hidden_size,
+            label_hidden_size=label_hidden_size,
             num_labels=vocab.get_vocab_size("head_tags"),
-            decode_type=params.decode_type
+            decode_type=decode_type
         )
 
 
-        if not params.recover and params.pretrain_token_emb:
-            logger.info("Reading pretrained token embeddings from {} ...".format(params.pretrain_token_emb))
+        if not recover and pretrain_token_emb:
+            logger.info("Reading pretrained token embeddings from {} ...".format(pretrain_token_emb))
             model.load_embedding(
                 field="tokens",
-                file=params.pretrain_token_emb,
+                file=pretrain_token_emb,
                 vocab=vocab,
-                data_type=params.data_type
+                data_type=data_type
             )
             logger.info("Done.")
 
-        if not params.recover and params.pretrain_char_emb:
-            logger.info("Reading pretrained char embeddings from {} ...".format(params.pretrain_char_emb))
+        if not recover and pretrain_char_emb:
+            logger.info("Reading pretrained char embeddings from {} ...".format(pretrain_char_emb))
             model.load_embedding(
                 field="chars",
-                file=params.pretrain_char_emb,
+                file=pretrain_char_emb,
                 vocab=vocab,
-                data_type=params.data_type
+                data_type=data_type
             )
             logger.info("Done.")
 
+        # TODO: Move this to trainer.py
         if params.gpu:
             model.cuda()
 

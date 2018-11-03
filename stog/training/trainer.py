@@ -37,8 +37,7 @@ class Trainer:
             dev_dataset = None,
             dev_iterator = None,
             dev_metric = 'loss',
-            use_gpu = False,
-            cuda_device = None,
+            device = None,
             patience = None,
             grad_clipping = None,
             shuffle = True,
@@ -68,10 +67,8 @@ class Trainer:
         :param dev_metric:
             Dev metric to measure for whether to stop training using patience
             and whether to serialize an ``is_best`` model each epoch.
-        :param use_gpu:
-            Whether use gpu or not.
-        :param cuda_device:
-            Specified CUDA device ID.
+        :param device:
+            Specified device.
         :param patience:
             Number of epochs to be patient before early stopping: the training is stopped
             after ``patience`` epochs with no improvement. If given, it must be ``> 0``.
@@ -105,8 +102,7 @@ class Trainer:
         self._dev_dataset = dev_dataset
         self._dev_iterator = dev_iterator
         self._dev_metric = dev_metric
-        self._use_gpu = cuda_device >= 0
-        self._cuda_device = cuda_device
+        self._device = device
         self._patience = patience
         self._grad_clipping = grad_clipping
         self._shuffle = shuffle
@@ -120,9 +116,6 @@ class Trainer:
         self._num_trained_batches = 0
         self._serialized_paths = []
 
-        if self._cuda_device >= 0:
-            self._model.cuda(self._cuda_device)
-
         if serialization_dir is not None:
             train_log = os.path.join(serialization_dir, 'log', 'train')
             dev_log = os.path.join(serialization_dir, 'log', 'dev')
@@ -135,7 +128,7 @@ class Trainer:
         Does a forward pass on the given batch and returns the ``loss`` value in the result.
         If ``for_training`` is `True` also applies regularization penalty.
         """
-        batch = move_to_device(batch, self._cuda_device)
+        batch = move_to_device(batch, self._device)
         output_dict = self._model(batch, for_training=for_training)
 
         try:
@@ -161,11 +154,11 @@ class Trainer:
         self._model.train()
 
         # Get tqdm for the training batches
-        # TODO: How to deal with cuda device. Typically I set CUDA_VISIBLE_DEVICES before excute script, so it;s alway 0
+        # TODO: How to deal with cuda device. Typically I set CUDA_VISIBLE_DEVICES before execute script, so it;s alway 0
         train_generator = self._iterator(
             instances=self._training_dataset,
             shuffle=self._shuffle,
-            num_epochs = 1
+            num_epochs=1
         )
 
         num_training_batches = self._iterator.get_num_batches(self._training_dataset)
@@ -276,7 +269,7 @@ class Trainer:
         dev_generator = dev_iterator(
             instances=self._dev_dataset,
             shuffle=False,
-            num_epochs = 1
+            num_epochs=1
         )
 
         num_dev_batches = dev_iterator.get_num_batches(self._dev_dataset)
@@ -520,19 +513,21 @@ class Trainer:
     @classmethod
     def from_params(cls, model, train_data, dev_data, train_iterator, dev_iterator, params):
         logger.info('Building optimizer..')
-        optimizer = Optimizer(
-            params.optimizer_type, params.learning_rate, params.max_grad_norm,
-            lr_decay=params.learning_rate_decay,
-            start_decay_steps=params.start_decay_steps,
-            decay_steps=params.decay_steps,
-            beta1=params.adam_beta1,
-            beta2=params.adam_beta2,
-            adagrad_accum=params.adagrad_accumulator_init,
-            decay_method=params.decay_method,
-            warmup_steps=params.warmup_steps,
-            use_gpu=params.cuda_device >= 0,
-            cuda_device=params.cuda_device
-        )
+
+        device = params['device']
+        optimizer_type = params['optimizer_type']
+        lr = params['learning_rate']
+        max_grad_norm = params['max_grad_norm']
+        dev_metric = params['dev_metric']
+        shuffle = params['shuffle']
+        epochs = params['epochs']
+        serialization_dir = params['serialization']
+        model_save_interval = params['model_save_interval']
+        batch_size = params['batch_size']
+
+        model.to(device)
+
+        optimizer = Optimizer(optimizer_type, lr, max_grad_norm, device=device)
 
         parameters = [[n, p] for n, p in model.named_parameters() if p.requires_grad]
         optimizer.set_parameters(parameters)
@@ -544,18 +539,17 @@ class Trainer:
             training_dataset=train_data,
             dev_dataset=dev_data,
             dev_iterator=dev_iterator,
-            dev_metric=params.dev_metric,
-            use_gpu=params.cuda_device >= 0,
-            cuda_device=params.cuda_device,
+            dev_metric=dev_metric,
+            device=device,
             patience=None,
             grad_clipping=None,
-            shuffle=params.shuffle,
-            num_epochs=params.epochs,
-            serialization_dir=params.serialization_dir,
+            shuffle=shuffle,
+            num_epochs=epochs,
+            serialization_dir=serialization_dir,
             num_serialized_models_to_keep=5,
-            model_save_interval=params.model_save_interval,
+            model_save_interval=model_save_interval,
             summary_interval=100,
-            batch_size=params.batch_size
+            batch_size=batch_size
         )
 
         return trainer

@@ -149,7 +149,7 @@ class Embedding(TokenEmbedder):
         self.weight = torch.nn.Parameter(weight, requires_grad=self.trainable)
 
     @classmethod
-    def from_params(cls, vocab: Vocabulary, params) -> 'Embedding':  # type: ignore
+    def from_params(cls, vocab: Vocabulary, recover, params) -> 'Embedding':  # type: ignore
         """
         We need the vocabulary here to know how many items we need to embed, and we look for a
         ``vocab_namespace`` key in the parameter dictionary to know which vocabulary to use.  If
@@ -193,7 +193,7 @@ class Embedding(TokenEmbedder):
         scale_grad_by_freq = params.get('scale_grad_by_freq', False)
         sparse = params.get('sparse', False)
 
-        if pretrained_file:
+        if not recover and pretrained_file:
             # If we're loading a saved model, we don't want to actually read a pre-trained
             # embedding file - the embeddings will just be in our saved weights, and we might not
             # have the original embedding file anymore, anyway.

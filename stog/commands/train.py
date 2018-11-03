@@ -1,6 +1,7 @@
 import os
 import re
 import argparse
+import yaml
 
 import torch
 
@@ -33,14 +34,16 @@ def create_serialization_dir(params: Params) -> None:
         If ``True``, we will try to recover from an existing serialization directory, and crash if
         the directory doesn't exist, or doesn't match the configuration we're given.
     """
-    if os.path.exists(params.serialization_dir) and os.listdir(params.serialization_dir):
-        if not params.recover:
-            raise ConfigurationError(f"Serialization directory ({params.serialization_dir}) already exists and is "
+    serialization_dir = params['serialization_dir']
+    recover = params['recover']
+    if os.path.exists(serialization_dir) and os.listdir(serialization_dir):
+        if not recover:
+            raise ConfigurationError(f"Serialization directory ({serialization_dir}) already exists and is "
                                      f"not empty. Specify --recover to recover training from existing output.")
 
-        logger.info(f"Recovering from prior training at {params.serialization_dir}.")
+        logger.info(f"Recovering from prior training at {serialization_dir}.")
 
-        recovered_config_file = os.path.join(params.serialization_dir, CONFIG_NAME)
+        recovered_config_file = os.path.join(serialization_dir, CONFIG_NAME)
         if not os.path.exists(recovered_config_file):
             raise ConfigurationError("The serialization directory already exists but doesn't "
                                      "contain a config.json. You probably gave the wrong directory.")
@@ -51,10 +54,10 @@ def create_serialization_dir(params: Params) -> None:
                 raise ConfigurationError("Training configuration does not match the configuration we're "
                                          "recovering from.")
     else:
-        if params.recover:
-            raise ConfigurationError(f"--recover specified but serialization_dir ({params.serialization_dir}) "
+        if recover:
+            raise ConfigurationError(f"--recover specified but serialization_dir ({serialization_dir}) "
                                      "does not exist.  There is nothing to recover from.")
-        os.makedirs(params.serialization_dir, exist_ok=True)
+        os.makedirs(serialization_dir, exist_ok=True)
 
 
 def train_model(params: Params):
@@ -70,28 +73,39 @@ def train_model(params: Params):
     best_model: ``Model``
         The model with the best epoch weights.
     """
-    environment.set_seed(params.seed, params.numpy_seed, params.torch_seed)
 
-    create_serialization_dir(params)
-    environment.prepare_global_logging(params.serialization_dir, params.file_friendly_logging)
+    # Set up the environment.
+    environment_params = params['environment']
+    environment.set_seed(environment_params)
+    create_serialization_dir(environment_params)
+    environment.prepare_global_logging(environment_params)
+    environment.check_for_gpu(environment_params)
+    if environment_params['gpu']:
+        device = torch.device('cuda:{}'.format(environment_params['cuda_device']))
+    else:
+        device = torch.device('cpu')
+    params['trainer']['device'] = device
+    params.to_file(os.path.join(environment_params['serialization_dir'], CONFIG_NAME))
 
-    environment.check_for_gpu(params.cuda_device)
-
-    params.to_file(os.path.join(params.serialization_dir, CONFIG_NAME))
-
-    dataset = dataset_from_params(params)
-
+    # Load data.
+    data_params = params['data']
+    dataset = dataset_from_params(data_params)
     train_data = dataset['train']
     dev_data = dataset.get('dev')
     test_data = dataset.get('test')
 
     # Vocabulary and iterator are created here.
     vocab = Vocabulary.from_instances(instances=train_data, non_padded_namespaces=())
-    train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, params)
+    train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, data_params)
 
-    model = getattr(Models, params.model_type).from_params(vocab, params)
+    # Build the model.
+    model_params = params['model']
+    model = getattr(Models, model_params['model_type']).from_params(
+        vocab, environment_params['recover'], model_params, data_params)
 
-    no_grad_regexes = params.no_grad
+    # Train
+    trainer_params = params['trainer']
+    no_grad_regexes = trainer_params['no_grad']
     for name, parameter in model.named_parameters():
         if any(re.search(regex, name) for regex in no_grad_regexes):
             parameter.requires_grad_(False)
@@ -105,54 +119,54 @@ def train_model(params: Params):
     for name in tunable_parameter_names:
         logger.info(name)
 
-    trainer = Trainer.from_params(model, train_data, dev_data, train_iterator, dev_iterater, params)
+    trainer = Trainer.from_params(model, train_data, dev_data, train_iterator, dev_iterater, trainer_params)
 
+    serialization_dir = trainer_params['serialization_dir']
     try:
         metrics = trainer.train()
     except KeyboardInterrupt:
         # if we have completed an epoch, try to create a model archive.
-        if os.path.exists(os.path.join(params.serialization_dir, _DEFAULT_WEIGHTS)):
+        if os.path.exists(os.path.join(serialization_dir, _DEFAULT_WEIGHTS)):
             logger.info("Training interrupted by the user. Attempting to create "
                          "a model archive using the current best epoch weights.")
-            archive_model(params.serialization_dir)
+            archive_model(serialization_dir)
         raise
 
     # Now tar up results
-    archive_model(params.serialization_dir)
+    archive_model(serialization_dir)
 
     logger.info("Loading the best epoch weights.")
-    best_model_state_path = os.path.join(params.serialization_dir, 'best.th')
+    best_model_state_path = os.path.join(serialization_dir, 'best.th')
     best_model_state = torch.load(best_model_state_path)
     best_model = model
     best_model.load_state_dict(best_model_state)
 
-    if test_data and params.evaluate_on_test:
+    # Test
+    test_params = params['test']
+    evaluate_on_test = test_params['evaluate_on_test']
+    if test_data and evaluate_on_test:
         logger.info("The model will be evaluated using the best epoch weights.")
-        test_metrics, predictions = evaluate(
-                best_model, test_data, test_iterater, params.batch_size,
-                cuda_device=params.cuda_device # pylint: disable=protected-access
-        )
+        test_metrics, predictions = evaluate(best_model, test_data, test_iterater, device)
         for key, value in test_metrics.items():
             metrics["test_" + key] = value
 
-        dump_metrics(os.path.join(params.serialization_dir, "metrics.json"), metrics, log=True)
+        dump_metrics(os.path.join(serialization_dir, "metrics.json"), metrics, log=True)
 
         # dump_metrics(os.path.join(params.serialization_dir, "predictions.txt"), predictions, log=False)
         # TODO: May not be a good way, but leave it for now
-        with open(os.path.join(params.serialization_dir, 'predictions.txt'), 'w') as f:
+        with open(os.path.join(serialization_dir, 'predictions.txt'), 'w') as f:
             for tree in predictions['tree']:
                 f.write(tree.pretty_str())
                 f.write('\n\n')
-
 
     return best_model
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser('train.py')
-    data_opts(parser)
-    model_opts(parser)
-    train_opts(parser)
-    params = Params.from_parser(parser)
+    parser.add_argument('params', help='Parameters YAML file.')
+    args = parser.parse_args()
+
+    params = Params.from_file(args.params)
     train_model(params)
 

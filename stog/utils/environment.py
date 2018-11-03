@@ -21,7 +21,7 @@ from stog.utils.checks import ConfigurationError
 logger = logging.init_logger()
 
 
-def set_seed(seed=13370, numpy_seed=1337, torch_seed=133):
+def set_seed(params):
     """
     Adopted from AllenNLP:
         https://github.com/allenai/allennlp/blob/606a61abf04e3108949022ae1bcea975b2adb560/allennlp/common/util.py
@@ -34,7 +34,7 @@ def set_seed(seed=13370, numpy_seed=1337, torch_seed=133):
     is very difficult to achieve with libraries doing optimized linear algebra due to massively
     parallel execution, which is exacerbated by using GPUs.
     """
-
+    seed, numpy_seed, torch_seed = params['seed'], params['numpy_seed'], params['torch_seed']
     if seed is not None:
         random.seed(seed)
     if numpy_seed is not None:
@@ -52,7 +52,7 @@ def set_seed(seed=13370, numpy_seed=1337, torch_seed=133):
     ))
 
 
-def prepare_global_logging(serialization_dir: str, file_friendly_logging: bool) -> None:
+def prepare_global_logging(params) -> None:
     """
     This function configures 3 global logging attributes - streaming stdout and stderr
     to a file as well as the terminal, setting the formatting for the python logging
@@ -66,6 +66,8 @@ def prepare_global_logging(serialization_dir: str, file_friendly_logging: bool) 
         Whether logs should clean the output to prevent carridge returns
         (used to update progress bars on a single terminal line).
     """
+    serialization_dir = params['serialization_dir']
+    file_friendly_logging = params['file_friendly_logging']
     Tqdm.set_slower_interval(file_friendly_logging)
     std_out_file = os.path.join(serialization_dir, "stdout.log")
     sys.stdout = TeeLogger(std_out_file, # type: ignore
@@ -76,9 +78,10 @@ def prepare_global_logging(serialization_dir: str, file_friendly_logging: bool) 
                            file_friendly_logging)
 
     logging.init_logger(log_file=std_out_file)
-    
-    
-def check_for_gpu(device_id: object) -> object:
+
+
+def check_for_gpu(params) -> object:
+    device_id = params['cuda_device']
     if device_id is not None and device_id >= cuda.device_count():
         raise ConfigurationError("Experiment specified a GPU but none is available;"
                                  " if you want to run on CPU use the override"
@@ -177,20 +180,20 @@ def has_tensor(obj) -> bool:
         return False
 
 
-def move_to_device(obj, cuda_device: int):
+def move_to_device(obj, device):
     """
     Given a structure (possibly) containing Tensors on the CPU,
     move all the Tensors to the specified GPU (or do nothing, if they should be on the CPU).
     """
-    if cuda_device < 0 or not has_tensor(obj):
+    if not has_tensor(obj):
         return obj
     elif isinstance(obj, torch.Tensor):
-        return obj.cuda(cuda_device)
+        return obj.to(device)
     elif isinstance(obj, dict):
-        return {key: move_to_device(value, cuda_device) for key, value in obj.items()}
+        return {key: move_to_device(value, device) for key, value in obj.items()}
     elif isinstance(obj, list):
-        return [move_to_device(item, cuda_device) for item in obj]
+        return [move_to_device(item, device) for item in obj]
     elif isinstance(obj, tuple):
-        return tuple([move_to_device(item, cuda_device) for item in obj])
+        return tuple([move_to_device(item, device) for item in obj])
     else:
         return obj

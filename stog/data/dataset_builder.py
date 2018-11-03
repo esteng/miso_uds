@@ -1,4 +1,4 @@
-import sys
+import os
 import argparse
 import torch
 from stog.utils.params import data_opts
@@ -32,19 +32,23 @@ def load_dataset(path, dataset_type):
     return dataset_reader.read(path)
 
 
-def dataset_from_params(opt):
+def dataset_from_params(params):
 
+    train_data = os.path.join(params['data_dir'], params['train_data'])
+    dev_data = os.path.join(params['data_dir'], params['dev_data'])
+    test_data = params['test_data']
+    data_type = params['data_type']
 
     logger.info("Building train datasets ...")
-    train_data = load_dataset(opt.train_data, opt.data_type)
+    train_data = load_dataset(train_data, data_type)
 
     logger.info("Building dev datasets ...")
-    dev_data = load_dataset(opt.dev_data, opt.data_type)
+    dev_data = load_dataset(dev_data, data_type)
 
-    test_data = None
-    if opt.test_data:
+    if test_data:
+        test_data = os.path.join(params['data_dir'], params['test_data'])
         logger.info("Building test datasets ...")
-        test_data = load_dataset(opt.test_data, opt.data_type)
+        test_data = load_dataset(test_data, data_type)
 
     #logger.info("Building vocabulary ...")
     #build_vocab(fields, train_data)
@@ -55,26 +59,30 @@ def dataset_from_params(opt):
         test=test_data
     )
 
-def iterator_from_params(vocab, opt):
+def iterator_from_params(vocab, params):
     # TODO: There are some other options for iterator, I think we consider about it later.
-    if opt.iter_type == "BucketIterator":
+    iter_type = params['iter_type']
+    train_batch_size = params['train_batch_size']
+    test_batch_size = params['test_batch_size']
+
+    if iter_type == "BucketIterator":
         train_iterator = BucketIterator(
             sorting_keys=[("amr_tokens", "num_tokens")],
-            batch_size=opt.batch_size,
+            batch_size=train_batch_size,
         )
-    elif opt.iter_type == "BasicIterator":
+    elif iter_type == "BasicIterator":
         train_iterator = BasicIterator(
-            batch_size=opt.batch_size
+            batch_size=train_batch_size
         )
     else:
         raise NotImplementedError
 
     dev_iterator = BasicIterator(
-        batch_size=opt.batch_size
+        batch_size=train_batch_size
     )
 
     test_iterator = BasicIterator(
-        batch_size=opt.batch_size
+        batch_size=test_batch_size
     )
 
     train_iterator.index_with(vocab)

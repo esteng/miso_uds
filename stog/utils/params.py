@@ -1,6 +1,8 @@
 import json
 import argparse
 
+import yaml
+
 from stog.utils import logging
 
 logger = logging.init_logger()
@@ -250,65 +252,89 @@ class Params(object):
     """
     Parameters
     """
-    def __init__(self):
-        self._param_dict = {}
+    def __init__(self, params):
+        self.params = params
 
     def __eq__(self, other):
         if not isinstance(other, Params):
             logger.info('The params you compare is not an instance of Params.')
             return False
 
-        if len(self._param_dict) != len(other._param_dict):
+        this_flat_params = self.as_flat_dict()
+        other_flat_params = other.as_flat_dict()
+
+        if len(this_flat_params) != len(other_flat_params):
             logger.info('The numbers of parameters are different: {} != {}'.format(
-                len(self._param_dict),
-                len(other._param_dict)
+                len(this_flat_params),
+                len(other_flat_params)
             ))
             return False
+
         same = True
-        for k, v in self._param_dict.items():
+        for k, v in this_flat_params.items():
             if k == 'recover':
                 continue
-            if k not in other._param_dict:
+            if k not in other_flat_params:
                 logger.info('The parameter "{}" is not specified.'.format(k))
                 same = False
-            elif other._param_dict[k] != v:
+            elif other_flat_params[k] != v:
                 logger.info('The values of "{}" not not the same: {} != {}'.format(
-                    k, v, other._param_dict[k]
+                    k, v, other_flat_params[k]
                 ))
                 same = False
         return same
 
-    def __getattr__(self, item):
-        return self._param_dict.get(item)
+    def __getitem__(self, item):
+        if item in self.params:
+            return self.params[item]
+        else:
+            raise KeyError
 
-    def set_param(self, k, v):
-        self._param_dict[k] = v
+    def __setitem__(self, key, value):
+        self.params[key] = value
+
+    def __delitem__(self, key):
+        del self.params[key]
+
+    def __iter__(self):
+        return iter(self.params)
+
+    def __len__(self):
+        return len(self.params)
+
+    def as_flat_dict(self):
+        """
+        Returns the parameters of a flat dictionary from keys to values.
+        Nested structure is collapsed with periods.
+        """
+        flat_params = {}
+
+        def recurse(parameters, path):
+            for key, value in parameters.items():
+                newpath = path + [key]
+                if isinstance(value, dict):
+                    recurse(value, newpath)
+                else:
+                    flat_params['.'.join(newpath)] = value
+
+        recurse(self.params, [])
+        return flat_params
 
     def to_file(self, output_json_file):
         with open(output_json_file, 'w', encoding='utf-8') as f:
             json.dump(self._param_dict, f, indent='\t')
 
     @classmethod
-    def from_file(cls, params_json_file):
-        with open(params_json_file, encoding='utf-8') as f:
-            params_dict = json.load(f)
-
-        params = cls()
-        for k, v in params_dict.items():
-            params.set_param(k, v)
-
-        return params
-
-    @classmethod
-    def from_parser(cls, parser):
-        params_dict = vars(parser.parse_args())
-
-        params = cls()
-        for k, v in params_dict.items():
-            params.set_param(k, v)
-
-        return params
+    def from_file(cls, params_file):
+        with open(params_file, encoding='utf-8') as f:
+            if params_file.endswith('.yaml'):
+                params_dict = yaml.load(f)
+            elif params_file.endswith('.json'):
+                params_dict = json.load(f)
+            else:
+                raise NotImplementedError
+        return cls(params_dict)
 
     def __repr__(self):
-        return '\n'.join(["*** {} : {}".format(key,value) for key, value in sorted(self._param_dict.items())])
+        return json.dumps(self.params, indent=2)
 

@@ -1,31 +1,15 @@
-from typing import Dict, Any, Iterable
-
 import torch
 
-from stog.models.model import Model
-from stog.utils import environment
 from stog.utils import logging
 from stog.utils.tqdm import Tqdm
 from stog.utils.environment import move_to_device
-from stog.utils.exception_hook import ExceptionHook
-from stog.data.amr import AMRTree
 from stog.data.data_writers import AbstractMeaningRepresentationDataWriter
 from collections import defaultdict
-import sys
 
 logger = logging.init_logger()
 
-#if params.data_type == "AMR":
-#    data_writer = AbstractMeaningRepresentationDataWriter()
-#    data_writer.set_vocab(train_iterator.vocab)
-#   self._data_writer.reset_file_epoch(epoch)
 
-def evaluate(model: Model,
-             instances,
-             iterator,
-             batch_size,
-             cuda_device: int):
-    environment.check_for_gpu(cuda_device)
+def evaluate(model, instances, iterator, device):
     with torch.no_grad():
         model.eval()
         model.decode_type = 'mst'
@@ -33,7 +17,7 @@ def evaluate(model: Model,
         test_generator = iterator(
             instances=instances,
             shuffle=False,
-            num_epochs = 1
+            num_epochs=1
         )
 
         predictions = defaultdict(list)
@@ -45,7 +29,7 @@ def evaluate(model: Model,
         data_writer = AbstractMeaningRepresentationDataWriter()
         data_writer.set_vocab(iterator.vocab)
         for batch in generator_tqdm:
-            batch = move_to_device(batch, cuda_device)
+            batch = move_to_device(batch, device)
             output_dict = model(batch, for_training=False)
             predictions = add_predictions(output_dict, batch, predictions, data_writer)
             metrics = model.get_metrics(for_training=False)
