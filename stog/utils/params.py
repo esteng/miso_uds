@@ -322,7 +322,7 @@ class Params(object):
 
     def to_file(self, output_json_file):
         with open(output_json_file, 'w', encoding='utf-8') as f:
-            json.dump(self._param_dict, f, indent='\t')
+            json.dump(self.params, f, indent='\t')
 
     @classmethod
     def from_file(cls, params_file):

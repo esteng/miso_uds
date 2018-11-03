@@ -521,7 +521,7 @@ class Trainer:
         dev_metric = params['dev_metric']
         shuffle = params['shuffle']
         epochs = params['epochs']
-        serialization_dir = params['serialization']
+        serialization_dir = params['serialization_dir']
         model_save_interval = params['model_save_interval']
         batch_size = params['batch_size']
 

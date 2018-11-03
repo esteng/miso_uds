@@ -80,12 +80,12 @@ def train_model(params: Params):
     create_serialization_dir(environment_params)
     environment.prepare_global_logging(environment_params)
     environment.check_for_gpu(environment_params)
+    params.to_file(os.path.join(environment_params['serialization_dir'], CONFIG_NAME))
     if environment_params['gpu']:
         device = torch.device('cuda:{}'.format(environment_params['cuda_device']))
     else:
         device = torch.device('cpu')
     params['trainer']['device'] = device
-    params.to_file(os.path.join(environment_params['serialization_dir'], CONFIG_NAME))
 
     # Load data.
     data_params = params['data']

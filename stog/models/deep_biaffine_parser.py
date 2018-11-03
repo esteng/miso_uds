@@ -544,9 +544,5 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             )
             logger.info("Done.")
 
-        # TODO: Move this to trainer.py
-        if params.gpu:
-            model.cuda()
-
         logger.info(model)
         return model

@@ -28,7 +28,6 @@ import re
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-@TokenEmbedder.register("embedding")
 class Embedding(TokenEmbedder):
     """
     A more featureful embedding module than the default in Pytorch.  Adds the ability to:
