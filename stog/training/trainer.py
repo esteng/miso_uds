@@ -173,7 +173,7 @@ class Trainer:
             self._num_trained_batches += 1
 
             self._optimizer.zero_grad()
-            loss = self._batch_loss(batch, for_training=False)
+            loss = self._batch_loss(batch, for_training=True)
             loss.backward()
             training_loss += loss.item()
             self._optimizer.step()
@@ -261,7 +261,8 @@ class Trainer:
 
         self._model.eval()
 
-        if self._dev_iterator is not None:
+        # TODO: edge loss is wrong when _dev_iterator is used.
+        if False: # self._dev_iterator is not None:
             dev_iterator = self._dev_iterator
         else:
             dev_iterator = self._iterator

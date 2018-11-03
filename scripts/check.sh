@@ -21,7 +21,7 @@ python -u -m stog.commands.train  \
   --emb_dropout 0 \
   --encoder_dropout 0 \
   --hidden_dropout 0 \
-  --serialization_dir ckpt \
+  --serialization_dir ckpt-ud \
   --evaluate_on_test \
   --gpu
   # --pretrain_token_emb ${glove} \
