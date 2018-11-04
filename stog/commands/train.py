@@ -152,7 +152,6 @@ def train_model(params: Params):
 
         dump_metrics(os.path.join(serialization_dir, "metrics.json"), metrics, log=True)
 
-        # dump_metrics(os.path.join(params.serialization_dir, "predictions.txt"), predictions, log=False)
         # TODO: May not be a good way, but leave it for now
         with open(os.path.join(serialization_dir, 'predictions.txt'), 'w') as f:
             for tree in predictions['tree']:
@@ -169,6 +168,6 @@ if __name__ == "__main__":
 
     params = Params.from_file(args.params)
     logger.info(params)
-    
+
     train_model(params)
 

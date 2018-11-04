@@ -42,9 +42,9 @@ class Seq2SeqMetrics(Metric):
 
     def get_metric(self, reset: bool = False):
         return dict(
-            accuracy = self.accuracy(),
-            xent = self.xent(),
-            ppl = self.ppl()
+            accuracy=self.accuracy(),
+            xent=self.xent(),
+            ppl=self.ppl()
         )
 
     @overrides

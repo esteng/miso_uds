@@ -114,12 +114,12 @@ class Seq2Seq(Model):
         return decoder_outputs, attentions, decoder_final_states
 
     @classmethod
-    def from_params(cls, vocab, params):
+    def from_params(cls, vocab, recover, params):
         logger.info('Building the Seq2Seq Model...')
 
         # Encoder
-        encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
-        encoder_char_embedding = Embedding.from_params(vocab, params['encoder_char_embedding'])
+        encoder_token_embedding = Embedding.from_params(vocab, recover, params['encoder_token_embedding'])
+        encoder_char_embedding = Embedding.from_params(vocab, recover, params['encoder_char_embedding'])
         encoder_embedding_dropout = InputVariationalDropout(p=params['encoder_token_embedding']['dropout'])
 
         encoder = PytorchSeq2SeqWrapper(
@@ -129,8 +129,8 @@ class Seq2Seq(Model):
         encoder_output_dropout = InputVariationalDropout(p=params['encoder']['dropout'])
 
         # Decoder
-        decoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embeddings'])
-        decoder_char_embedding = Embedding.from_params(vocab, params['encoder_char_embeddings'])
+        decoder_token_embedding = Embedding.from_params(vocab, recover, params['encoder_token_embeddings'])
+        decoder_char_embedding = Embedding.from_params(vocab, recover, params['encoder_char_embeddings'])
         decoder_embedding_dropout = InputVariationalDropout(p=params['decoder_token_embedding']['dropout'])
 
         attention = DotProductAttention(
@@ -153,7 +153,7 @@ class Seq2Seq(Model):
         # Generator
         generator = Generator.from_params(params['generator'])
 
-        cls(
+        return cls(
             encoder_token_embedding=encoder_token_embedding,
             encoder_char_embedding=encoder_char_embedding,
             encoder_embedding_dropout=encoder_embedding_dropout,
