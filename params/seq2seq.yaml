@@ -48,6 +48,9 @@ model:
     num_layers: 3
     dropout: 0.33
 
+  attention:
+    add_linear: True
+
   generator:
     input_size: *deocder_hidden_size
     # Specify vocab_size and pad_idx dynamically
@@ -76,7 +79,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir ckpt
+  serialization_dir: &serialization_dir seq2seq-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0

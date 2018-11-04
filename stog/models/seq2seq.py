@@ -31,6 +31,7 @@ class Seq2Seq(Model):
                  decoder,
                  # Generator
                  generator):
+        super(Model, self).__init__()
 
         self.encoder_token_embedding = encoder_token_embedding
         self.encoder_char_embedding = encoder_char_embedding
@@ -129,8 +130,8 @@ class Seq2Seq(Model):
         encoder_output_dropout = InputVariationalDropout(p=params['encoder']['dropout'])
 
         # Decoder
-        decoder_token_embedding = Embedding.from_params(vocab, recover, params['encoder_token_embeddings'])
-        decoder_char_embedding = Embedding.from_params(vocab, recover, params['encoder_char_embeddings'])
+        decoder_token_embedding = Embedding.from_params(vocab, recover, params['decoder_token_embedding'])
+        decoder_char_embedding = Embedding.from_params(vocab, recover, params['decoder_char_embedding'])
         decoder_embedding_dropout = InputVariationalDropout(p=params['decoder_token_embedding']['dropout'])
 
         attention = DotProductAttention(
@@ -151,6 +152,9 @@ class Seq2Seq(Model):
         )
 
         # Generator
+        # TODO: make sure I set them correctly.
+        params['generator']['vocab_size'] = vocab.get_vocab_size('token_ids')
+        params['generator']['pad_idx'] = 0
         generator = Generator.from_params(params['generator'])
 
         return cls(
