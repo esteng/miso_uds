@@ -483,7 +483,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             self.char_embedding.load_pretrain_from_file(vocab, file, "token_characters", data_type=="AMR")
 
     @classmethod
-    def from_params(cls, vocab, recover, params, data_params):
+    def from_params(cls, vocab, recover, params):
         logger.info('Building model...')
         token_emb_size = params['token_emb_size']
         char_emb_size = params['char_emb_size']
@@ -499,9 +499,9 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         label_hidden_size = params['label_hidden_size']
         decode_type = params['decode_type']
 
-        pretrain_token_emb = data_params['pretrain_token_emb']
-        pretrain_char_emb = data_params['pretrain_char_emb']
-        data_type = data_params['data_type']
+        pretrain_token_emb = params['pretrain_token_emb']
+        pretrain_char_emb = params['pretrain_char_emb']
+        data_type = params['data_type']
 
         model = DeepBiaffineParser(
             num_token_embeddings=vocab.get_vocab_size("token_ids"),
