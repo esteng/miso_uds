@@ -6,7 +6,7 @@ import yaml
 import torch
 
 from stog.utils import logging
-from stog.utils.params import data_opts, model_opts, train_opts, Params
+from stog.utils.params import Params
 from stog import models as Models
 from stog.data.dataset_builder import dataset_from_params, iterator_from_params
 from stog.data.vocabulary import Vocabulary
@@ -34,8 +34,8 @@ def create_serialization_dir(params: Params) -> None:
         If ``True``, we will try to recover from an existing serialization directory, and crash if
         the directory doesn't exist, or doesn't match the configuration we're given.
     """
-    serialization_dir = params['serialization_dir']
-    recover = params['recover']
+    serialization_dir = params['environment']['serialization_dir']
+    recover = params['environment']['recover']
     if os.path.exists(serialization_dir) and os.listdir(serialization_dir):
         if not recover:
             raise ConfigurationError(f"Serialization directory ({serialization_dir}) already exists and is "
@@ -77,7 +77,7 @@ def train_model(params: Params):
     # Set up the environment.
     environment_params = params['environment']
     environment.set_seed(environment_params)
-    create_serialization_dir(environment_params)
+    create_serialization_dir(params)
     environment.prepare_global_logging(environment_params)
     environment.check_for_gpu(environment_params)
     params.to_file(os.path.join(environment_params['serialization_dir'], CONFIG_NAME))

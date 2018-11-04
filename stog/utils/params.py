@@ -257,7 +257,9 @@ class Params(object):
 
     def __eq__(self, other):
         if not isinstance(other, Params):
-            logger.info('The params you compare is not an instance of Params.')
+            logger.info('The params you compare is not an instance of Params. ({} != {})'.format(
+                type(self), type(other)
+            ))
             return False
 
         this_flat_params = self.as_flat_dict()
@@ -272,7 +274,7 @@ class Params(object):
 
         same = True
         for k, v in this_flat_params.items():
-            if k == 'recover':
+            if k == 'environment.recover':
                 continue
             if k not in other_flat_params:
                 logger.info('The parameter "{}" is not specified.'.format(k))
