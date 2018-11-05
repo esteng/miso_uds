@@ -11,6 +11,7 @@ from stog.modules.attention_layers.global_attention import GlobalAttention
 from stog.modules.attention.dot_production_attention import DotProductAttention
 from stog.modules.input_variational_dropout import InputVariationalDropout
 from stog.modules.decoders.generator import Generator
+from stog.utils.nn import get_text_field_mask
 
 logger = init_logger()
 
@@ -50,18 +51,19 @@ class Seq2Seq(Model):
         return self.generator.metrics.get_metric(reset)
 
     def forward(self, batch, for_training=True):
+        #import pdb; pdb.set_trace()
         # [batch, num_tokens]
-        encoder_token_inputs = batch['encoder_token_inputs']
+        encoder_token_inputs = batch['src_tokens']['tokens']
         # [batch, num_tokens, num_chars]
-        encoder_char_inputs = batch['encoder_char_inputs']
+        encoder_char_inputs = batch['src_tokens']['characters']
         # [batch, num_tokens]
-        encoder_mask = batch['encoder_mask']
+        encoder_mask = get_text_field_mask(batch['src_tokens'])
         # [batch, num_tokens]
-        decoder_token_inputs = batch['decoder_token_inputs']
+        decoder_token_inputs = batch['amr_tokens']['tokens']
         # [batch, num_tokens, num_chars]
-        decoder_char_inputs = batch['decoder_char_inputs']
+        decoder_char_inputs = batch['amr_tokens']['characters']
         # [batch, num_tokens]
-        targets = batch['targets']
+        targets = batch['amr_tokens']['tokens'][:, 1:]
 
         encoder_memory_bank, encoder_final_states = self.encode(
             encoder_token_inputs,
