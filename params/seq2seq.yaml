@@ -19,9 +19,15 @@ model:
   encoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'encoder_chars'
-    embedding_dim: 100
+    embedding_dim: &encoder_char_embedding_dim 100
     dropout: 0.33
     pretrained_file:
+
+  encoder_char_cnn:
+    embedding_dim: *encoder_char_embedding_dim
+    num_filters: 100
+    ngram_filter_sizes: [3]
+
   decoder_token_embedding:
     num_embeddings:
     vocab_namespace: 'decoder_tokens'
@@ -32,9 +38,14 @@ model:
   decoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'decoder_chars'
-    embedding_dim: 100
+    embedding_dim: &decoder_char_embedding_dim 100
     dropout: 0.33
     pretrained_file:
+
+  decoder_char_cnn:
+    embedding_dim: *decoder_char_embedding_dim
+    num_filters: 100
+    ngram_filter_sizes: [3]
 
   encoder:
     input_size: 400
@@ -61,7 +72,7 @@ model:
 # Data parameters
 data:
   data_dir: *amr_data_dir
-  train_data: train_amr.txt
+  train_data: dev_amr.txt
   dev_data: dev_amr.txt
   test_data: test_amr.txt
   data_type: AMR

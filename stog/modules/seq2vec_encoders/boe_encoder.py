@@ -5,7 +5,6 @@ import torch
 from stog.modules.seq2vec_encoders.seq2vec_encoder import Seq2VecEncoder
 from stog.utils.nn import get_lengths_from_binary_sequence_mask
 
-@Seq2VecEncoder.register("boe")
 class BagOfEmbeddingsEncoder(Seq2VecEncoder):
     """
     A ``BagOfEmbeddingsEncoder`` is a simple :class:`Seq2VecEncoder` which simply sums the embeddings

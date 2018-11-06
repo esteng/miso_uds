@@ -100,7 +100,7 @@ class CnnEncoder(Seq2VecEncoder):
         for i in range(len(self._convolution_layers)):
             convolution_layer = getattr(self, 'conv_layer_{}'.format(i))
             filter_outputs.append(
-                    self._activation(convolution_layer(tokens)).max(dim=2)[0]
+                self._activation(convolution_layer(tokens)).max(dim=2)[0]
             )
 
         # Now we have a list of `num_conv_layers` tensors of shape `(batch_size, num_filters)`.

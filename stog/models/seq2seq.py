@@ -3,6 +3,7 @@ import torch
 from stog.models.model import Model
 from stog.utils.logging import init_logger
 from stog.modules.token_embedders.embedding import Embedding
+from stog.modules.seq2vec_encoders.cnn_encoder import CnnEncoder
 from stog.modules.seq2seq_encoders.pytorch_seq2seq_wrapper import PytorchSeq2SeqWrapper
 from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.stacked_lstm import StackedLstm
@@ -22,12 +23,14 @@ class Seq2Seq(Model):
                  # Encoder
                  encoder_token_embedding,
                  encoder_char_embedding,
+                 encoder_char_cnn,
                  encoder_embedding_dropout,
                  encoder,
                  encoder_output_dropout,
                  # Decoder
                  decoder_token_embedding,
                  decoder_char_embedding,
+                 decoder_char_cnn,
                  decoder_embedding_dropout,
                  decoder,
                  # Generator
@@ -36,12 +39,14 @@ class Seq2Seq(Model):
 
         self.encoder_token_embedding = encoder_token_embedding
         self.encoder_char_embedding = encoder_char_embedding
+        self.encoder_char_cnn = encoder_char_cnn
         self.encoder_embedding_dropout = encoder_embedding_dropout
         self.encoder = encoder
         self.encoder_output_dropout = encoder_output_dropout
 
         self.decoder_token_embedding = decoder_token_embedding
         self.decoder_char_embedding = decoder_char_embedding
+        self.decoder_char_cnn = decoder_char_cnn
         self.decoder_embedding_dropout = decoder_embedding_dropout
         self.decoder = decoder
 
@@ -90,9 +95,16 @@ class Seq2Seq(Model):
     def encode(self, tokens, chars, mask):
         # [batch, num_tokens, embedding_size]
         token_embeddings = self.encoder_token_embedding(tokens)
-        # [batch, num_tokens, embedding_size]
+        print(chars)
+        # [batch, num_tokens, num_chars, embedding_size]
         char_embeddings = self.encoder_char_embedding(chars)
-        encoder_inputs = torch.cat([token_embeddings, char_embeddings], 2)
+        batch_size, num_tokens, num_chars, _ = char_embeddings.size()
+        char_embeddings = char_embeddings.view(batch_size * num_tokens, num_chars, -1)
+        # TODO: add mask?
+        char_cnn_output = self.encoder_char_cnn(char_embeddings, None)
+        char_cnn_output = char_cnn_output.view(batch_size, num_tokens, -1)
+
+        encoder_inputs = torch.cat([token_embeddings, char_cnn_output], 2)
         encoder_inputs = self.encoder_embedding_dropout(encoder_inputs)
 
         # [batch, num_tokens, encoder_output_size]
@@ -110,7 +122,12 @@ class Seq2Seq(Model):
         token_embeddings = self.decoder_token_embedding(tokens)
         # [batch, num_tokens, embedding_size]
         char_embeddings = self.decoder_char_embedding(chars)
-        decoder_inputs = torch.cat([token_embeddings, char_embeddings], 2)
+        char_embeddings = char_embeddings.view(batch_size * num_tokens, num_chars, -1)
+        # TODO: add mask?
+        char_cnn_output = self.decoder_char_cnn(char_embeddings, None)
+        char_cnn_output = char_cnn_output.view(batch_size, num_tokens, -1)
+
+        decoder_inputs = torch.cat([token_embeddings, char_cnn_output], 2)
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
         decoder_outputs, attentions, decoder_final_states = self.decoder(decoder_inputs, memory_bank, mask, states)
@@ -123,6 +140,13 @@ class Seq2Seq(Model):
         # Encoder
         encoder_token_embedding = Embedding.from_params(vocab, recover, params['encoder_token_embedding'])
         encoder_char_embedding = Embedding.from_params(vocab, recover, params['encoder_char_embedding'])
+        encoder_char_cnn = CnnEncoder(
+            embedding_dim=params['encoder_char_cnn']['embedding_dim'],
+            num_filters=params['encoder_char_cnn']['num_filters'],
+            ngram_filter_sizes=params['encoder_char_cnn']['ngram_filter_sizes'],
+            conv_layer_activation=torch.tanh
+        )
+
         encoder_embedding_dropout = InputVariationalDropout(p=params['encoder_token_embedding']['dropout'])
 
         encoder = PytorchSeq2SeqWrapper(
@@ -134,6 +158,12 @@ class Seq2Seq(Model):
         # Decoder
         decoder_token_embedding = Embedding.from_params(vocab, recover, params['decoder_token_embedding'])
         decoder_char_embedding = Embedding.from_params(vocab, recover, params['decoder_char_embedding'])
+        decoder_char_cnn = CnnEncoder(
+            embedding_dim=params['decoder_char_cnn']['embedding_dim'],
+            num_filters=params['decoder_char_cnn']['num_filters'],
+            ngram_filter_sizes=params['decoder_char_cnn']['ngram_filter_sizes'],
+            conv_layer_activation=torch.tanh
+        )
         decoder_embedding_dropout = InputVariationalDropout(p=params['decoder_token_embedding']['dropout'])
 
         attention = DotProductAttention(
@@ -162,10 +192,12 @@ class Seq2Seq(Model):
         return cls(
             encoder_token_embedding=encoder_token_embedding,
             encoder_char_embedding=encoder_char_embedding,
+            encoder_char_cnn=encoder_char_cnn,
             encoder_embedding_dropout=encoder_embedding_dropout,
             encoder=encoder,
             encoder_output_dropout=encoder_output_dropout,
             decoder_token_embedding=decoder_token_embedding,
+            decoder_char_cnn=decoder_char_cnn,
             decoder_char_embedding=decoder_char_embedding,
             decoder_embedding_dropout=decoder_embedding_dropout,
             decoder=decoder,
