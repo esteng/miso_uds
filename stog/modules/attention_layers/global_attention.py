@@ -88,8 +88,7 @@ class GlobalAttention(torch.nn.Module):
             mask = mask.byte().unsqueeze(1)  # Make it broadcastable.
             align.masked_fill_(1 - mask, -float('inf'))
 
-        align_vectors = F.softmax(align.view(batch*target_l, source_l), -1)
-        align_vectors = align_vectors.view(batch, target_l, source_l)
+        align_vectors = F.softmax(align, 2)
 
         # each context vector c_t is the weighted average
         # over all the source hidden states
