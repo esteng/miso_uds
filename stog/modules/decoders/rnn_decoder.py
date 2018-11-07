@@ -35,7 +35,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             copy=[]
         )
         output_sequences = []
-
+        
         input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
 
         for step_i, input in enumerate(inputs.split(1, dim=1)):
@@ -52,7 +52,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
             output = self.dropout(output)
 
-            input_feed = output.clone()
+            input_feed = output # .clone()
 
             output_sequences.append(output)
             attentions['std'].append(attention)

@@ -41,11 +41,14 @@ class Seq2SeqMetrics(Metric):
         return math.exp(min(self.loss / self.n_words, 100))
 
     def get_metric(self, reset: bool = False):
-        return dict(
+        metrics = dict(
             accuracy=self.accuracy(),
             xent=self.xent(),
             ppl=self.ppl()
         )
+        if reset:
+            self.reset()
+        return metrics
 
     @overrides
     def reset(self):

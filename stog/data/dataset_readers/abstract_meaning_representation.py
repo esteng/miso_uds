@@ -18,6 +18,9 @@ from stog.utils.checks import ConfigurationError
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
+BOS_TOKEN = '@@BOS@@'
+EOS_TOKEN = '@@EOS@@'
+
 
 @DatasetReader.register("amr_trees")
 class AbstractMeaningRepresentationDatasetReader(DatasetReader):
@@ -130,21 +133,22 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         fields: Dict[str, Field] = {}
         # TODO: Xutai
         tokens = TextField(
-            [Token(x) for x in tree.get_instance()], 
+            [Token(BOS_TOKEN)] + [Token(x) for x in tree.get_instance()] + [Token(EOS_TOKEN)], 
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
         fields["amr_tokens"] = tokens
 
-        fields["head_tags"] = SequenceLabelField(tree.get_relation(),
-                                                 tokens,
-                                                 label_namespace="head_tags")
-        fields["head_indices"] = SequenceLabelField(tree.get_parent(),
-                                                    tokens,
-                                                    label_namespace="head_index_tags")
-        fields["coref"] = SequenceLabelField(tree.get_coref(),
-                                             tokens,
-                                             label_namespace="coref_tags"
-                                             )
+        # fields["head_tags"] = SequenceLabelField(tree.get_relation(),
+        #                                          tokens,
+        #                                          label_namespace="head_tags")
+        # fields["head_indices"] = SequenceLabelField(tree.get_parent(),
+        #                                             tokens,
+        #                                             label_namespace="head_index_tags")
+        # fields["coref"] = SequenceLabelField(tree.get_coref(),
+        #                                      tokens,
+        #                                      label_namespace="coref_tags"
+        #                                      )
+        # TODO: Xutai
         fields["src_tokens"] = TextField(
             self._word_splitter.split_words(sentence_text),
             token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
