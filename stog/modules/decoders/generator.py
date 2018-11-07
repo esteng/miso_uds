@@ -26,7 +26,7 @@ class Generator(torch.nn.Module):
         inputs = inputs.view(batch_size * seq_length, -1)
         scores = self._generator(inputs)
         scores = scores.view(batch_size, seq_length, -1)
-        _, predictions = scores.max(1)
+        _, predictions = scores.max(2)
         return dict(
             scores=scores,
             predictions=predictions
@@ -53,7 +53,7 @@ class Generator(torch.nn.Module):
 
     @classmethod
     def from_params(cls, params):
-        cls(
+        return cls(
             input_size=params['input_size'],
             vocab_size=params['vocab_size'],
             pad_idx=params['pad_idx']

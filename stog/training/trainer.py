@@ -187,7 +187,7 @@ class Trainer:
             # Log parameter values to Tensorboard
             if self._num_trained_batches % self._summary_interval == 0:
                 self._tensorboard.add_train_scalar(
-                    "loss/loss_train", metrics["loss"], self._num_trained_batches)
+                    "loss/loss_train", metrics[self._dev_metric], self._num_trained_batches)
                 self._metrics_to_tensorboard(
                     self._num_trained_batches,
                     {"epoch_metrics/" + k: v for k, v in metrics.items()})

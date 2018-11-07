@@ -36,12 +36,12 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         )
         output_sequences = []
 
-        input_feed = inputs.new_zeros(batch_size, 1, self.module.hidden_size)
+        input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
 
         for step_i, input in enumerate(inputs.split(1, dim=1)):
             # input: [batch_size, 1, embeddings_size]
             # input_feed: [batch_size, 1, hidden_size]
-            _input = torch.cat([input, input_feed])
+            _input = torch.cat([input, input_feed], 2)
             packed_input = pack_padded_sequence(_input, one_step_length, batch_first=True)
             # hidden_state: a tuple of (state, memory) with shape [num_layers, batch_size, hidden_size]
             packed_output, hidden_state = self.rnn_cell(packed_input, hidden_state)

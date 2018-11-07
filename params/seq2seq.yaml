@@ -11,14 +11,14 @@ model:
 
   encoder_token_embedding:
     num_embeddings:
-    vocab_namespace: 'encoder_tokens'
+    vocab_namespace: 'token_ids'
     embedding_dim: 300
     dropout: 0.33
-    pretrained_file:
+    pretrained_file: *glove
 
   encoder_char_embedding:
     num_embeddings:
-    vocab_namespace: 'encoder_chars'
+    vocab_namespace: 'token_characters'
     embedding_dim: &encoder_char_embedding_dim 100
     dropout: 0.33
     pretrained_file:
@@ -30,14 +30,14 @@ model:
 
   decoder_token_embedding:
     num_embeddings:
-    vocab_namespace: 'decoder_tokens'
+    vocab_namespace: 'token_ids'
     embedding_dim: 300
     dropout: 0.33
-    pretrained_file:
+    pretrained_file: *glove
 
   decoder_char_embedding:
     num_embeddings:
-    vocab_namespace: 'decoder_chars'
+    vocab_namespace: 'token_characters'
     embedding_dim: &decoder_char_embedding_dim 100
     dropout: 0.33
     pretrained_file:
@@ -54,7 +54,7 @@ model:
     dropout: 0.33
 
   decoder:
-    input_size: 400
+    input_size: 1424
     hidden_size: &deocder_hidden_size 1024
     num_layers: 3
     dropout: 0.33
@@ -72,7 +72,7 @@ model:
 # Data parameters
 data:
   data_dir: *amr_data_dir
-  train_data: dev_amr.txt
+  train_data: train_amr.txt
   dev_data: dev_amr.txt
   test_data: test_amr.txt
   data_type: AMR

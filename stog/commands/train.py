@@ -102,6 +102,7 @@ def train_model(params: Params):
     model_params = params['model']
     model = getattr(Models, model_params['model_type']).from_params(
         vocab, environment_params['recover'], model_params)
+    logger.info(model)
 
     # Train
     trainer_params = params['trainer']

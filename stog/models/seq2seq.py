@@ -35,7 +35,7 @@ class Seq2Seq(Model):
                  decoder,
                  # Generator
                  generator):
-        super(Model, self).__init__()
+        super(Seq2Seq, self).__init__()
 
         self.encoder_token_embedding = encoder_token_embedding
         self.encoder_char_embedding = encoder_char_embedding
@@ -64,11 +64,11 @@ class Seq2Seq(Model):
         # [batch, num_tokens]
         encoder_mask = get_text_field_mask(batch['src_tokens'])
         # [batch, num_tokens]
-        decoder_token_inputs = batch['amr_tokens']['tokens']
+        decoder_token_inputs = batch['amr_tokens']['tokens'][:, :-1].contiguous()
         # [batch, num_tokens, num_chars]
-        decoder_char_inputs = batch['amr_tokens']['characters']
+        decoder_char_inputs = batch['amr_tokens']['characters'][:, :-1].contiguous()
         # [batch, num_tokens]
-        targets = batch['amr_tokens']['tokens'][:, 1:]
+        targets = batch['amr_tokens']['tokens'][:, 1:].contiguous()
 
         encoder_memory_bank, encoder_final_states = self.encode(
             encoder_token_inputs,
@@ -95,7 +95,6 @@ class Seq2Seq(Model):
     def encode(self, tokens, chars, mask):
         # [batch, num_tokens, embedding_size]
         token_embeddings = self.encoder_token_embedding(tokens)
-        print(chars)
         # [batch, num_tokens, num_chars, embedding_size]
         char_embeddings = self.encoder_char_embedding(chars)
         batch_size, num_tokens, num_chars, _ = char_embeddings.size()
@@ -122,6 +121,7 @@ class Seq2Seq(Model):
         token_embeddings = self.decoder_token_embedding(tokens)
         # [batch, num_tokens, embedding_size]
         char_embeddings = self.decoder_char_embedding(chars)
+        batch_size, num_tokens, num_chars, _ = char_embeddings.size()
         char_embeddings = char_embeddings.view(batch_size * num_tokens, num_chars, -1)
         # TODO: add mask?
         char_cnn_output = self.decoder_char_cnn(char_embeddings, None)
@@ -168,12 +168,12 @@ class Seq2Seq(Model):
 
         attention = DotProductAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
-            encoder_hidden_size=params['encoder']['hidden_size'],
+            encoder_hidden_size=params['encoder']['hidden_size'] * 2,
             add_linear=params['attention'].get('add_linear', True)
         )
         attention_layer = GlobalAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
-            encoder_hidden_size=params['encoder']['hidden_size'],
+            encoder_hidden_size=params['encoder']['hidden_size'] * 2,
             attention=attention
         )
         decoder = InputFeedRNNDecoder(

@@ -109,7 +109,7 @@ class StackedBidirectionalLstm(torch.nn.Module):
             final_states.append((torch.cat(both_direction_states, -1) for both_direction_states
                                  in zip(final_forward_state, final_backward_state)))
 
-        final_state_tuple = (torch.cat(state_list, 0) for state_list in zip(*final_states))
+        final_state_tuple = [torch.cat(state_list, 0) for state_list in zip(*final_states)]
         return output_sequence, final_state_tuple
 
     @classmethod
