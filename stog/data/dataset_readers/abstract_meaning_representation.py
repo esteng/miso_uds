@@ -128,7 +128,11 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         """
         # pylint: disable=arguments-differ
         fields: Dict[str, Field] = {}
-        tokens = TextField([Token(x) for x in tree.get_instance()], token_indexers=self._token_indexers)
+        # TODO: Xutai
+        tokens = TextField(
+            [Token(x) for x in tree.get_instance()], 
+            token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
+        )
         fields["amr_tokens"] = tokens
 
         fields["head_tags"] = SequenceLabelField(tree.get_relation(),
@@ -143,7 +147,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                                              )
         fields["src_tokens"] = TextField(
             self._word_splitter.split_words(sentence_text),
-            token_indexers=self._token_indexers
+            token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
         )
 
         return Instance(fields)

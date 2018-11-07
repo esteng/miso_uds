@@ -22,11 +22,14 @@ def load_dataset(path, dataset_type):
             }
         )
     else:
+        # TODO: Xutai
         dataset_reader = AbstractMeaningRepresentationDatasetReader(
-            token_indexers= {
-                "tokens" : SingleIdTokenIndexer(namespace="token_ids"),
-                "characters" : TokenCharactersIndexer(namespace="token_characters")
-            }
+            token_indexers= dict(
+                encoder_tokens=SingleIdTokenIndexer(namespace="encoder_token_ids"),
+                encoder_characters=TokenCharactersIndexer(namespace="encoder_token_characters"),
+                decoder_tokens=SingleIdTokenIndexer(namespace="decoder_token_ids"),
+                decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
+            )
         )
 
     return dataset_reader.read(path)

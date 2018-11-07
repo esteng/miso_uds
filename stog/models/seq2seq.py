@@ -56,19 +56,19 @@ class Seq2Seq(Model):
         return self.generator.metrics.get_metric(reset)
 
     def forward(self, batch, for_training=True):
-        #import pdb; pdb.set_trace()
+        # TODO: Xutai
         # [batch, num_tokens]
-        encoder_token_inputs = batch['src_tokens']['tokens']
+        encoder_token_inputs = batch['src_tokens']['encoder_tokens']
         # [batch, num_tokens, num_chars]
-        encoder_char_inputs = batch['src_tokens']['characters']
+        encoder_char_inputs = batch['src_tokens']['encoder_characters']
         # [batch, num_tokens]
         encoder_mask = get_text_field_mask(batch['src_tokens'])
         # [batch, num_tokens]
-        decoder_token_inputs = batch['amr_tokens']['tokens'][:, :-1].contiguous()
+        decoder_token_inputs = batch['amr_tokens']['decoder_tokens'][:, :-1].contiguous()
         # [batch, num_tokens, num_chars]
-        decoder_char_inputs = batch['amr_tokens']['characters'][:, :-1].contiguous()
+        decoder_char_inputs = batch['amr_tokens']['decoder_characters'][:, :-1].contiguous()
         # [batch, num_tokens]
-        targets = batch['amr_tokens']['tokens'][:, 1:].contiguous()
+        targets = batch['amr_tokens']['decoder_tokens'][:, 1:].contiguous()
 
         encoder_memory_bank, encoder_final_states = self.encode(
             encoder_token_inputs,
@@ -184,10 +184,15 @@ class Seq2Seq(Model):
         )
 
         # Generator
-        # TODO: make sure I set them correctly.
-        params['generator']['vocab_size'] = vocab.get_vocab_size('token_ids')
+        # TODO: Xutai, make sure I set them correctly.
+        params['generator']['vocab_size'] = vocab.get_vocab_size('decoder_token_ids')
         params['generator']['pad_idx'] = 0
         generator = Generator.from_params(params['generator'])
+
+        logger.info('encoder_token: %d' %vocab.get_vocab_size('encoder_token_ids'))
+        logger.info('encoder_chars: %d' %vocab.get_vocab_size('encoder_token_characters'))
+        logger.info('decoder_token: %d' %vocab.get_vocab_size('decoder_token_ids'))
+        logger.info('decoder_chars: %d' %vocab.get_vocab_size('decoder_token_characters'))
 
         return cls(
             encoder_token_embedding=encoder_token_embedding,
