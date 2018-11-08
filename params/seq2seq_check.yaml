@@ -21,14 +21,14 @@ model:
   encoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'encoder_token_characters'
-    embedding_dim: &encoder_char_embedding_dim 100
+    embedding_dim: &encoder_char_embedding_dim 50
     padding_index: 0
     dropout: 0
     pretrained_file:
 
   encoder_char_cnn:
     embedding_dim: *encoder_char_embedding_dim
-    num_filters: 100
+    num_filters: 50
     ngram_filter_sizes: [3]
 
   decoder_token_embedding:
@@ -42,24 +42,24 @@ model:
   decoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'decoder_token_characters'
-    embedding_dim: &decoder_char_embedding_dim 100
+    embedding_dim: &decoder_char_embedding_dim 50
     padding_index: 0
     dropout: 0
     pretrained_file:
 
   decoder_char_cnn:
     embedding_dim: *decoder_char_embedding_dim
-    num_filters: 100
+    num_filters: 50
     ngram_filter_sizes: [3]
 
   encoder:
-    input_size: 400
+    input_size: 350
     hidden_size: 256
     num_layers: 2
     dropout: 0
 
   decoder:
-    input_size: 912
+    input_size: 862
     hidden_size: &deocder_hidden_size 512
     num_layers: 2
     dropout: 0
@@ -82,7 +82,7 @@ data:
   test_data: test_amr.txt
   data_type: AMR
   batch_first: True
-  train_batch_size: &train_batch_size 50
+  train_batch_size: &train_batch_size 64
   test_batch_size: 32
   iter_type: BucketIterator
   pretrain_token_emb: *glove
@@ -91,7 +91,7 @@ data:
 
 # Training parameters
 environment:
-  recover: True
+  recover: False
   seed: 1
   numpy_seed: 1
   torch_seed: 1

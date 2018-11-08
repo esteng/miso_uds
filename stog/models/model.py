@@ -14,7 +14,7 @@ from stog.utils import logging
 from stog.utils.checks import ConfigurationError
 from stog.utils.params import Params
 from stog.utils.nn import get_device_of, device_mapping
-from allennlp.data.dataset import Batch
+from stog.data.dataset import Batch
 
 logger = logging.init_logger(__name__)  # pylint: disable=invalid-name
 
