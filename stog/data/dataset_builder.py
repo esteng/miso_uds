@@ -5,7 +5,7 @@ from stog.utils.params import data_opts
 from stog.utils.params import Params
 from stog.utils import logging
 from stog.utils import ExceptionHook
-from stog.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader
+from stog.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader, Seq2SeqDatasetReader
 from stog.data.iterators import BucketIterator, BasicIterator
 from stog.data.token_indexers import SingleIdTokenIndexer,TokenCharactersIndexer
 ROOT_TOKEN="<root>"
@@ -21,9 +21,19 @@ def load_dataset(path, dataset_type):
                 "characters" : TokenCharactersIndexer(namespace="token_characters")
             }
         )
-    else:
+    elif dataset_type == "AMR":
         # TODO: Xutai
         dataset_reader = AbstractMeaningRepresentationDatasetReader(
+            token_indexers= dict(
+                encoder_tokens=SingleIdTokenIndexer(namespace="encoder_token_ids"),
+                encoder_characters=TokenCharactersIndexer(namespace="encoder_token_characters"),
+                decoder_tokens=SingleIdTokenIndexer(namespace="decoder_token_ids"),
+                decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
+            )
+        )
+    
+    elif dataset_type == "MT":
+        dataset_reader = Seq2SeqDatasetReader(
             token_indexers= dict(
                 encoder_tokens=SingleIdTokenIndexer(namespace="encoder_token_ids"),
                 encoder_characters=TokenCharactersIndexer(namespace="encoder_token_characters"),
