@@ -20,6 +20,32 @@ def evaluate(model, instances, iterator, device):
             num_epochs=1
         )
 
+        logger.info("Iterating over dataset")
+        generator_tqdm = Tqdm.tqdm(
+            test_generator,
+            total=iterator.get_num_batches(instances)
+        )
+        for batch in generator_tqdm:
+            batch = move_to_device(batch, device)
+            model(batch, for_training=True)
+            metrics = model.get_metrics()
+            description = ', '.join(["%s: %.2f" % (name, value) for name, value in metrics.items()]) + " ||"
+            generator_tqdm.set_description(description, refresh=False)
+
+        return model.get_metrics(reset=True)
+
+
+def deprecated_evaluate(model, instances, iterator, device):
+    with torch.no_grad():
+        model.eval()
+        model.decode_type = 'mst'
+
+        test_generator = iterator(
+            instances=instances,
+            shuffle=False,
+            num_epochs=1
+        )
+
         predictions = defaultdict(list)
         logger.info("Iterating over dataset")
         generator_tqdm = Tqdm.tqdm(
