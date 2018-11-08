@@ -15,11 +15,9 @@ from stog.data.tokenizers import Token
 from stog.data.tokenizers.word_splitter import SpacyWordSplitter
 from stog.data.dataset_readers.dataset_utils.span_utils import enumerate_spans
 from stog.utils.checks import ConfigurationError
+from stog.utils.string import START_SYMBOL, END_SYMBOL
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
-
-BOS_TOKEN = '@@BOS@@'
-EOS_TOKEN = '@@EOS@@'
 
 
 @DatasetReader.register("amr_trees")
@@ -133,7 +131,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         fields: Dict[str, Field] = {}
         # TODO: Xutai
         tokens = TextField(
-            [Token(BOS_TOKEN)] + [Token(x) for x in tree.get_instance()] + [Token(EOS_TOKEN)], 
+            [Token(START_SYMBOL)] + [Token(x) for x in tree.get_instance()] + [Token(END_SYMBOL)],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
         fields["amr_tokens"] = tokens

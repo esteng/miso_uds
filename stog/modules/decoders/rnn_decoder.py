@@ -9,7 +9,7 @@ class RNNDecoderBase(torch.nn.Module):
         self.rnn_cell = rnn_cell
         self.dropout = dropout
 
-    def forward(self, inputs, hidden_state):
+    def forward(self, *input):
         raise NotImplementedError
 
 
@@ -19,13 +19,14 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         super(InputFeedRNNDecoder, self).__init__(rnn_cell, dropout)
         self.attention_layer = attention_layer
 
-    def forward(self, inputs, memory_bank, mask, hidden_state):
+    def forward(self, inputs, memory_bank, mask, hidden_state, input_feed=None):
         """
 
         :param inputs: [batch_size, decoder_seq_length, embedding_size]
         :param memory_bank: [batch_size, encoder_seq_length, encoder_hidden_size]
         :param mask:  None or [batch_size, decoder_seq_length]
         :param hidden_state: a tuple of (state, memory) with shape [num_encoder_layers, batch_size, encoder_hidden_size]
+        :param input_feed: None or [batch_size, 1, hidden_size]
         :return:
         """
         batch_size = inputs.size(0)
@@ -35,8 +36,9 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             copy=[]
         )
         output_sequences = []
-        
-        input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
+
+        if input_feed is None:
+            input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
 
         for step_i, input in enumerate(inputs.split(1, dim=1)):
             # input: [batch_size, 1, embeddings_size]
@@ -58,4 +60,4 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             attentions['std'].append(attention)
 
         output_sequences = torch.cat(output_sequences, 1)
-        return output_sequences, attentions, hidden_state
+        return output_sequences, attentions, hidden_state, input_feed

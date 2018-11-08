@@ -171,7 +171,7 @@ class Trainer:
         for batch in train_generator_tqdm:
             if batch['amr_tokens']['decoder_tokens'].size(1) == 1:
                 continue
-                
+
             batches_this_epoch += 1
             self._num_trained_batches += 1
 
@@ -284,7 +284,7 @@ class Trainer:
         for batch in dev_generator_tqdm:
 
             batches_this_epoch += 1
-            loss = self._batch_loss(batch, for_training=False)
+            loss = self._batch_loss(batch, for_training=True)
             if loss is not None:
                 # You shouldn't necessarily have to compute a loss for validation, so we allow for
                 # `loss` to be None.  We need to be careful, though - `batches_this_epoch` is
