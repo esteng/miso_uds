@@ -14,6 +14,7 @@ from stog.utils import logging
 from stog.utils.checks import ConfigurationError
 from stog.utils.params import Params
 from stog.utils.nn import get_device_of, device_mapping
+from allennlp.data.dataset import Batch
 
 logger = logging.init_logger(__name__)  # pylint: disable=invalid-name
 
@@ -64,7 +65,7 @@ class Model(torch.nn.Module):
         """
         return [name for name, _ in self.named_parameters()]
 
-    def forward(self, *inputs) -> Dict[str, torch.Tensor]:  # pylint: disable=arguments-differ
+    def forward(self, inputs) -> Dict[str, torch.Tensor]:  # pylint: disable=arguments-differ
         """
         Defines the forward pass of the model. In addition, to facilitate easy training,
         this method is designed to compute a loss function defined by a user.
@@ -130,9 +131,35 @@ class Model(torch.nn.Module):
         -------
         A list of the models output for each instance.
         """
-        raise NotImplementedError
+        batch_size = len(instances)
+        with torch.no_grad():
+            device = self._get_prediction_device()
+            dataset = Batch(instances)
+            dataset.index_instances(self.vocab)
+            model_input = util.move_to_device(dataset.as_tensor_dict(), device)
+            outputs = self.decode(self(model_input))
 
-    def decode(self, **output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+            instance_separated_output: List[Dict[str, numpy.ndarray]] = [{} for _ in dataset.instances]
+            for name, output in list(outputs.items()):
+                if isinstance(output, torch.Tensor):
+                    # NOTE(markn): This is a hack because 0-dim pytorch tensors are not iterable.
+                    # This occurs with batch size 1, because we still want to include the loss in that case.
+                    if output.dim() == 0:
+                        output = output.unsqueeze(0)
+
+                    if output.size(0) != batch_size:
+                        self._maybe_warn_for_unseparable_batches(name)
+                        continue
+                    output = output.detach().cpu().numpy()
+                elif len(output) != batch_size:
+                    self._maybe_warn_for_unseparable_batches(name)
+                    continue
+                outputs[name] = output
+                for instance_output, batch_element in zip(instance_separated_output, output):
+                    instance_output[name] = batch_element
+            return instance_separated_output
+
+    def decode(self, output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         Takes the result of :func:`forward` and runs inference / decoding / whatever
         post-processing you need to do your model.  The intent is that ``model.forward()`` should
@@ -176,9 +203,10 @@ class Model(torch.nn.Module):
             devices_string = ", ".join(str(x) for x in devices)
             raise ConfigurationError(f"Parameters have mismatching cuda_devices: {devices_string}")
         elif len(devices) == 1:
-            return devices.pop()
+            device = torch.device('cuda:{}'.format(devices.pop()))
         else:
-            return -1
+            device = torch.device('cpu')
+        return device
 
     def _maybe_warn_for_unseparable_batches(self, output_key: str):
         """
