@@ -8,15 +8,15 @@ glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
 # Model parameters
 model:
   model_type: Seq2Seq
-  use_char_cnn: False
+  use_char_cnn: True
 
   encoder_token_embedding:
     num_embeddings:
     vocab_namespace: 'encoder_token_ids'
-    embedding_dim: 300 
+    embedding_dim: 300
     padding_index: 0
     dropout: 0
-    pretrained_file: 
+    pretrained_file:
 
   encoder_char_embedding:
     num_embeddings:
@@ -37,7 +37,7 @@ model:
     embedding_dim: 300
     padding_index: 0
     dropout: 0
-    pretrained_file: 
+    pretrained_file:
 
   decoder_char_embedding:
     num_embeddings:
@@ -53,19 +53,19 @@ model:
     ngram_filter_sizes: [3]
 
   encoder:
-    input_size: 300
+    input_size: 400
     hidden_size: 256
     num_layers: 2
     dropout: 0
 
   decoder:
-    input_size: 812
+    input_size: 912
     hidden_size: &deocder_hidden_size 512
     num_layers: 2
     dropout: 0
 
   attention:
-    add_linear: False
+    add_linear: True
 
   generator:
     input_size: *deocder_hidden_size
@@ -82,7 +82,7 @@ data:
   test_data: test_amr.txt
   data_type: AMR
   batch_first: True
-  train_batch_size: &train_batch_size 64
+  train_batch_size: &train_batch_size 50
   test_batch_size: 32
   iter_type: BucketIterator
   pretrain_token_emb: *glove
@@ -91,11 +91,11 @@ data:
 
 # Training parameters
 environment:
-  recover: False
+  recover: True
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir seq2seq-ckpt
+  serialization_dir: &serialization_dir ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0

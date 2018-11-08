@@ -147,7 +147,7 @@ class Optimizer(object):
             self.optimizer = optim.Adadelta(self.params, lr=self.learning_rate)
         elif self.method == 'adam':
             self.optimizer = optim.Adam(self.params, lr=self.learning_rate,
-                                        betas=self.betas, eps=1e-9)
+                                        betas=self.betas, eps=1e-8)
         elif self.method == 'sparseadam':
             self.optimizer = MultipleOptimizer(
                 [optim.Adam(self.params, lr=self.learning_rate,
