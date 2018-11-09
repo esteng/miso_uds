@@ -2,14 +2,14 @@
 
 # Device-sensitive parameters
 amr_data_dir: &amr_data_dir /home/xma/projects/stog/experiments/data/all_amr
-mt_data_dit: &mt_data_dir /home/xma/projects/stog/experiments/seq2seq-debug/seq2seq-mt/data
+mt_data_dir: &mt_data_dir /export/ssd/xma/data/all_mt
 glove: &glove /home/xma/projects/stog/experiments/data/glove.840B.300d.txt
 
 
 # Model parameters
 model:
   model_type: Seq2Seq
-  use_char_cnn: True
+  use_char_cnn: False
 
   encoder_token_embedding:
     num_embeddings:
@@ -54,15 +54,17 @@ model:
     ngram_filter_sizes: [3]
 
   encoder:
-    input_size: 400
-    hidden_size: 256
+    input_size: 300
+    hidden_size: 512
     num_layers: 2
+    use_highway: False
     dropout: 0.33
 
   decoder:
-    input_size: 912
-    hidden_size: &deocder_hidden_size 512
+    input_size: 1324
+    hidden_size: &deocder_hidden_size 1024
     num_layers: 2
+    use_highway: False
     dropout: 0.33
 
   attention:
@@ -96,7 +98,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir seq2seq-ckpt
+  serialization_dir: &serialization_dir mt-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0

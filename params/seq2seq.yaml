@@ -1,14 +1,14 @@
 # Parameters of the Seq2Seq Model
 
 # Device-sensitive parameters
-amr_data_dir: &amr_data_dir data/all_amr
-glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
+amr_data_dir: &amr_data_dir /export/ssd/xma/data/all_amr/
+glove: &glove /export/ssd/sheng/data/glove/glove.840B.300d.zip
 
 
 # Model parameters
 model:
   model_type: Seq2Seq
-  use_char_cnn: True
+  use_char_cnn: False
 
   encoder_token_embedding:
     num_embeddings:
@@ -53,15 +53,17 @@ model:
     ngram_filter_sizes: [3]
 
   encoder:
-    input_size: 400
-    hidden_size: 256
+    input_size: 300
+    hidden_size: 512
     num_layers: 2
+    use_highway: False
     dropout: 0.33
 
   decoder:
-    input_size: 912
-    hidden_size: &deocder_hidden_size 512
+    input_size: 1324
+    hidden_size: &deocder_hidden_size 1024
     num_layers: 2
+    use_highway: False
     dropout: 0.33
 
   attention:
