@@ -340,3 +340,11 @@ class Params(object):
     def __repr__(self):
         return json.dumps(self.params, indent=2)
 
+
+def remove_pretrained_embedding_params(params):
+    keys = params.keys()
+    if 'pretrained_file' in keys:
+        del params['pretrained_file']
+    for value in params.values():
+        if isinstance(value, Params):
+            remove_pretrained_embedding_params(value)

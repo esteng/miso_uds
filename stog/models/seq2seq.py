@@ -227,13 +227,13 @@ class Seq2Seq(Model):
         )
 
     @classmethod
-    def from_params(cls, vocab, recover, params):
+    def from_params(cls, vocab, params):
         logger.info('Building the Seq2Seq Model...')
 
         # Encoder
-        encoder_token_embedding = Embedding.from_params(vocab, recover, params['encoder_token_embedding'])
+        encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
         if params['use_char_cnn']:
-            encoder_char_embedding = Embedding.from_params(vocab, recover, params['encoder_char_embedding'])
+            encoder_char_embedding = Embedding.from_params(vocab, params['encoder_char_embedding'])
             encoder_char_cnn = CnnEncoder(
                 embedding_dim=params['encoder_char_cnn']['embedding_dim'],
                 num_filters=params['encoder_char_cnn']['num_filters'],
@@ -253,9 +253,9 @@ class Seq2Seq(Model):
         encoder_output_dropout = InputVariationalDropout(p=params['encoder']['dropout'])
 
         # Decoder
-        decoder_token_embedding = Embedding.from_params(vocab, recover, params['decoder_token_embedding'])
+        decoder_token_embedding = Embedding.from_params(vocab, params['decoder_token_embedding'])
         if params['use_char_cnn']:
-            decoder_char_embedding = Embedding.from_params(vocab, recover, params['decoder_char_embedding'])
+            decoder_char_embedding = Embedding.from_params(vocab, params['decoder_char_embedding'])
             decoder_char_cnn = CnnEncoder(
                 embedding_dim=params['decoder_char_cnn']['embedding_dim'],
                 num_filters=params['decoder_char_cnn']['num_filters'],

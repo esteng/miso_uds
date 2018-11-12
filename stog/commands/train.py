@@ -6,7 +6,7 @@ import yaml
 import torch
 
 from stog.utils import logging
-from stog.utils.params import Params
+from stog.utils.params import Params, remove_pretrained_embedding_params
 from stog import models as Models
 from stog.data.dataset_builder import dataset_from_params, iterator_from_params
 from stog.data.vocabulary import Vocabulary
@@ -53,6 +53,9 @@ def create_serialization_dir(params: Params) -> None:
             if params != loaded_params:
                 raise ConfigurationError("Training configuration does not match the configuration we're "
                                          "recovering from.")
+
+            # In the recover mode, we don't need to reload the pre-trained embeddings.
+            remove_pretrained_embedding_params(params)
     else:
         if recover:
             raise ConfigurationError(f"--recover specified but serialization_dir ({serialization_dir}) "
@@ -96,12 +99,14 @@ def train_model(params: Params):
 
     # Vocabulary and iterator are created here.
     vocab = Vocabulary.from_instances(instances=train_data, non_padded_namespaces=())
+    # Initializing the model can have side effect of expanding the vocabulary
+    vocab.save_to_files(os.path.join(environment_params['serialization_dir'], "vocabulary"))
+
     train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, data_params)
 
     # Build the model.
     model_params = params['model']
-    model = getattr(Models, model_params['model_type']).from_params(
-        vocab, environment_params['recover'], model_params)
+    model = getattr(Models, model_params['model_type']).from_params(vocab, model_params)
     logger.info(model)
 
     # Train
