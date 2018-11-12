@@ -14,7 +14,11 @@ from stog.utils import logging
 from stog.utils.checks import ConfigurationError
 from stog.utils.params import Params
 from stog.utils.nn import get_device_of, device_mapping
+from stog.utils.environment import move_to_device
 from stog.data.dataset import Batch
+from stog.utils.params import remove_pretrained_embedding_params
+from stog.data.vocabulary import Vocabulary
+from stog import models as Models
 
 logger = logging.init_logger(__name__)  # pylint: disable=invalid-name
 
@@ -136,7 +140,7 @@ class Model(torch.nn.Module):
             device = self._get_prediction_device()
             dataset = Batch(instances)
             dataset.index_instances(self.vocab)
-            model_input = util.move_to_device(dataset.as_tensor_dict(), device)
+            model_input = move_to_device(dataset.as_tensor_dict(), device)
             outputs = self.decode(self(model_input))
 
             instance_separated_output: List[Dict[str, numpy.ndarray]] = [{} for _ in dataset.instances]
@@ -189,7 +193,7 @@ class Model(torch.nn.Module):
         # pylint: disable=unused-argument,no-self-use
         return {}
 
-    def _get_prediction_device(self) -> int:
+    def _get_prediction_device(self):
         """
         This method checks the device of the model parameters to determine the cuda_device
         this model should be run on for predictions.  If there are no parameters, it returns -1.
@@ -223,26 +227,48 @@ class Model(torch.nn.Module):
             self._warn_for_unseparable_batches.add(output_key)
 
     @classmethod
-    def load(cls,
+    def _load(cls,
               config: Params,
               serialization_dir: str,
               weights_file: str = None,
-              cuda_device: int = -1) -> 'Model':
+              device=None) -> 'Model':
         """
         Instantiates an already-trained model, based on the experiment
         configuration and some optional overrides.
         """
         weights_file = weights_file or os.path.join(serialization_dir, _DEFAULT_WEIGHTS)
 
-        model = cls.from_params(config)
-        model_state = torch.load(weights_file, map_location=device_mapping(cuda_device))
-        model.load_state_dict(model_state)
+        # Load vocabulary from file
+        vocab_dir = os.path.join(serialization_dir, 'vocabulary')
+        # If the config specifies a vocabulary subclass, we need to use it.
+        vocab = Vocabulary.from_files(vocab_dir)
 
-        # Force model to cpu or gpu, as appropriate, to make sure that the embeddings are
-        # in sync with the weights
-        if cuda_device >= 0:
-            model.cuda(cuda_device)
-        else:
-            model.cpu()
+        model_params = config.get('model')
+
+        # The experiment config tells us how to _train_ a model, including where to get pre-trained
+        # embeddings from.  We're now _loading_ the model, so those embeddings will already be
+        # stored in our weights.  We don't need any pretrained weight file anymore, and we don't
+        # want the code to look for it, so we remove it from the parameters here.
+        remove_pretrained_embedding_params(model_params)
+        model = cls.from_params(vocab=vocab, params=model_params)
+        model_state = torch.load(weights_file, map_location=device_mapping(device))
+        model.load_state_dict(model_state)
+        model.to(device)
 
         return model
+
+    @classmethod
+    def load(cls,
+              config: Params,
+              serialization_dir: str,
+              weights_file: str = None,
+              device=None) -> 'Model':
+        """
+        Instantiates an already-trained model, based on the experiment
+        configuration and some optional overrides.
+        """
+
+        model_type = config['model_type']
+
+        return getattr(Models, model_type)._load(
+            config, serialization_dir, weights_file, device)

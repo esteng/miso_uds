@@ -59,12 +59,12 @@ def archive_model(serialization_dir: str, weights: str = _DEFAULT_WEIGHTS):
     with tarfile.open(archive_file, 'w:gz') as archive:
         archive.add(config_file, arcname=CONFIG_NAME)
         archive.add(weights_file, arcname=_WEIGHTS_NAME)
-        # archive.add(os.path.join(serialization_dir, "vocabulary"),
-        #             arcname="vocabulary")
+        archive.add(os.path.join(serialization_dir, "vocabulary"),
+                    arcname="vocabulary")
 
 
 def load_archive(archive_file: str,
-                 cuda_device: int = -1,
+                 device=None,
                  weights_file: str = None) -> Archive:
     """
     Instantiates an Archive from an archived `tar.gz` file.
@@ -74,9 +74,7 @@ def load_archive(archive_file: str,
         The archive file to load the model from.
     weights_file: ``str``, optional (default = None)
         The weights file to use.  If unspecified, weights.th in the archive_file will be used.
-    cuda_device: ``int``, optional (default = -1)
-        If `cuda_device` is >= 0, the model will be loaded onto the
-        corresponding GPU. Otherwise it will be loaded onto the CPU.
+    device: ``None`` or PyTorch device object.
     """
     # redirect to the cache, if necessary
     resolved_archive_file = cached_path(archive_file)
@@ -111,7 +109,7 @@ def load_archive(archive_file: str,
     model = Model.load(config,
                        weights_file=weights_path,
                        serialization_dir=serialization_dir,
-                       cuda_device=cuda_device)
+                       device=device)
 
     if tempdir:
         # Clean up temp dir
