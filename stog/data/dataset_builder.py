@@ -1,16 +1,15 @@
 import os
 import argparse
-import torch
+
 from stog.utils.params import data_opts
 from stog.utils.params import Params
 from stog.utils import logging
-from stog.utils import ExceptionHook
 from stog.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader, Seq2SeqDatasetReader
 from stog.data.iterators import BucketIterator, BasicIterator
 from stog.data.token_indexers import SingleIdTokenIndexer,TokenCharactersIndexer
+
 ROOT_TOKEN="<root>"
 ROOT_CHAR="<r>"
-#sys.excepthook = ExceptionHook()
 logger = logging.init_logger()
 
 def load_dataset(path, dataset_type):
@@ -31,7 +30,7 @@ def load_dataset(path, dataset_type):
                 decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
             )
         )
-    
+
     elif dataset_type == "MT":
         dataset_reader = Seq2SeqDatasetReader(
             token_indexers= dict(

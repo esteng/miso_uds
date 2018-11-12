@@ -11,7 +11,6 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Union
 
 from stog.utils.string import namespace_match
 from stog.utils.params import Params
-from stog.utils.registrable import Registrable
 from stog.utils.checks import ConfigurationError
 from stog.utils.tqdm import Tqdm
 from stog.data import instance as adi  # pylint: disable=unused-import
@@ -131,7 +130,7 @@ def pop_max_vocab_size(params: Params) -> Union[int, Dict[str, int]]:
         return None
 
 
-class Vocabulary(Registrable):
+class Vocabulary:
     """
     A Vocabulary maps strings to integers, allowing for strings to be mapped to an
     out-of-vocabulary token.
@@ -598,7 +597,7 @@ class Vocabulary(Registrable):
 
     def get_token_from_index(self, index: int, namespace: str = 'tokens') -> str:
         return self._index_to_token[namespace][index]
-    
+
     def get_tokens_from_tensor(self, t, namespace):
         return [self.get_token_from_index(i, namespace) for i in t.tolist()]
 
@@ -644,7 +643,3 @@ class Vocabulary(Registrable):
             # _retained_counter would be set only if instances were used for vocabulary construction.
             logger.info("Vocabulary statistics cannot be printed since " \
                         "dataset instances were not used for its construction.")
-
-
-# the tricky part is that `Vocabulary` is both the base class and the default implementation
-Vocabulary.register("default")(Vocabulary)
