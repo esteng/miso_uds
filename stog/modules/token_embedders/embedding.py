@@ -184,6 +184,7 @@ class Embedding(TokenEmbedder):
             num_embeddings = vocab.get_vocab_size(vocab_namespace)
         embedding_dim = params.get('embedding_dim')
         pretrained_file = params.get("pretrained_file", None)
+        data_type = params.get('data_type', None)
         projection_dim = params.get("projection_dim", None)
         trainable = params.get("trainable", True)
         padding_index = params.get('padding_index', None)
@@ -199,7 +200,8 @@ class Embedding(TokenEmbedder):
             weight = _read_pretrained_embeddings_file(pretrained_file,
                                                       embedding_dim,
                                                       vocab,
-                                                      vocab_namespace)
+                                                      vocab_namespace,
+                                                      data_type == 'AMR')
         else:
             weight = None
 
@@ -291,6 +293,7 @@ def _read_embeddings_from_text_file(file_uri: str,
 
     tokens_to_find_dict = {}
     for token in tokens_to_keep:
+        # TODO: Is there a better way to do this? Currently we have a very specific 'amr' param.
         if amr and re.match("[a-zA-Z]+-[0-9]+", token):
             key = token.split('-')[0]
         else:
