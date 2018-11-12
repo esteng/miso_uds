@@ -210,7 +210,7 @@ class FromParams:
         your own method that overrides this one.
         """
         # pylint: disable=protected-access
-        from allennlp.common.registrable import Registrable  # import here to avoid circular imports
+        from stog.utils.registrable import Registrable  # import here to avoid circular imports
 
         logger.info(f"instantiating class {cls} from params {getattr(params, 'params', params)} "
                     f"and extras {extras}")
