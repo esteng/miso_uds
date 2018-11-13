@@ -7,27 +7,29 @@ glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
 # Model parameters
 model:
   model_type: DeepBiaffineParser
-  # Embeddings
-  token_emb_size: 300
-  char_emb_size: 100
-  pretrain_token_emb: *glove
-  pretrain_char_emb:
-  data_type: AMR
-  emb_dropout: 0.33
-  # Char Conv
   use_char_conv: True
-  num_filters: 100
-  kernel_size: 3
-  # Encoder
-  hidden_dropout: 0.33
-  encoder_size: 512
-  encoder_layers: 3
-  encoder_dropout: 0.33
-  # Biaffine
+  # Embeddings
+  token_embedding:
+    embedding_dim: 300
+    pretrained_file: *glove
+    vocab_namespace: 'decoder_token_ids'
+    data_type: &data_type AMR
+    dropout: 0.33
+  character_embedding:
+    embedding_dim: 100
+    pretrained_file:
+    vocab_namespace: 'decoder_token_characters'
+    data_type: AMR
+  character_CNN:
+    embedding_dim: 100
+    num_filters: 100
+    kernel_size: 3
+  encoder:
+    hidden_size: 512
+    num_layers: 3
+    dropout: 0.33
   edge_hidden_size: 512
   label_hidden_size: 128
-  # Decoder
-  num_labels: 50
   decode_type: greedy
 
 # Data parameters

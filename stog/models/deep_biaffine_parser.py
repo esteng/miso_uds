@@ -30,95 +30,39 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
     def __init__(
             self,
-            # Embedding
-            num_token_embeddings,
-            token_embedding_dim,
-            num_char_embeddings,
-            char_embedding_dim,
-            embedding_dropout_rate,
-            hidden_state_dropout_rate,
-            # Character CNN
-            use_char_conv,
-            num_filters,
-            kernel_size,
-            # Encoder
-            encoder_hidden_size,
-            num_encoder_layers,
-            encoder_dropout_rate,
-            # Attention
-            edge_hidden_size,
-            # Edge label classifier
-            label_hidden_size,
-            num_labels,
-            # Decode
+            token_embedding,
+            char_embedding,
+            embedding_dropout,
+            char_conv,
+            encoder,
+            encoder_dropout,
+            head_sentinel,
+            edge_linear,
+            label_linear,
+            attention,
+            bilinear,
             decode_type
 
     ):
         super(DeepBiaffineParser, self).__init__()
-        self.num_token_embeddings = num_char_embeddings
-        self.token_embedding_dim = token_embedding_dim
-        self.num_char_embeddings = num_char_embeddings
-        self.char_embedding_dim = char_embedding_dim
-        self.embedding_dropout_rate = embedding_dropout_rate
-        self.hidden_state_dropout_rate = hidden_state_dropout_rate
-        self.use_char_conv = use_char_conv
-        self.num_filters = num_filters
-        self.kernel_size = kernel_size
-        self.encoder_input_size = token_embedding_dim + num_filters if use_char_conv else token_embedding_dim
-        self.encoder_hidden_size = encoder_hidden_size
-        self.num_encoder_layers = num_encoder_layers
-        self.encoder_dropout = encoder_dropout_rate
-        self.edge_hidden_size = edge_hidden_size
-        self.label_hidden_size = label_hidden_size
-        self.num_labels = num_labels
         self.decode_type = decode_type
 
-        self.token_embedding = Embedding(
-            num_token_embeddings,
-            token_embedding_dim
-        )
-        self.char_embedding = Embedding(
-            num_char_embeddings,
-            char_embedding_dim
-        )
+        self.token_embedding = token_embedding
+        self.char_embedding = char_embedding
+        self.embedding_dropout = embedding_dropout
 
-        self.embedding_dropout = torch.nn.Dropout2d(p=embedding_dropout_rate)
-        self.hidden_state_dropout = torch.nn.Dropout2d(p=hidden_state_dropout_rate)
+        self.char_conv = char_conv
 
-        self.char_conv = None
-        if use_char_conv:
-            self.char_conv = torch.nn.Conv1d(
-                char_embedding_dim,
-                num_filters,
-                kernel_size,
-                padding=kernel_size - 1
-            )
+        self.encoder = encoder
+        self.encoder_dropout = encoder_dropout
 
-        self.encoder = PytorchSeq2SeqWrapper(StackedBidirectionalLstm(
-            self.encoder_input_size,
-            encoder_hidden_size,
-            num_encoder_layers,
-            encoder_dropout_rate
-        ))
-        encoder_output_size = self.encoder_hidden_size * 2
+        self.head_sentinel = head_sentinel
 
-        # Hidden representation for ROOT.
-        self.head_sentinel = torch.nn.Parameter(torch.randn([1, 1, encoder_output_size]))
+        self.edge_h, self.edge_m = edge_linear
+        self.label_h, self.label_m = label_linear
 
-        # Linear transformation for edge headers.
-        self.edge_h = torch.nn.Linear(encoder_output_size, edge_hidden_size)
-        # Linear transformation for edge modifiers.
-        self.edge_m = torch.nn.Linear(encoder_output_size, edge_hidden_size)
-
-        self._attention = BiaffineAttention(edge_hidden_size, edge_hidden_size)
-
-        # Comment out because currently we don't consider edge labels.
-        # Linear transformation for label headers.
-        self.label_h = torch.nn.Linear(encoder_output_size, label_hidden_size)
-        # Linear transformation for label modifiers.
-        self.label_m = torch.nn.Linear(encoder_output_size, label_hidden_size)
-
-        self.bilinear = BiLinear(label_hidden_size, label_hidden_size, num_labels)
+        self._attention = attention
+        self.bilinear = bilinear
 
         # Metrics
         self.accumulated_loss = 0.0
@@ -145,8 +89,8 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         return 0.0
 
     def forward(self, batch, for_training=True):
-        input_token = batch["amr_tokens"]["tokens"]
-        input_char = batch["amr_tokens"]["characters"]
+        input_token = batch["amr_tokens"]["decoder_tokens"]
+        input_char = batch["amr_tokens"]["decoder_characters"]
         headers = batch["head_indices"]
         labels = batch["head_tags"]
         coreference = batch.get('coref', None)
@@ -173,7 +117,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             self.num_accumulated_tokens += num_tokens
 
             predicted_headers, predicted_header_labels = headers, labels
-            if not for_training:
+            if True: # not for_training:
                 predicted_headers, predicted_header_labels = self.predict(
                     label_headers, label_modifiers, edge_scores, mask, coreference)
 
@@ -408,7 +352,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         token = self.embedding_dropout(token)
 
         input = token
-        if self.use_char_conv:
+        if self.char_conv is not None:
             # Output: [batch, length, char_length, char_dim]
             char = self.char_embedding(input_char)
             char_size = char.size()
@@ -429,7 +373,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         output = self.encoder(input, mask)
 
         # Apply dropout to certain step?
-        output = self.hidden_state_dropout(output.transpose(1, 2)).transpose(1, 2)
+        output = self.encoder_dropout(output.transpose(1, 2)).transpose(1, 2)
 
         return output
 
@@ -455,8 +399,8 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         # [batch, length * 2, hidden_size]
         edge = torch.cat([edge_h, edge_m], dim=1)
         label = torch.cat([label_h, label_m], dim=1)
-        edge = self.hidden_state_dropout(edge.transpose(1, 2)).transpose(1, 2)
-        label = self.hidden_state_dropout(label.transpose(1, 2)).transpose(1, 2)
+        edge = self.encoder_dropout(edge.transpose(1, 2)).transpose(1, 2)
+        label = self.encoder_dropout(label.transpose(1, 2)).transpose(1, 2)
 
         edge_h, edge_m = edge.chunk(2, 1)
         label_h, label_m = label.chunk(2, 1)
@@ -483,65 +427,73 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             self.char_embedding.load_pretrain_from_file(vocab, file, "token_characters", data_type=="AMR")
 
     @classmethod
-    def from_params(cls, vocab, recover, params):
+    def from_params(cls, vocab, params):
         logger.info('Building model...')
-        token_emb_size = params['token_emb_size']
-        char_emb_size = params['char_emb_size']
-        emb_dropout = params['emb_dropout']
-        hidden_dropout = params['hidden_dropout']
-        use_char_conv = params['use_char_conv']
-        num_filters = params['num_filters']
-        kernel_size = params['kernel_size']
-        encoder_size = params['encoder_size']
-        encoder_layers = params['encoder_layers']
-        encoder_dropout = params['encoder_dropout']
+
+        token_embedding = Embedding.from_params(vocab, params['token_embedding'])
+        character_embedding = Embedding.from_params(vocab, params['character_embedding'])
+        embedding_dropout = torch.nn.Dropout2d(p=params['token_embedding']['dropout'])
+
+        char_conv = None
+        if params['use_char_conv']:
+            char_conv = torch.nn.Conv1d(
+                params['character_CNN']['embedding_dim'],
+                params['character_CNN']['num_filters'],
+                params['character_CNN']['kernel_size'],
+                padding=params['character_CNN']['kernel_size'] - 1
+            )
+
+        token_embedding_size = params['token_embedding']['embedding_dim']
+        if char_conv is None:
+            encoder_input_size = token_embedding_size
+        else:
+            encoder_input_size = token_embedding_size + params['character_CNN']['num_filters']
+        encoder = PytorchSeq2SeqWrapper(StackedBidirectionalLstm(
+            encoder_input_size,
+            params['encoder']['hidden_size'],
+            params['encoder']['num_layers'],
+            params['encoder']['dropout'],
+        ))
+        encoder_dropout = torch.nn.Dropout2d(p=params['encoder']['dropout'])
+
+        # Hidden representation for ROOT.
+        encoder_output_size = params['encoder']['hidden_size'] * 2
+        head_sentinel = torch.nn.Parameter(torch.randn([1, 1, encoder_output_size]))
+
+
         edge_hidden_size = params['edge_hidden_size']
         label_hidden_size = params['label_hidden_size']
-        decode_type = params['decode_type']
 
-        pretrain_token_emb = params['pretrain_token_emb']
-        pretrain_char_emb = params['pretrain_char_emb']
-        data_type = params['data_type']
+        # Linear transformation for edge headers.
+        edge_h_linear = torch.nn.Linear(encoder_output_size, edge_hidden_size)
+        # Linear transformation for edge modifiers.
+        edge_m_linear = torch.nn.Linear(encoder_output_size, edge_hidden_size)
+
+        # Linear transformation for label headers.
+        label_h_linear = torch.nn.Linear(encoder_output_size, label_hidden_size)
+        # Linear transformation for label modifiers.
+        label_m_linear = torch.nn.Linear(encoder_output_size, label_hidden_size)
+
+        attention = BiaffineAttention(edge_hidden_size, edge_hidden_size)
+
+        num_labels = vocab.get_vocab_size("head_tags")
+        bilinear = BiLinear(label_hidden_size, label_hidden_size, num_labels)
+
 
         model = DeepBiaffineParser(
-            num_token_embeddings=vocab.get_vocab_size("token_ids"),
-            token_embedding_dim=token_emb_size,
-            num_char_embeddings=vocab.get_vocab_size("token_characters"),
-            char_embedding_dim=char_emb_size,
-            embedding_dropout_rate=emb_dropout,
-            hidden_state_dropout_rate=hidden_dropout,
-            use_char_conv=use_char_conv,
-            num_filters=num_filters,
-            kernel_size=kernel_size,
-            encoder_hidden_size=encoder_size,
-            num_encoder_layers=encoder_layers,
-            encoder_dropout_rate=encoder_dropout,
-            edge_hidden_size=edge_hidden_size,
-            label_hidden_size=label_hidden_size,
-            num_labels=vocab.get_vocab_size("head_tags"),
-            decode_type=decode_type
+            token_embedding=token_embedding,
+            char_embedding=character_embedding,
+            embedding_dropout=embedding_dropout,
+            char_conv=char_conv,
+            encoder=encoder,
+            encoder_dropout=encoder_dropout,
+            head_sentinel=head_sentinel,
+            edge_linear=(edge_h_linear, edge_m_linear),
+            label_linear=(label_h_linear, label_m_linear),
+            attention=attention,
+            bilinear=bilinear,
+            decode_type=params['decode_type']
         )
-
-
-        if not recover and pretrain_token_emb:
-            logger.info("Reading pretrained token embeddings from {} ...".format(pretrain_token_emb))
-            model.load_embedding(
-                field="tokens",
-                file=pretrain_token_emb,
-                vocab=vocab,
-                data_type=data_type
-            )
-            logger.info("Done.")
-
-        if not recover and pretrain_char_emb:
-            logger.info("Reading pretrained char embeddings from {} ...".format(pretrain_char_emb))
-            model.load_embedding(
-                field="chars",
-                file=pretrain_char_emb,
-                vocab=vocab,
-                data_type=data_type
-            )
-            logger.info("Done.")
 
         logger.info(model)
         return model
