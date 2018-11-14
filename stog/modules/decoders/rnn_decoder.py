@@ -31,10 +31,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         """
         batch_size = inputs.size(0)
         one_step_length = [1] * batch_size
-        attentions = dict(
-            std=[],
-            copy=[]
-        )
+        attentions = []
         output_sequences = []
 
         if input_feed is None:
@@ -57,7 +54,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             input_feed = output # .clone()
 
             output_sequences.append(output)
-            attentions['std'].append(attention)
+            attentions.append(attention)
 
         output_sequences = torch.cat(output_sequences, 1)
         return output_sequences, attentions, hidden_state, input_feed
