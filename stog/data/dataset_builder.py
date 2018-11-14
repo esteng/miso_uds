@@ -12,7 +12,7 @@ ROOT_TOKEN="<root>"
 ROOT_CHAR="<r>"
 logger = logging.init_logger()
 
-def load_dataset(path, dataset_type):
+def load_dataset_reader(dataset_type):
     if dataset_type == "UD":
         dataset_reader = UniversalDependenciesDatasetReader(
             token_indexers= {
@@ -41,8 +41,10 @@ def load_dataset(path, dataset_type):
             )
         )
 
-    return dataset_reader.read(path)
+    return dataset_reader
 
+def load_dataset(path, dataset_type):
+    return load_dataset_reader(dataset_type).read(path)
 
 def dataset_from_params(params):
 

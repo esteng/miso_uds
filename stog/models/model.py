@@ -243,7 +243,7 @@ class Model(torch.nn.Module):
         # If the config specifies a vocabulary subclass, we need to use it.
         vocab = Vocabulary.from_files(vocab_dir)
 
-        model_params = config.get('model')
+        model_params = config['model']
 
         # The experiment config tells us how to _train_ a model, including where to get pre-trained
         # embeddings from.  We're now _loading_ the model, so those embeddings will already be
@@ -267,8 +267,7 @@ class Model(torch.nn.Module):
         Instantiates an already-trained model, based on the experiment
         configuration and some optional overrides.
         """
-
-        model_type = config['model_type']
+        model_type = config['model']['model_type']
 
         return getattr(Models, model_type)._load(
             config, serialization_dir, weights_file, device)

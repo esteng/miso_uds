@@ -14,8 +14,30 @@ from stog.modules.input_variational_dropout import InputVariationalDropout
 from stog.modules.decoders.generator import Generator
 from stog.utils.nn import get_text_field_mask
 from stog.utils.string import START_SYMBOL
+from stog.data.tokenizers.character_tokenizer import CharacterTokenizer
 
 logger = init_logger()
+
+def character_tensor_from_token_tensor(token_tensor,
+                                      vocab,
+                                      character_tokenizer,
+                                      namespace={
+                                          "tokens" : "decoder_token_ids",
+                                          "characters" : "decoder_token_characters"
+                                      }):
+        #import pdb;pdb.set_trace()
+        token_str = [vocab.get_token_from_index(i, namespace["tokens"]) for i in token_tensor.view(-1).tolist()]
+        max_char_len = max([len(token) for token in token_str])
+        indices = []
+        for token in token_str:
+            token_indices = [vocab.get_token_index(vocab._padding_token) for _ in range(max_char_len)]
+            for char_i, character in enumerate(character_tokenizer.tokenize(token)):
+                index = vocab.get_token_index(character.text, namespace["characters"])
+                token_indices[char_i] = index
+            indices.append(token_indices)
+
+        return torch.tensor(indices).view(token_tensor.size(0), 1, -1).type_as(token_tensor)
+    
 
 
 class Seq2Seq(Model):
@@ -59,6 +81,15 @@ class Seq2Seq(Model):
         self.decoder = decoder
 
         self.generator = generator
+
+        self.beam_size = 1
+
+    def set_beam_size(self, beam_size):
+        self.beam_size = beam_size
+
+    def set_decoder_token_indexers(self, token_indexers):
+        self.decoder_token_indexers = token_indexers
+        self.character_tokenizer = CharacterTokenizer()
 
     def get_metrics(self, reset: bool = False):
         return self.generator.metrics.get_metric(reset)
@@ -169,7 +200,7 @@ class Seq2Seq(Model):
         mask = input_dict['encoder_mask']
         states = input_dict['encoder_final_states']
 
-        if self.decode_type == 'greedy':
+        if self.beam_size == 1:
             return self.greedy_decode(memory_bank, mask, states)
         else:
             raise NotImplementedError
@@ -178,7 +209,9 @@ class Seq2Seq(Model):
         # TODO: convert START_SYMBOL to a batch of 'START_SYMBOL' indices.
         # [batch_size, 1]
         batch_size = memory_bank.size(0)
-        tokens = None
+        tokens = torch.ones(batch_size, 1) \
+                * self.vocab.get_token_index(START_SYMBOL, "decoder_token_ids")
+        tokens = tokens.type_as(mask)
 
         input_feed = None
         std_attentions = []
@@ -190,7 +223,11 @@ class Seq2Seq(Model):
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
                 # [batch_size, 1, num_chars]
-                chars = None
+                chars = character_tensor_from_token_tensor(
+                    tokens,
+                    self.vocab,
+                    self.character_tokenizer
+                )
                 # [batch, num_tokens, embedding_size]
                 char_embeddings = self.decoder_char_embedding(chars)
                 batch_size, num_tokens, num_chars, _ = char_embeddings.size()
@@ -214,16 +251,16 @@ class Seq2Seq(Model):
             # Generate.
             generator_output = self.generator(_decoder_outputs)
             _predictions = generator_output['predictions']
-            predictions += _predictions
+            predictions.append(_predictions)
 
-            tokens = _predictions.squeeze(1)
+            tokens = _predictions
 
         return dict(
             # [batch_size, max_decode_length]
             predictions=torch.cat(predictions, dim=1),
             # [batch_size, max_decode_length, encoder_length]
             std_attentions=torch.cat(std_attentions, dim=1) if len(std_attentions) != 0 else None,
-            copy_attentions=torch.cat(copy_attentions, dim=1) if len(copy_attentions) != 0 else None
+            #copy_attentions=torch.cat(copy_attentions, dim=1) if len(copy_attentions) != 0 else None
         )
 
     @classmethod
