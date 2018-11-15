@@ -136,16 +136,19 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         )
         fields["amr_tokens"] = tokens
 
-        # fields["head_tags"] = SequenceLabelField(tree.get_relation(),
-        #                                          tokens,
-        #                                          label_namespace="head_tags")
-        # fields["head_indices"] = SequenceLabelField(tree.get_parent(),
-        #                                             tokens,
-        #                                             label_namespace="head_index_tags")
-        # fields["coref"] = SequenceLabelField(tree.get_coref(),
-        #                                      tokens,
-        #                                      label_namespace="coref_tags"
-        #                                      )
+        fields["head_tags"] = SequenceLabelField(tree.get_relation(),
+                                                 tokens,
+                                                 label_namespace="head_tags",
+                                                 strip_sentence_symbols=True)
+        fields["head_indices"] = SequenceLabelField(tree.get_parent(),
+                                                     tokens,
+                                                     label_namespace="head_index_tags",
+                                                     strip_sentence_symbols=True)
+        fields["coref"] = SequenceLabelField(tree.get_coref(),
+                                              tokens,
+                                              label_namespace="coref_tags",
+                                              strip_sentence_symbols=True
+                                              )
         # TODO: Xutai
         fields["src_tokens"] = TextField(
             self._word_splitter.split_words(sentence_text),

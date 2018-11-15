@@ -47,13 +47,14 @@ class SequenceLabelField(Field[torch.Tensor]):
     def __init__(self,
                  labels: Union[List[str], List[int]],
                  sequence_field: SequenceField,
-                 label_namespace: str = 'labels') -> None:
+                 label_namespace: str = 'labels',
+                 strip_sentence_symbols : bool = False) -> None:
         self.labels = labels
         self.sequence_field = sequence_field
         self._label_namespace = label_namespace
         self._indexed_labels = None
         self._maybe_warn_for_namespace(label_namespace)
-        if len(labels) != sequence_field.sequence_length():
+        if len(labels) != sequence_field.sequence_length() and not strip_sentence_symbols:
             raise ConfigurationError("Label length and sequence length "
                                      "don't match: %d and %d" % (len(labels), sequence_field.sequence_length()))
 

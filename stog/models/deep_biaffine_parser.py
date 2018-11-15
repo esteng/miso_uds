@@ -13,6 +13,7 @@ from stog.algorithms.maximum_spanning_tree import decode_mst_with_coreference, d
 from stog.utils.nn import masked_log_softmax
 from stog.utils.nn import get_text_field_mask
 from stog.utils.logging import init_logger
+from stog.utils.string import START_SYMBOL, END_SYMBOL
 logger = init_logger()
 
 
@@ -89,12 +90,20 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         return 0.0
 
     def forward(self, batch, for_training=True):
-        input_token = batch["amr_tokens"]["decoder_tokens"]
-        input_char = batch["amr_tokens"]["decoder_characters"]
-        headers = batch["head_indices"]
-        labels = batch["head_tags"]
+        # remove bos and eos
+        input_char = batch["amr_tokens"]["decoder_characters"][:, 1:-1, :].contiguous()
+        input_token = batch["amr_tokens"]["decoder_tokens"][:, 1:-1].contiguous()
+        # NOTE: A liite bit hacky here. Bacically just replace eos idx (4) to pad idx (0)
+        input_token[
+            input_token==4
+        ] = 0 
+        # Batch automatically pad all the instance to the same lengths, so remove the last two.
+        headers = batch["head_indices"][:, :-2]
+        labels = batch["head_tags"][:, :-2]
         coreference = batch.get('coref', None)
-        mask = get_text_field_mask(batch["amr_tokens"]).float()
+        if coreference is not None:
+            coreference = coreference[:, :-2]
+        mask = ( input_token !=0 ).float()
         num_tokens = mask.sum().item()
 
         encoder_output = self.encode(input_token, input_char, mask)
