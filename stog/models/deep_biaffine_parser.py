@@ -95,7 +95,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         input_token = batch["amr_tokens"]["decoder_tokens"][:, 1:-1].contiguous()
         # NOTE: A liite bit hacky here. Bacically just replace eos idx (4) to pad idx (0)
         input_token[
-            input_token==4
+            input_token==3
         ] = 0 
         # Batch automatically pad all the instance to the same lengths, so remove the last two.
         headers = batch["head_indices"][:, :-2]
