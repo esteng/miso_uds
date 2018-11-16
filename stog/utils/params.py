@@ -2,6 +2,7 @@ import json
 import argparse
 
 import yaml
+import copy
 
 from stog.utils import logging
 
@@ -339,12 +340,18 @@ class Params(object):
 
     def __repr__(self):
         return json.dumps(self.params, indent=2)
-
+    
+    def duplicate(self) -> 'Params':
+        """
+        Uses ``copy.deepcopy()`` to create a duplicate (but fully distinct)
+        copy of these Params.
+        """
+        return Params(copy.deepcopy(self.params))
 
 def remove_pretrained_embedding_params(params):
     keys = params.keys()
     if 'pretrained_file' in keys:
         del params['pretrained_file']
     for value in params.values():
-        if isinstance(value, Params):
+        if isinstance(value, Params) or isinstance(value, dict):
             remove_pretrained_embedding_params(value)
