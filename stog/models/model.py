@@ -226,6 +226,9 @@ class Model(torch.nn.Module):
             # so we set this to false so we don't warn again.
             self._warn_for_unseparable_batches.add(output_key)
 
+    def set_vocab(self, vocab):
+        self.vocab = vocab
+
     @classmethod
     def _load(cls,
               config: Params,
@@ -253,6 +256,7 @@ class Model(torch.nn.Module):
         model = cls.from_params(vocab=vocab, params=model_params)
         model_state = torch.load(weights_file, map_location=device_mapping(device))
         model.load_state_dict(model_state)
+        model.set_vocab(vocab)
         model.to(device)
 
         return model

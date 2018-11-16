@@ -52,7 +52,8 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                  lazy: bool = False,
                  label_namespace_prefix: str = "",
                  pos_label_namespace: str = "pos",
-                 word_splitter = None) -> None:
+                 word_splitter = None,
+                 data_type="AMR") -> None:
         super().__init__(lazy=lazy)
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
         self._use_pos_tags = use_pos_tags
