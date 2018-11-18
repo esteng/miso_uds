@@ -102,6 +102,21 @@ class Seq2Seq(Model):
     def get_metrics(self, reset: bool = False):
         return self.generator.metrics.get_metric(reset)
 
+    def extract_coref(self, coref_tensor):
+        import pdb;pdb.set_trace()
+        copy_mask = coref_tensor.ne(0)
+        batch_size, max_len = coref_tensor.size()
+        copy_targets = coref_tensor.clone()
+        copy_targets[copy_targets== -1] = 0
+        attention_maps = torch.zeros(batch_size, max_len, max_len).type_as(coref_tensor)
+        for idx in range(batch_size):
+            length = copy_mask[idx].sum().item()
+            for i in range(length):
+                attention_maps[idx, i, i] = (copy_targets[idx, i] == 0).int()
+                for j in range(length):
+                    attention_maps[idx, i, j] = (copy_targets[idx, j] == i).int()
+        return copy_targets, attention_maps
+
     def forward(self, batch, for_training=False):
         # TODO: Xutai
         # [batch, num_tokens]
@@ -120,11 +135,10 @@ class Seq2Seq(Model):
             # [batch, num_tokens]
             targets = batch['amr_tokens']['decoder_tokens'][:, 1:].contiguous()
 
-            vocab_targets = None
-            copy_targets = None
-            copy_attention_maps = None
+            vocab_targets = decoder_token_inputs
 
-            # import pdb;pdb.set_trace()
+            copy_targets, copy_attention_maps = self.extract_coref(batch['coref'])
+
         except:
             has_decoder_inputs = False
 
