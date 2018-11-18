@@ -128,7 +128,7 @@ class AMRTree():
 
     def isNodeCoref(self, idx):
         # whether a node is a coreference of another node
-        if self.coref[idx] != -1 :
+        if self.coref[idx] != idx:
             return True
         else:
             return False
@@ -142,16 +142,16 @@ class AMRTree():
 
     def _cal_corefenrence(self):
         name_list = [item.name for item in self.node_list]
-        self.coref = [-1 for _  in range(len(self.node_list))]
+        self.coref = [ii for ii in range(len(self.node_list))]
 
         for node_idx, node in enumerate(self.node_list):
             if node.name in name_list[:node_idx]:
                 copy_node_idx = name_list[:node_idx].index(node.name)
-                self.coref[node_idx] = copy_node_idx + 1
+                self.coref[node_idx] = copy_node_idx
 
             if node.instance is None:
                 if self.isNodeCoref(node_idx):
-                    node.instance = self._get_node_by_idx(self.coref[node_idx] - 1).instance
+                    node.instance = self._get_node_by_idx(self.coref[node_idx]).instance
                 else:
                     node.instance = node.name
 
