@@ -13,6 +13,8 @@ from stog.algorithms.maximum_spanning_tree import decode_mst_with_coreference, d
 from stog.utils.nn import masked_log_softmax
 from stog.utils.nn import get_text_field_mask
 from stog.utils.logging import init_logger
+from stog.utils.string import START_SYMBOL, END_SYMBOL
+from stog.data.amr import AMRTree
 logger = init_logger()
 
 
@@ -87,14 +89,37 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
     def get_regularization_penalty(self):
         return 0.0
+    
+    def extract_batch(self, batch):
+        # remove bos and eos
+        input_char = batch["amr_tokens"]["decoder_characters"][:, 1:-1, :].contiguous()
+        input_token = batch["amr_tokens"]["decoder_tokens"][:, 1:-1].contiguous()
+        # NOTE: A liite bit hacky here. Bacically just replace eos idx (4) to pad idx (0)
+        input_token[
+            input_token==3
+        ] = 0 
+        # Batch automatically pad all the instance to the same lengths, so remove the last two.
+        headers = batch.get("head_indices", None)
+        labels = batch.get("head_tags", None)
+        coreference = batch.get('coref', None)
+
+        if headers is not None:
+            headers = headers[:, :-2]
+
+        if labels is not None:
+            labels = labels[:, :-2]
+
+        if coreference is not None:
+            coreference = coreference[:, :-2]
+        
+        mask = ( input_token !=0 ).float()
+
+        return input_char, input_token, headers, labels, coreference, mask
 
     def forward(self, batch, for_training=True):
-        input_token = batch["amr_tokens"]["decoder_tokens"]
-        input_char = batch["amr_tokens"]["decoder_characters"]
-        headers = batch["head_indices"]
-        labels = batch["head_tags"]
-        coreference = batch.get('coref', None)
-        mask = get_text_field_mask(batch["amr_tokens"]).float()
+
+        input_char, input_token, headers, labels, coreference, mask= self.extract_batch(batch)
+
         num_tokens = mask.sum().item()
 
         encoder_output = self.encode(input_token, input_char, mask)
@@ -142,8 +167,35 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             mask=mask[:, 1:],
             loss=loss / num_tokens,
             edge_loss=edge_nll / num_tokens,
-            label_loss=label_nll / num_tokens
+            label_loss=label_nll / num_tokens,
+            amr_tokens=input_token
         )
+
+    def decode(self, torch_dict):
+        output_list = []
+        batch_size, max_len = torch_dict['mask'].size()
+        #import pdb;pdb.set_trace()
+        for i in range(batch_size):
+            current_len = int(torch.sum(torch_dict['mask'][i]).tolist())
+            head_tags = [self.vocab.get_token_from_index(x, "head_tags") for x in torch_dict['relations'][i][:current_len].tolist()]
+            head_indices = torch_dict['headers'][i][:current_len].tolist()
+            head_indices = [x for x in head_indices]
+            tokens = [ self.vocab.get_token_from_index(x,"decoder_token_ids") for x in torch_dict['amr_tokens'][i][:current_len].tolist() ]
+            
+            #TODO: coreference here
+            coref = [ii + 1 for ii in range(current_len)]
+
+            t = AMRTree()
+            t.recover_from_list(
+                {
+                    'head_indices' : head_indices,
+                    'head_tags' : head_tags,
+                    'tokens' : tokens,
+                    'coref' : coref
+                }
+            )
+            output_list.append(t.pretty_str())
+        return dict(predictions=output_list)
 
     def add_head_sentinel(self, encoder_output, headers, labels, mask, coreference):
         """
@@ -157,9 +209,11 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         batch_size, _, hidden_size = encoder_output.size()
         head_sentinel = self.head_sentinel.expand([batch_size, 1, hidden_size])
         encoder_output = torch.cat([head_sentinel, encoder_output], 1)
-        headers = torch.cat([headers.new_zeros(batch_size, 1), headers], 1)
-        labels = torch.cat([labels.new_zeros(batch_size, 1), labels], 1)
         mask = torch.cat([mask.new_ones(batch_size, 1), mask], 1)
+        if headers is not None:
+            headers = torch.cat([headers.new_zeros(batch_size, 1), headers], 1)
+        if labels is not None:
+            labels = torch.cat([labels.new_zeros(batch_size, 1), labels], 1)
         if coreference is not None:
             coreference = torch.cat([coreference.new_zeros(batch_size, 1), coreference], 1)
         return  encoder_output, headers, labels, mask, coreference
