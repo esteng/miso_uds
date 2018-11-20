@@ -342,9 +342,10 @@ class Params(object):
 
 
 def remove_pretrained_embedding_params(params):
-    keys = params.keys()
-    if 'pretrained_file' in keys:
-        del params['pretrained_file']
-    for value in params.values():
-        if isinstance(value, Params):
-            remove_pretrained_embedding_params(value)
+    def recurse(parameters, key):
+        for k, v in parameters.items():
+            if key == k:
+                parameters[key] = None
+            elif isinstance(v, dict):
+                recurse(v, key)
+    recurse(params.params, 'pretrained_file')
