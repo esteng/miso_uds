@@ -15,18 +15,22 @@ class Seq2SeqMetrics(Metric):
     * elapsed time
     """
 
-    def __init__(self, loss=0, n_words=0, n_correct=0):
+    def __init__(self, loss=0, n_words=0, n_correct=0, n_copies=0, n_correct_copies=0):
         self.loss = loss
         self.n_words = n_words
         self.n_correct = n_correct
+        self.n_copies = n_copies
+        self.n_correct_copies = n_correct_copies
 
-    def __call__(self, loss, n_words, n_correct):
+    def __call__(self, loss, n_words, n_correct, n_copies=0, n_correct_copies=0):
         """
         Update statistics by suming values with another `Statistics` object
         """
         self.loss += loss
         self.n_words += n_words
         self.n_correct += n_correct
+        self.n_copies += n_copies
+        self.n_correct_copies += n_correct_copies
 
     def accuracy(self):
         """ compute accuracy """
@@ -40,9 +44,16 @@ class Seq2SeqMetrics(Metric):
         """ compute perplexity """
         return math.exp(min(self.loss / self.n_words, 100))
 
+    def copy_accuracy(self):
+        if self.n_copies == 0:
+            return -1
+        else:
+            return 100 * (self.n_correct_copies / self.n_copies)
+
     def get_metric(self, reset: bool = False):
         metrics = dict(
             accuracy=self.accuracy(),
+            copy_acc=self.copy_accuracy(),
             xent=self.xent(),
             ppl=self.ppl()
         )
@@ -55,3 +66,5 @@ class Seq2SeqMetrics(Metric):
         self.loss = 0
         self.n_words = 0
         self.n_correct = 0
+        self.n_copies = 0
+        self.n_correct_copies = 0
