@@ -1,7 +1,6 @@
 import os
 import argparse
 
-from stog.utils.params import data_opts
 from stog.utils.params import Params
 from stog.utils import logging
 from stog.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader, Seq2SeqDatasetReader
@@ -104,11 +103,3 @@ def iterator_from_params(vocab, params):
     test_iterator.index_with(vocab)
 
     return train_iterator, dev_iterator, test_iterator
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser("build_dataset.py")
-    data_opts(parser)
-    opt = Params.from_parser(parser)
-    dataset = dataset_from_params(opt)
-    import pdb;pdb.set_trace()
