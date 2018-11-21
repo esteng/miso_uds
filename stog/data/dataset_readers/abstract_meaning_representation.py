@@ -145,7 +145,9 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                                                      tokens,
                                                      label_namespace="head_index_tags",
                                                      strip_sentence_symbols=True)
-        fields["coref"] = SequenceLabelField(tree.get_coref(),
+        coref_indexes = [0] + [i + 1 for i in tree.get_coref()]
+        coref_indexes += [len(coref_indexes)]
+        fields["coref"] = SequenceLabelField(coref_indexes,
                                               tokens,
                                               label_namespace="coref_tags",
                                               strip_sentence_symbols=True
