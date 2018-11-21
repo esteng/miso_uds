@@ -39,7 +39,7 @@ def character_tensor_from_token_tensor(token_tensor,
             indices.append(token_indices)
 
         return torch.tensor(indices).view(token_tensor.size(0), 1, -1).type_as(token_tensor)
-    
+
 
 
 class Seq2Seq(Model):
@@ -113,7 +113,7 @@ class Seq2Seq(Model):
                 for j in range(length):
                     attention_maps[idx, i, j] = (copy_targets[idx, i] == j).int()
 
-        return copy_targets, attention_maps
+        return copy_targets[:, 1:], attention_maps[:, 1:]
 
     def forward(self, batch, for_training=False):
         # TODO: Xutai
@@ -133,10 +133,9 @@ class Seq2Seq(Model):
             # [batch, num_tokens]
             targets = batch['amr_tokens']['decoder_tokens'][:, 1:].contiguous()
 
-            vocab_targets = decoder_token_inputs
+            vocab_targets = targets
 
             copy_targets, copy_attention_maps = self.extract_coref(batch['coref'])
-
         except:
             has_decoder_inputs = False
 
@@ -164,7 +163,7 @@ class Seq2Seq(Model):
                 copy_attentions = self.self_copy_attention(decoder_memory_bank, decoder_memory_bank)
                 _generator_output = self.generator(decoder_memory_bank, copy_attentions, copy_attention_maps)
                 generator_output = self.generator.compute_loss(
-                    _generator_output['loss'],
+                    _generator_output['probs'],
                     _generator_output['predictions'],
                     vocab_targets,
                     copy_targets
@@ -505,11 +504,9 @@ class Seq2Seq(Model):
             generator = CopyGenerator(
                 input_size=params['decoder']['hidden_size'],
                 vocab_size=vocab.get_vocab_size('decoder_token_ids'),
-                force_copy=params['self_copy'].get('force_copy', True),
+                force_copy=params['generator'].get('force_copy', True),
                 # TODO: Set the following indices.
-                vocab_pad_idx=0,
-                vocab_oov_idx=0,
-                copy_oov_idx=0
+                vocab_pad_idx=0
             )
 
         else:

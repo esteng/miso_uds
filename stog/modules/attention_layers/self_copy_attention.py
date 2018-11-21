@@ -37,20 +37,15 @@ class SelfCopyAttention(torch.nn.Module):
         if target_l != 1:
             # Not a single step
             assert source_l == target_l
-            mask = torch.ones(target_l, source_l)
+            mask = source.new_ones(target_l, source_l).byte()
             mask = torch.tril(mask, diagonal=-1)
             mask[0, 0] = 1
-            mask = mask.byte().unsqueeze(0)
+            mask = mask.unsqueeze(0)
 
         if mask is not None:
             align.masked_fill_(1 - mask, -float('inf'))
 
         align_vectors = F.softmax(align, 2)
-
-        if mask is not None:
-            # If this is not a single step, we force the first node
-            # to have no attention, so that copying won't be considered in the generator.
-            align_vectors[:, 0, 0] = 0
 
         if one_step:
             align_vectors = align_vectors.squeeze(1)

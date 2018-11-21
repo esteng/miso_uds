@@ -5,8 +5,7 @@ from stog.metrics.seq2seq_metrics import Seq2SeqMetrics
 
 class CopyGenerator(torch.nn.Module):
 
-    def __init__(self, input_size, vocab_size, force_copy,
-                 vocab_pad_idx, vocab_oov_idx, copy_oov_idx):
+    def __init__(self, input_size, vocab_size, vocab_pad_idx, force_copy):
         super(CopyGenerator, self).__init__()
         self.linear = torch.nn.Linear(input_size, vocab_size)
         self.softmax = torch.nn.Softmax(dim=-1)
@@ -16,12 +15,10 @@ class CopyGenerator(torch.nn.Module):
 
         self.metrics = Seq2SeqMetrics()
 
-        self.force_copy = force_copy
-
         self.vocab_size = vocab_size
         self.vocab_pad_idx = vocab_pad_idx
-        self.vocab_oov_idx = vocab_oov_idx
-        self.copy_oov_idx = copy_oov_idx
+
+        self.force_copy = force_copy
 
         self.eps = 1e-20
 
@@ -64,7 +61,7 @@ class CopyGenerator(torch.nn.Module):
         # should be zero.
         scaled_attentions = torch.mul(attentions, p_copy.expand_as(attentions))
         # [batch_size, num_target_nodes, dymanic_vocab_size]
-        scaled_copy_probs = torch.bmm(scaled_attentions, attention_maps)
+        scaled_copy_probs = torch.bmm(scaled_attentions, attention_maps.float())
 
         # [batch_size, num_target_nodes, vocab_size + dynamic_vocab_size]
         probs = torch.cat([scaled_vocab_probs.contiguous(), scaled_copy_probs.contiguous()], dim=2)
@@ -87,48 +84,46 @@ class CopyGenerator(torch.nn.Module):
         :param copy_targets:  target node index in the dynamic vocabulary,
             [batch_size, num_target_nodes]
         """
+        batch_size, num_nodes = copy_targets.size()
+        non_pad_mask = vocab_targets.ne(self.vocab_pad_idx)
+        # If copy does not happen, then the copy target points to the node itself.
+        self_pointer = torch.arange(1, num_nodes + 1).long().unsqueeze(0).type_as(copy_targets)
+        copy_mask = copy_targets.ne(self_pointer)
+        non_copy_mask = copy_targets.eq(self_pointer)
+
         # [batch_size, num_target_nodes, 1]
         copy_targets_with_offset = copy_targets.unsqueeze(2) + self.vocab_size
         # [batch_size, num_target_nodes]
         copy_target_probs = probs.gather(dim=2, index=copy_targets_with_offset).squeeze(2)
-
-        # Exclude copy-oov nodes; copy oovs mean that nodes should be generated.
-        copy_not_oov_mask = copy_targets.ne(self.copy_oov_idx).float()
-        copy_oov_mask = copy_targets.eq(self.copy_oov_idx).float()
-        copy_target_probs = copy_target_probs.mul(copy_not_oov_mask) + self.eps
+        copy_target_probs = copy_target_probs.mul(copy_mask.float()) + self.eps
 
         # [batch_size, num_target_nodes]
         vocab_target_probs = probs.gather(dim=2, index=vocab_targets.unsqueeze(2)).squeeze(2)
 
         if self.force_copy:
             # Except copy-oov nodes, all other nodes should be copied.
-            likelihood = copy_target_probs + vocab_target_probs.mul(copy_oov_mask)
+            likelihood = copy_target_probs + vocab_target_probs.mul(non_copy_mask.float())
         else:
-            vocab_not_oov_mask = vocab_targets.ne(self.vocab_oov_idx).float()
-            vocab_oov_mask = vocab_targets.eq(self.vocab_oov_idx).float()
-            # Add prob for non-oov nodes in vocab
-            # This means that non copy-oov nodes can be either copied or generated,
-            # As long as they are not vocab-oov nodes.
-            likelihood = copy_target_probs + vocab_target_probs.mul(vocab_not_oov_mask)
-            # Add prob for oov nodes in both vocab and copy
-            likelihood = likelihood + vocab_target_probs.mul(vocab_oov_mask).mul(copy_oov_mask)
+            likelihood = copy_target_probs + vocab_target_probs
 
         # Drop pads.
-        loss = -likelihood.log().mul(vocab_targets.ne(self.vocab_pad_idx).float())
+        loss = -likelihood.log().mul(non_pad_mask.float())
 
-        # Copy happens when the copy target is not oov.
-        correct_copy_mask = copy_targets.ne(self.copy_oov_idx)
-        correct_copy = (copy_targets + self.vocab_size) * correct_copy_mask.long()
-        # Set the place where copy happens to zero.
-        correct_vocab = vocab_targets * (1 - correct_copy_mask).long()
+        # Mask out copy targets for which copy does not happen.
+        correct_copy = (copy_targets + self.vocab_size) * copy_mask.long()
+        # Mask out vocab targets for which copy happens.
+        correct_vocab = vocab_targets * non_copy_mask.long()
 
         targets = correct_vocab + correct_copy
-        non_pad = targets.ne(self.vocab_pad_idx)
-        num_correct = predictions.eq(targets).masked_select(non_pad).sum().item()
-        num_non_pad = non_pad.sum().item()
-        self.metrics(loss.sum().item(), num_non_pad, num_correct)
+        targets.masked_fill_(1 - non_pad_mask, self.vocab_pad_idx)
+        pred_eq = predictions.eq(targets).mul(non_pad_mask)
+        num_non_pad = non_pad_mask.sum().item()
+        num_correct_pred = pred_eq.sum().item()
+        num_copy = copy_mask.mul(non_pad_mask).sum().item()
+        num_correct_copy = pred_eq.mul(copy_mask).sum().item()
+        self.metrics(loss.sum().item(), num_non_pad, num_correct_pred, num_copy, num_correct_copy)
 
         return dict(
-            loss=loss.div(float(num_non_pad)),
+            loss=loss.sum().div(float(num_non_pad)),
             predictions=predictions
         )
