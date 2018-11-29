@@ -20,25 +20,25 @@ from stog.data.tokenizers.character_tokenizer import CharacterTokenizer
 
 logger = init_logger()
 
-def character_tensor_from_token_tensor(token_tensor,
-                                      vocab,
-                                      character_tokenizer,
-                                      namespace={
-                                          "tokens" : "decoder_token_ids",
-                                          "characters" : "decoder_token_characters"
-                                      }):
-        #import pdb;pdb.set_trace()
-        token_str = [vocab.get_token_from_index(i, namespace["tokens"]) for i in token_tensor.view(-1).tolist()]
-        max_char_len = max([len(token) for token in token_str])
-        indices = []
-        for token in token_str:
-            token_indices = [vocab.get_token_index(vocab._padding_token) for _ in range(max_char_len)]
-            for char_i, character in enumerate(character_tokenizer.tokenize(token)):
-                index = vocab.get_token_index(character.text, namespace["characters"])
-                token_indices[char_i] = index
-            indices.append(token_indices)
 
-        return torch.tensor(indices).view(token_tensor.size(0), 1, -1).type_as(token_tensor)
+def character_tensor_from_token_tensor(
+        token_tensor,
+        vocab,
+        character_tokenizer,
+        namespace=dict(tokens="decoder_token_ids", characters="decoder_token_characters")
+    ):
+    #import pdb;pdb.set_trace()
+    token_str = [vocab.get_token_from_index(i, namespace["tokens"]) for i in token_tensor.view(-1).tolist()]
+    max_char_len = max([len(token) for token in token_str])
+    indices = []
+    for token in token_str:
+        token_indices = [vocab.get_token_index(vocab._padding_token) for _ in range(max_char_len)]
+        for char_i, character in enumerate(character_tokenizer.tokenize(token)):
+            index = vocab.get_token_index(character.text, namespace["characters"])
+            token_indices[char_i] = index
+        indices.append(token_indices)
+
+    return torch.tensor(indices).view(token_tensor.size(0), 1, -1).type_as(token_tensor)
 
 
 
@@ -235,7 +235,10 @@ class Seq2Seq(Model):
         states = input_dict['encoder_final_states']
 
         if self.beam_size == 1:
-            return self.greedy_decode(memory_bank, mask, states)
+            if self.use_self_copy:
+                return self.greedy_decode_with_copy(memory_bank, mask, states)
+            else:
+                return self.greedy_decode(memory_bank, mask, states)
         else:
             raise NotImplementedError
 
@@ -301,25 +304,25 @@ class Seq2Seq(Model):
         )
 
     def greedy_decode_with_copy(self, memory_bank, mask, states):
-        # TODO: convert START_SYMBOL to a batch of 'START_SYMBOL' indices.
         # [batch_size, 1]
         batch_size = memory_bank.size(0)
-        tokens = None
+        tokens = torch.ones(batch_size, 1) \
+                 * self.vocab.get_token_index(START_SYMBOL, "decoder_token_ids")
+        tokens = tokens.type_as(mask).long()
 
         input_feed = None
         source_attentions = []
         copy_attentions = []
         decoder_outputs = []
         predictions = []
+        copy_indexes = []
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
         # Here the maximum size of the dynamic vocab is just max_decode_length.
-        attention_maps = torch.zeros(batch_size, self.max_decode_length, self.max_decode_length)
-        # A diagonal matrix D where the element D_{i,i} is the real vocab index that the index `i'
-        # in the dynamic vocab should be mapped to.
-        # With D and the index `i' represented by an one-hot vector h, the real vocab index can
-        # be computed by the matrix product h * D.
-        dynamic_vocab_maps = torch.zeros(batch_size, self.max_decode_length, self.max_decode_length).long()
+        attention_maps = torch.zeros(batch_size, self.max_decode_length, self.max_decode_length).type_as(memory_bank)
+        # A diagonal matrix D where the element D_{i} is the real vocab index of the generated
+        # node at the decoding step `i'.
+        dynamic_vocab_maps = torch.zeros(batch_size, self.max_decode_length).type_as(mask).long()
 
         for step_i in range(self.max_decode_length):
             # Get embeddings.
@@ -327,7 +330,11 @@ class Seq2Seq(Model):
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
                 # [batch_size, 1, num_chars]
-                chars = None
+                chars = character_tensor_from_token_tensor(
+                    tokens,
+                    self.vocab,
+                    self.character_tokenizer
+                )
 
                 char_cnn_output = self._get_decoder_char_cnn_output(chars)
                 decoder_inputs = torch.cat([token_embeddings, char_cnn_output], 2)
@@ -341,8 +348,8 @@ class Seq2Seq(Model):
 
             if step_i == 0:
                 # Dummy copy attention for the first step will never be chosen.
-                _copy_attentions = _decoder_outputs.new_ones(batch_size, 1, 1)
-                _attention_maps = _decoder_outputs.new_zeros(batch_size, 1, 1)
+                _copy_attentions = _decoder_outputs.new_ones(batch_size, 1, 1).type_as(memory_bank)
+                _attention_maps = _decoder_outputs.new_zeros(batch_size, 1, 1).type_as(memory_bank)
             else:
                 decoder_outputs_by_far = torch.cat(decoder_outputs, dim=1)
                 _copy_attentions = self.self_copy_attention(_decoder_outputs, decoder_outputs_by_far)
@@ -353,21 +360,29 @@ class Seq2Seq(Model):
             _predictions = generator_output['predictions']
 
             # Update decoder outputs.
-            copy_attentions += _copy_attentions
+            copy_attentions += [_copy_attentions]
             source_attentions += _source_attentions
-            decoder_outputs += _decoder_outputs
+            decoder_outputs += [_decoder_outputs]
 
-            tokens = self._update_maps_and_get_next_input(
+            tokens, copy_index = self._update_maps_and_get_next_input(
                 step_i, _predictions.squeeze(1), attention_maps, dynamic_vocab_maps)
+            tokens = tokens.unsqueeze(1)
 
-            predictions += tokens.unsqueeze(1)
+            predictions += [tokens]
+            copy_indexes += [copy_index.unsqueeze(1)]
+
+        predictions = torch.cat(predictions, dim=1)
+        copy_indexes = torch.cat(copy_indexes, dim=1)
+        source_attentions = torch.cat(source_attentions, dim=1)
+        copy_attentions = torch.cat(copy_attentions, dim=1)
 
         return dict(
             # [batch_size, max_decode_length]
-            predictions=torch.cat(predictions, dim=1),
+            predictions=predictions,
+            copy_indexes=copy_indexes,
             # [batch_size, max_decode_length, encoder_length]
-            std_attentions=torch.cat(std_attentions, dim=1) if len(std_attentions) != 0 else None,
-            #copy_attentions=torch.cat(copy_attentions, dim=1) if len(copy_attentions) != 0 else None
+            source_attentions=source_attentions,
+            copy_attentions=copy_attentions
         )
 
     def _update_maps_and_get_next_input(self, step, predictions, attention_maps, dynamic_vocab_maps):
@@ -376,51 +391,38 @@ class Seq2Seq(Model):
         :param step: the decoding step, int.
         :param predictions: [batch_size]
         :param attention_maps: [batch_size, max_decode_length, max_decode_length]
-        :param dynamic_vocab_maps:  [batch_size, max_decode_length, max_decode_length]
+        :param dynamic_vocab_maps:  [batch_size, max_decode_length]
         :return:
         """
         vocab_size = self.generator.vocab_size
         batch_size = predictions.size(0)
 
-        batch_index = torch.arange(0, batch_size).long()
-        step_index = torch.tensor([step] * batch_size).long()
-        vocab_oov_mask = predictions.ge(vocab_size)
+        batch_index = torch.arange(0, batch_size).type_as(dynamic_vocab_maps).long()
+        step_index = torch.tensor([step] * batch_size).type_as(dynamic_vocab_maps).long()
+        copy_mask = predictions.ge(vocab_size)
+        generate_mask = 1 - copy_mask
 
         # 1. Update attention_maps
-        dynamic_index = (predictions - vocab_size)
-        # OOVs of the dynamic vocabulary are filled with `step',
-        # which means a new index `step' is added to the dynamic vocab
-        # for those generated nodes.
-        # dynamic_index means where the nodes at this step should be mapped to.
-        dynamic_index.masked_fill_(1 - vocab_oov_mask, step)
+        # Get the copy index.
+        copy_index = (predictions - vocab_size)
+        # Fill the place where copy didn't happen with the current step,
+        # which means that the node doesn't refer to any precedent, it refers to itself.
+        copy_index.masked_fill_(generate_mask, step)
 
-        attention_maps[batch_index, step_index, dynamic_index] = 1
+        attention_maps[batch_index, step_index, copy_index] = 1
 
-        # 2. Update dynamic_vocab_maps
-        # vocab_predictions have the standard vocabulary index, and OOVs are set to zero.
-        vocab_predictions = predictions * (1 - vocab_oov_mask)
-
-        # If the index in vocab_predictions is not zero, it means a new node has been generated.
-        # The index of this new node in the dynamic vocab is `step'.
-        # So the map is `step' -> the index in the standard vocab.
-        # Here we update D_{step, step} to the index in the standard vocab.
-        dynamic_vocab_maps[batch_index, step_index, step_index] = vocab_predictions
-
-        # 3. Compute the next input.
+        # 2. Compute the next input.
         # copy_predictions have the dynamic vocabulary index, and OOVs are set to zero.
-        copy_predictions = (predictions - vocab_size) * vocab_oov_mask
-        # Convert the dynamic vocab index to one-hot vector.
-        copy_prediction_one_hots = torch.zeros(batch_size, self.max_decode_length)
-        copy_prediction_one_hots.scatter_(1, copy_predictions, 1)
-        # [batch_size, 1, max_decode_length]
-        copy_prediction_one_hots = copy_prediction_one_hots.unsqueeze(1)
-        # Convert the dynamic vocab index to the standard vocab index.
-        # [batch_size]: the next input index in the standard vocab for copied predictions.
-        next_input = torch.bmm(copy_prediction_one_hots, dynamic_vocab_maps).sum(dim=(1, 2))
+        copy_predictions = (predictions - vocab_size) * copy_mask.long()
+        next_input = dynamic_vocab_maps.gather(1, copy_predictions.unsqueeze(1)).squeeze(1)
         # Merge it with generated predictions.
-        next_input = next_input * vocab_oov_mask + vocab_predictions
+        next_input = next_input * copy_mask.long() + predictions * generate_mask.long()
 
-        return next_input
+        # 3. Update dynamic_vocab_maps
+        # Here we update D_{step} to the index in the standard vocab.
+        dynamic_vocab_maps[batch_index, step_index] = next_input
+
+        return next_input, copy_index
 
     @classmethod
     def from_params(cls, vocab, params):
