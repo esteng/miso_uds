@@ -24,6 +24,7 @@ class AMRTree():
     def __init__(self, string=""):
         self.root_node = None
         self.node_list = []
+        self.raw_string = string
         if len(string) > 0:
             self._parse_string(string)
             self._cal_corefenrence()
@@ -155,14 +156,52 @@ class AMRTree():
                 else:
                     node.instance = node.name
 
+    def get_raw_string(self):
+        return self.raw_string
+
     def get_names(self):
         return [node.name for node in self.node_list]
 
-    def get_instance(self):
-        return [node.instance for node in self.node_list]
+    def get_instance(self, bos=None, eos=None):
 
-    def get_coref(self):
-        return self.coref
+        instances = [node.instance for node in self.node_list]
+
+        if bos is not None:
+            instances = [bos] + instances
+        if eos is not None:
+            instances = instances + [eos]
+
+        return instances
+
+
+    def get_coref(self, bos=False, eos=False):
+        offset = 0
+
+        coref_indexes = list()
+
+        if bos is True:
+            offset = 1
+            coref_indexes.append(0)
+
+        coref_indexes += [ x + offset for x in self.coref]
+
+        if eos is True:
+            coref_indexes.append(len(coref_indexes))
+        
+        return coref_indexes
+
+
+    def get_coref_map(self, bos=False, eos=False):
+        # A method to generate data structure to build adjacency field
+        coref_indexes = self.get_coref(bos, eos)
+
+        return [
+            (token_index, copy_index) for token_index, copy_index in enumerate(coref_indexes)
+        ]
+
+            
+
+
 
     def get_relation(self):
         return [node.relation for node in self.node_list]

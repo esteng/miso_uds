@@ -102,21 +102,8 @@ class Seq2Seq(Model):
     def get_metrics(self, reset: bool = False):
         return self.generator.metrics.get_metric(reset)
 
-    def extract_coref(self, coref_tensor):
-        copy_mask = coref_tensor.ne(0)
-        batch_size, max_len = coref_tensor.size()
-        copy_targets = coref_tensor.clone()
-        attention_maps = torch.zeros(batch_size, max_len, max_len).type_as(coref_tensor)
-        for idx in range(batch_size):
-            length = copy_mask[idx].sum().item()
-            for i in range(length):
-                for j in range(length):
-                    attention_maps[idx, i, j] = (copy_targets[idx, i] == j).int()
-
-        return copy_targets[:, 1:], attention_maps[:, 1:]
-
     def forward(self, batch, for_training=False):
-        # TODO: Xutai
+
         # [batch, num_tokens]
         encoder_token_inputs = batch['src_tokens']['encoder_tokens']
         # [batch, num_tokens, num_chars]
@@ -135,7 +122,9 @@ class Seq2Seq(Model):
 
             vocab_targets = targets
 
-            copy_targets, copy_attention_maps = self.extract_coref(batch['coref'])
+            copy_targets = batch["coref_index"][:, 1:]
+            copy_attention_maps = batch['coref_map'][:, 1:]
+
         except:
             has_decoder_inputs = False
 
