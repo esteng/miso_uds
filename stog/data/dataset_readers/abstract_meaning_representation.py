@@ -8,7 +8,7 @@ from overrides import overrides
 from stog.data.amr import AMRTree
 from stog.utils.file import cached_path
 from stog.data.dataset_readers.dataset_reader import DatasetReader
-from stog.data.fields import TextField, SpanField, SequenceLabelField, ListField, MetadataField, Field
+from stog.data.fields import TextField, SpanField, SequenceLabelField, ListField, MetadataField, Field, AdjacencyField
 from stog.data.instance import Instance
 from stog.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
 from stog.data.tokenizers import Token
@@ -22,43 +22,17 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 @DatasetReader.register("amr_trees")
 class AbstractMeaningRepresentationDatasetReader(DatasetReader):
-    """
-    Reads constituency parses from the WSJ part of the Penn Tree Bank from the LDC.
-    This ``DatasetReader`` is designed for use with a span labelling model, so
-    it enumerates all possible spans in the sentence and returns them, along with gold
-    labels for the relevant spans present in a gold tree, if provided.
-
-    Parameters
-    ----------
-    token_indexers : ``Dict[str, TokenIndexer]``, optional (default=``{"tokens": SingleIdTokenIndexer()}``)
-        We use this to define the input representation for the text.  See :class:`TokenIndexer`.
-        Note that the `output` tags will always correspond to single token IDs based on how they
-        are pre-tokenised in the data file.
-    use_pos_tags : ``bool``, optional, (default = ``True``)
-        Whether or not the instance should contain gold POS tags
-        as a field.
-    lazy : ``bool``, optional, (default = ``False``)
-        Whether or not instances can be consumed lazily.
-    label_namespace_prefix : ``str``, optional, (default = ``""``)
-        Prefix used for the label namespace.  The ``span_labels`` will use
-        namespace ``label_namespace_prefix + 'labels'``, and if using POS
-        tags their namespace is ``label_namespace_prefix + pos_label_namespace``.
-    pos_label_namespace : ``str``, optional, (default = ``"pos"``)
-        The POS tag namespace is ``label_namespace_prefix + pos_label_namespace``.
-    """
+    '''
+    Dataset reader for AMR data
+    '''
     def __init__(self,
                  token_indexers: Dict[str, TokenIndexer] = None,
-                 use_pos_tags: bool = True,
-                 lazy: bool = False,
-                 label_namespace_prefix: str = "",
-                 pos_label_namespace: str = "pos",
                  word_splitter = None,
-                 data_type="AMR") -> None:
+                 lazy: bool = False
+                 ) -> None:
+
         super().__init__(lazy=lazy)
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
-        self._use_pos_tags = use_pos_tags
-        self._label_namespace_prefix = label_namespace_prefix
-        self._pos_label_namespace = pos_label_namespace
         self._word_splitter = word_splitter or SpacyWordSplitter()
 
     @overrides
@@ -89,73 +63,52 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                     tree = AMRTree(sequence.strip())
                     stacked_lines = []
                     sentence_conter += 1
-                    yield self.text_to_instance(tree, sentence_text, sentence_id)
+                    yield self.text_to_instance(tree)
                 else:
                     stacked_lines.append(line)
 
     @overrides
-    def text_to_instance(self, # type: ignore
-                         tree : AMRTree,
-                         sentence_text : str,
-                         sentence_id : str) -> Instance:
-        """
-        We take `pre-tokenized` input here, because we don't have a tokenizer in this class.
-
-        Parameters
-        ----------
-        tokens : ``List[str]``, required.
-            The tokens in a given sentence.
-        pos_tags ``List[str]``, optional, (default = None).
-            The POS tags for the words in the sentence.
-        gold_tree : ``Tree``, optional (default = None).
-            The gold parse tree to create span labels from.
-
-        Returns
-        -------
-        An ``Instance`` containing the following fields:
-            tokens : ``TextField``
-                The tokens in the sentence.
-            pos_tags : ``SequenceLabelField``
-                The POS tags of the words in the sentence.
-                Only returned if ``use_pos_tags`` is ``True``
-            spans : ``ListField[SpanField]``
-                A ListField containing all possible subspans of the
-                sentence.
-            span_labels : ``SequenceLabelField``, optional.
-                The constiutency tags for each of the possible spans, with
-                respect to a gold parse tree. If a span is not contained
-                within the tree, a span will have a ``NO-LABEL`` label.
-            gold_tree : ``MetadataField(Tree)``
-                The gold NLTK parse tree for use in evaluation.
-        """
+    def text_to_instance(self, tree : AMRTree) -> Instance:
         # pylint: disable=arguments-differ
+
         fields: Dict[str, Field] = {}
-        # TODO: Xutai
-        tokens = TextField(
-            [Token(START_SYMBOL)] + [Token(x) for x in tree.get_instance()] + [Token(END_SYMBOL)],
+
+        # These four fields are used for seq2seq model and target side self copy
+        fields["src_tokens"] = TextField(
+            tokens=self._word_splitter.split_words(tree.get_raw_string()),
+            token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
+        )
+
+        fields["amr_tokens"] = TextField(
+            tokens=[Token(x) for x in tree.get_instance(START_SYMBOL, END_SYMBOL)],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
-        fields["amr_tokens"] = tokens
 
-        fields["head_tags"] = SequenceLabelField(tree.get_relation(),
-                                                 tokens,
-                                                 label_namespace="head_tags",
-                                                 strip_sentence_symbols=True)
-        fields["head_indices"] = SequenceLabelField(tree.get_parent(),
-                                                     tokens,
-                                                     label_namespace="head_index_tags",
-                                                     strip_sentence_symbols=True)
-        coref_indexes = [0] + [i + 1 for i in tree.get_coref()]
-        coref_indexes += [len(coref_indexes)]
-        fields["coref"] = SequenceLabelField(coref_indexes,
-                                              tokens,
-                                              label_namespace="coref_tags",
-                                              strip_sentence_symbols=True
-                                              )
-        # TODO: Xutai
-        fields["src_tokens"] = TextField(
-            self._word_splitter.split_words(sentence_text),
-            token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
+        fields["coref_index"] = SequenceLabelField(
+            labels=tree.get_coref(bos=True, eos=True),
+            sequence_field=fields["amr_tokens"],
+            label_namespace="coref_tags",
+        )
+
+        fields["coref_map"] = AdjacencyField(
+            indices=tree.get_coref_map(bos=True, eos=True),
+            sequence_field=fields["amr_tokens"],
+            padding_value=0
+        )
+        
+        # These two fields are used in biaffine parser
+        fields["head_tags"] = SequenceLabelField(
+            labels=tree.get_relation(),
+            sequence_field=fields["amr_tokens"],
+            label_namespace="head_tags",
+            strip_sentence_symbols=True
+        )
+
+        fields["head_indices"] = SequenceLabelField(
+            labels=tree.get_parent(),
+            sequence_field=fields["amr_tokens"],
+            label_namespace="head_index_tags",
+            strip_sentence_symbols=True
         )
 
         return Instance(fields)
