@@ -110,3 +110,4 @@ experiment/
 smatch/
 
 .DS_Store
+._.DS_Store
