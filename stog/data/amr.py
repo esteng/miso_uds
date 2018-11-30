@@ -21,10 +21,10 @@ class AMRNode():
 
 
 class AMRTree():
-    def __init__(self, string=""):
+    def __init__(self, string="", sent=""):
         self.root_node = None
         self.node_list = []
-        self.raw_string = string
+        self.original_sentence = sent
         if len(string) > 0:
             self._parse_string(string)
             self._cal_corefenrence()
@@ -156,8 +156,8 @@ class AMRTree():
                 else:
                     node.instance = node.name
 
-    def get_raw_string(self):
-        return self.raw_string
+    def get_original_sentence(self):
+        return self.original_sentence
 
     def get_names(self):
         return [node.name for node in self.node_list]

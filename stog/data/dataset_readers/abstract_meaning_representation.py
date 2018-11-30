@@ -60,7 +60,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                         elif "# ::snt" in line:
                             sentence_text = line.strip().split("snt")[-1]
 
-                    tree = AMRTree(sequence.strip())
+                    tree = AMRTree(sequence.strip(), sentence_text)
                     stacked_lines = []
                     sentence_conter += 1
                     yield self.text_to_instance(tree)
@@ -75,7 +75,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         # These four fields are used for seq2seq model and target side self copy
         fields["src_tokens"] = TextField(
-            tokens=self._word_splitter.split_words(tree.get_raw_string()),
+            tokens=[Token(x) for x in tree.get_original_sentence().split()],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
         )
 
