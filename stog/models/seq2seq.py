@@ -374,7 +374,7 @@ class Seq2Seq(Model):
         predictions = torch.cat(predictions, dim=1)
         copy_indexes = torch.cat(copy_indexes, dim=1)
         source_attentions = torch.cat(source_attentions, dim=1)
-        copy_attentions = torch.cat(copy_attentions, dim=1)
+        #copy_attentions = torch.cat(copy_attentions, dim=1)
 
         return dict(
             # [batch_size, max_decode_length]
