@@ -59,8 +59,8 @@ class Predict(Subcommand):
         subparser = parser.add_parser(
                 name, description=description, help='Use a trained model to make predictions.')
 
-        subparser.add_argument('archive_file', required=True, type=str, help='the archived model to make predictions with')
-        subparser.add_argument('input_file', type=str, help='path to input file')
+        subparser.add_argument('--archive-file', required=True, type=str, help='the archived model to make predictions with')
+        subparser.add_argument('--input-file', type=str, help='path to input file')
 
         subparser.add_argument('--output-file', type=str, help='path to output file')
         subparser.add_argument('--weights-file',
@@ -210,8 +210,8 @@ def _predict(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser('Use a trained model to make predictions.')
 
-    parser.add_argument('--archive_file', required=True, type=str, help='the archived model to make predictions with')
-    parser.add_argument('--input_file', required=True, type=str, help='path to input file')
+    parser.add_argument('--archive-file', required=True, type=str, help='the archived model to make predictions with')
+    parser.add_argument('--input-file', required=True, type=str, help='path to input file')
 
     parser.add_argument('--output-file', type=str, help='path to output file')
     parser.add_argument('--weights-file', type=str, help='a path that overrides which weights file to use')
