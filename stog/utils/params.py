@@ -115,4 +115,4 @@ def remove_pretrained_embedding_params(params):
                 parameters[key] = None
             elif isinstance(v, dict):
                 recurse(v, key)
-    recurse(params.params, 'pretrained_file')
+    recurse(params, 'pretrained_file')
