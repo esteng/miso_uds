@@ -197,3 +197,10 @@ def move_to_device(obj, device):
         return tuple([move_to_device(item, device) for item in obj])
     else:
         return obj
+
+def occupy_gpu(device):
+    """
+    To prevent somebody taking you gpu if you are not using them.
+    """
+    torch.cuda.LongTensor(0)
+

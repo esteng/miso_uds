@@ -86,6 +86,7 @@ def train_model(params: Params):
     params.to_file(os.path.join(environment_params['serialization_dir'], CONFIG_NAME))
     if environment_params['gpu']:
         device = torch.device('cuda:{}'.format(environment_params['cuda_device']))
+        environment.occupy_gpu(device)
     else:
         device = torch.device('cpu')
     params['trainer']['device'] = device
