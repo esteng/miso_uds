@@ -65,6 +65,9 @@ class Params(object):
     def __len__(self):
         return len(self.params)
 
+    def get(self, key, default=None):
+        return self.params.get(key, default)
+
     def as_flat_dict(self):
         """
         Returns the parameters of a flat dictionary from keys to values.

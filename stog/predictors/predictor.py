@@ -11,20 +11,8 @@ from stog.utils.archival import Archive, load_archive
 
 # a mapping from model `type` to the default Predictor for that type
 DEFAULT_PREDICTORS = {
-        'atis_parser' : 'atis_parser',
-        'biaffine_parser': 'biaffine-dependency-parser',
-        'bidaf': 'machine-comprehension',
-        'bidaf-ensemble': 'machine-comprehension',
-        'bimpm': 'textual-entailment',
-        'constituency_parser': 'constituency-parser',
-        'coref': 'coreference-resolution',
-        'crf_tagger': 'sentence-tagger',
-        'decomposable_attention': 'textual-entailment',
-        'dialog_qa': 'dialog_qa',
-        'event2mind': 'event2mind',
-        'simple_tagger': 'sentence-tagger',
-        'srl': 'semantic-role-labeling',
-        'quarel_parser': 'quarel-parser'
+    'Seq2Seq': 'Seq2Seq',
+    'DeepBiaffineParser': 'BiaffineParser'
 }
 
 class Predictor(Registrable):
@@ -117,7 +105,7 @@ class Predictor(Registrable):
         config = archive.config.duplicate()
 
         if not predictor_name:
-            model_type = config.get("model").get("type")
+            model_type = config.get("model").get("model_type")
             if not model_type in DEFAULT_PREDICTORS:
                 raise ConfigurationError(f"No default predictor for model type {model_type}.\n"\
                                          f"Please specify a predictor explicitly.")

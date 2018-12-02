@@ -44,6 +44,8 @@ import argparse
 import sys
 import json
 
+import torch
+
 from stog.commands.subcommand import Subcommand
 from stog.utils.checks import check_for_gpu, ConfigurationError
 from stog.utils import lazy_groups_of
@@ -84,21 +86,17 @@ class Predict(Subcommand):
                                default="",
                                help='a JSON structure used to override the experiment configuration')
 
-        subparser.add_argument('--predictor',
-                               type=str,
-                               help='optionally specify a specific predictor to use')
-
         subparser.set_defaults(func=_predict)
 
         return subparser
 
 def _get_predictor(args: argparse.Namespace) -> Predictor:
-    check_for_gpu(args.cuda_device)
+    # check_for_gpu(args.cuda_device)
     archive = load_archive(args.archive_file,
                            device=args.cuda_device,
                            weights_file=args.weights_file)
 
-    return Predictor.from_archive(archive, args.predictor)
+    return Predictor.from_archive(archive)
 
 
 class _PredictManager:
@@ -239,8 +237,14 @@ if __name__ == "__main__":
                         type=int,
                         default=1,
                         help="Beam size for seq2seq decoding")
-    
+
     args = parser.parse_args()
-    
+
+    if args.cuda_device >= 0:
+        device = torch.device('cuda:{}'.format(args.cuda_device))
+    else:
+        device = torch.device('cpu')
+    args.cuda_device = device
+
     _predict(args)
 
