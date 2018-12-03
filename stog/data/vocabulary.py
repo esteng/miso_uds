@@ -598,8 +598,8 @@ class Vocabulary:
     def get_token_from_index(self, index: int, namespace: str = 'tokens') -> str:
         return self._index_to_token[namespace][index]
 
-    def get_tokens_from_tensor(self, t, namespace):
-        return [self.get_token_from_index(i, namespace) for i in t.tolist()]
+    def get_tokens_from_list(self, t, namespace):
+        return [self.get_token_from_index(i, namespace) for i in t]
 
     def get_vocab_size(self, namespace: str = 'tokens') -> int:
         return len(self._token_to_index[namespace])

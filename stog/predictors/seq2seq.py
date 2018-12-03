@@ -27,15 +27,28 @@ class Seq2SeqPredictor(Predictor):
         return self._dataset_reader.text_to_instance(source)
 
     @overrides
+    def predict_batch_instance(self, instances):
+        outputs = []
+        _outputs = super(Seq2SeqPredictor, self).predict_batch_instance(instances)
+        for output in _outputs:
+            pred_token_indexes = output['predictions']
+            copy_indexes = output.get('copy_indexes', None)
+            tokens = self._model.vocab.get_tokens_from_list(pred_token_indexes, 'decoder_token_ids')
+            if END_SYMBOL in tokens:
+                tokens = tokens[:tokens.index(END_SYMBOL)]
+                copy_indexes = copy_indexes[:len(tokens)] if copy_indexes else None
+            outputs.append(dict(
+                tokens=tokens,
+                copy_indexes=copy_indexes
+            ))
+        return outputs
+
+    @overrides
     def dump_line(self, output):
-        pred_token_index = output["predictions"]
-        pred_token_str = []
-        for index in output["predictions"]:
-            if index == self._model.vocab.get_token_index(END_SYMBOL, "decoder_token_ids"):
-                break
-            pred_token_str.append(
-                self._model.vocab.get_token_from_index(index, "decoder_token_ids")
-            )
-        
         #TODO: print attention
-        return " ".join(pred_token_str)  + "\n"
+        if output['copy_indexes'] is None:
+            return ' '.join(output['tokens']) + '\n'
+        else:
+            return ' '.join(
+                '{}/{}'.format(t, c) for t, c in zip(output['tokens'], output['copy_indexes'])
+            ) + '\n'

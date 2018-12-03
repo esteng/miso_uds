@@ -74,7 +74,7 @@ def sanitize(x: Any) -> Any:  # pylint: disable=invalid-name,too-many-return-sta
     Sanitize turns PyTorch and Numpy types into basic Python types so they
     can be serialized into JSON.
     """
-    if isinstance(x, (str, float, int, bool, list)):
+    if isinstance(x, (str, float, int, bool)):
         # x is already serializable
         return x
     elif isinstance(x, torch.Tensor):

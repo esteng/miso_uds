@@ -90,6 +90,7 @@ class Predict(Subcommand):
 
         return subparser
 
+
 def _get_predictor(args: argparse.Namespace) -> Predictor:
     # check_for_gpu(args.cuda_device)
     archive = load_archive(args.archive_file,
@@ -188,6 +189,7 @@ class _PredictManager:
         if self._output_file is not None:
             self._output_file.close()
 
+
 def _predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)
 
@@ -204,6 +206,7 @@ def _predict(args: argparse.Namespace) -> None:
                               args.use_dataset_reader,
                               args.beam_size)
     manager.run()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser('Use a trained model to make predictions.')
