@@ -2,6 +2,11 @@ import re
 
 from pycorenlp import StanfordCoreNLP
 
+from stog.utils import logging
+
+
+logger = logging.init_logger()
+
 
 class FeatureAnnotator:
 
@@ -184,7 +189,6 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser('add_features.py')
     parser.add_argument('files', nargs='+', help='files to annotate.')
-    parser.add_argument('--output_dir', default='')
     parser.add_argument('--compound_file', default='')
 
     args = parser.parse_args()
@@ -192,12 +196,15 @@ if __name__ == '__main__':
     annotator = FeatureAnnotator('http://localhost:9000', args.compound_file)
 
     for file_path in args.files:
-        print(file_path)
-        for amr in AMRProcessor.read(file_path):
-            annotation = annotator(amr.sentence)
-            amr.tokens = annotation['tokens']
-            amr.lemmas = annotation['lemmas']
-            amr.pos_tags = annotation['pos_tags']
-            amr.ner_tags = annotation['ner_tags']
-            print(amr)
-            import pdb; pdb.set_trace()
+        logger.info('Processing {}'.format(file_path))
+        with open(file_path + '.add_features', 'w', encoding='utf-8') as f:
+            for i, amr in enumerate(AMRProcessor.read(file_path), 1):
+                if i % 1000 == 0:
+                    logger.info('{} processed.'.format(i))
+                annotation = annotator(amr.sentence)
+                amr.tokens = annotation['tokens']
+                amr.lemmas = annotation['lemmas']
+                amr.pos_tags = annotation['pos_tags']
+                amr.ner_tags = annotation['ner_tags']
+                AMRProcessor.dump([amr], f)
+    logger.info('Done!')

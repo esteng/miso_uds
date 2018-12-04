@@ -85,7 +85,6 @@ class AMRProcessor:
                 yield amr
 
     @staticmethod
-    def write(amr_instances, file_path):
-        with open(file_path, 'w', encoding='utf-8') as f:
-            for amr in amr_instances:
-                f.write(str(amr) + '\n\n')
+    def dump(amr_instances, f):
+        for amr in amr_instances:
+            f.write(str(amr) + '\n\n')
