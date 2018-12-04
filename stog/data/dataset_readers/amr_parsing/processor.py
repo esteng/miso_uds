@@ -1,3 +1,5 @@
+import json
+
 import penman
 
 
@@ -21,9 +23,6 @@ class AMRAnnotation:
         self.ner_tags = ner_tags
         self.misc = misc
 
-    def is_empty(self):
-        return self.graph is None
-
     def __repr__(self):
         fields = []
         for k, v in dict(
@@ -34,15 +33,17 @@ class AMRAnnotation:
             pos_tags=self.pos_tags,
             ner_tags=self.ner_tags,
             misc=self.misc,
-            graph=penman.encode(self.graph, indent=6)
-        ):
+            graph=self.graph
+        ).items():
             if v is None:
                 continue
             if k == 'misc':
                 fields += v
             elif k == 'graph':
-                fields.append(v)
+                fields.append(penman.encode(v, indent=6))
             else:
+                if not isinstance(v, str):
+                    v = json.dumps(v)
                 fields.append('# ::{} {}'.format(k, v))
         return '\n'.join(fields)
 
@@ -59,9 +60,9 @@ class AMRProcessor:
             graph_lines = []
             misc_lines = []
             for line in f:
-                line = line.strip()
+                line = line.rstrip()
                 if line == '':
-                    if not amr.is_empty():
+                    if len(graph_lines) != 0:
                         amr.graph = penman.decode(' '.join(graph_lines))
                         amr.misc = misc_lines
                         yield amr

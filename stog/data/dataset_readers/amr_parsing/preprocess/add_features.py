@@ -54,7 +54,7 @@ class FeatureAnnotator:
                 len(tokens), len(value), '\n', list(zip(tokens, value)), tokens, value)
 
     def annotate(self, text):
-        tokens = self.nlp.annotate(text.strip(), self.nlp_properties)[0]['tokens']
+        tokens = self.nlp.annotate(text.strip(), self.nlp_properties)['sentences'][0]['tokens']
         output = dict(
             tokens=[], lemmas=[], pos_tags=[], ner_tags=[]
         )
@@ -192,9 +192,12 @@ if __name__ == '__main__':
     annotator = FeatureAnnotator('http://localhost:9000', args.compound_file)
 
     for file_path in args.files:
+        print(file_path)
         for amr in AMRProcessor.read(file_path):
             annotation = annotator(amr.sentence)
             amr.tokens = annotation['tokens']
             amr.lemmas = annotation['lemmas']
             amr.pos_tags = annotation['pos_tags']
             amr.ner_tags = annotation['ner_tags']
+            print(amr)
+            import pdb; pdb.set_trace()
