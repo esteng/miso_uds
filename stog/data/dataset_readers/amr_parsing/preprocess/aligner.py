@@ -82,7 +82,6 @@ class Aligner:
 
 if __name__ == '__main__':
     import argparse
-    from collections import Counter
 
     from stog.data.dataset_readers.amr_parsing.node_utils import NodeUtilities as NU
 

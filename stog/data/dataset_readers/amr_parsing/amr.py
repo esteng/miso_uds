@@ -140,6 +140,13 @@ class AMRGraph(penman.Graph):
         if self._top not in self.variables():
             self._top = None
 
+    def is_name_node(self, node):
+        edges = list(self._G.in_edges(node))
+        if len(edges) != 1:
+            return False
+        source, target = edges[0]
+        return self._G[source][target]['label'] == 'name'
+
     def remove_edge(self, x, y):
         if isinstance(x, AMRNode) and isinstance(y, AMRNode):
             self._G.remove_edge(x, y)
