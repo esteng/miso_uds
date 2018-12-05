@@ -254,7 +254,7 @@ class Model(torch.nn.Module):
         # want the code to look for it, so we remove it from the parameters here.
         remove_pretrained_embedding_params(model_params)
         model = cls.from_params(vocab=vocab, params=model_params)
-        model_state = torch.load(weights_file, map_location=device_mapping(device))
+        model_state = torch.load(weights_file, map_location=device_mapping(-1))
         model.load_state_dict(model_state)
         model.set_vocab(vocab)
         model.to(device)

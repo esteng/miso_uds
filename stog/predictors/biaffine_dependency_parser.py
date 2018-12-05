@@ -16,7 +16,7 @@ from stog.data.token_indexers import SingleIdTokenIndexer, TokenCharactersIndexe
 from stog.data.fields import TextField
 from stog.data.tokenizers import Token
 
-@Predictor.register('AMRParser')
+@Predictor.register('BiaffineParser')
 class BiaffineDependencyParserPredictor(Predictor):
     """
     Predictor for the :class:`~allennlp.models.BiaffineDependencyParser` model.
@@ -62,7 +62,7 @@ class BiaffineDependencyParserPredictor(Predictor):
     def predict_batch_instance(self, instances: List[Instance]) -> List[JsonDict]:
         outputs = self._model.forward_on_instances(instances)
         for output in outputs:
-            return sanitize(outputs) 
+            return sanitize(outputs)
 
     @overrides
     def load_line(self, line: str) -> JsonDict:  # pylint: disable=no-self-use
@@ -77,13 +77,13 @@ class BiaffineDependencyParserPredictor(Predictor):
         )
         fields["amr_tokens"] = tokens
         return Instance(fields)
-    
+
     def dump_line(self, outputs: JsonDict) -> str:  # pylint: disable=no-self-use
         """
         If you don't want your outputs in JSON-lines format
         you can override this function to output them differently.
         """
         return outputs["predictions"] + "\n\n"
-        
+
 
 

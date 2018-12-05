@@ -123,7 +123,12 @@ class CopyGenerator(torch.nn.Module):
         num_correct_copy = pred_eq.mul(copy_mask).sum().item()
         self.metrics(loss.sum().item(), num_non_pad, num_correct_pred, num_copy, num_correct_copy)
 
+        if self.force_copy:
+            num_tokens = num_non_pad
+        else:
+            num_tokens = num_non_pad + copy_mask.sum().item()
+
         return dict(
-            loss=loss.sum().div(float(num_non_pad)),
+            loss=loss.sum().div(float(num_tokens)),
             predictions=predictions
         )
