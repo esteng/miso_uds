@@ -13,8 +13,10 @@ from stog.utils.string import START_SYMBOL, END_SYMBOL
 from stog.predictors.predictor import Predictor
 from stog.data.tokenizers.word_splitter import SpacyWordSplitter
 from stog.data.token_indexers import SingleIdTokenIndexer, TokenCharactersIndexer
-from stog.data.fields import TextField
+from stog.data.fields import TextField, SequenceLabelField
 from stog.data.tokenizers import Token
+
+import json
 
 @Predictor.register('AMRParser')
 class BiaffineDependencyParserPredictor(Predictor):
@@ -43,22 +45,6 @@ class BiaffineDependencyParserPredictor(Predictor):
         return self.predict_json({"sentence" : sentence})
 
     @overrides
-    def _json_to_instance(self, json_dict: JsonDict) -> Instance:
-        """
-        Expects JSON that looks like ``{"sentence": "..."}``.
-        """
-        spacy_tokens = self._tokenizer.split_words(json_dict["sentence"])
-        sentence_text = [token.text for token in spacy_tokens]
-        if self._dataset_reader.use_language_specific_pos: # type: ignore
-            # fine-grained part of speech
-            pos_tags = [token.tag_ for token in spacy_tokens]
-        else:
-            # coarse-grained part of speech (Universal Depdendencies format)
-            pos_tags = [token.pos_ for token in spacy_tokens]
-        return self._dataset_reader.text_to_instance(sentence_text, pos_tags)
-
-
-    @overrides
     def predict_batch_instance(self, instances: List[Instance]) -> List[JsonDict]:
         outputs = self._model.forward_on_instances(instances)
         for output in outputs:
@@ -66,16 +52,22 @@ class BiaffineDependencyParserPredictor(Predictor):
 
     @overrides
     def load_line(self, line: str) -> JsonDict:  # pylint: disable=no-self-use
-        return {"tokens" : line.split()}
+        return json.loads(line.strip())
 
     @overrides
     def _json_to_instance(self, json_dict: JsonDict) -> Instance:
         fields: Dict[str, Field] = {}
         tokens = TextField(
-            [Token(START_SYMBOL)] + [Token(x) for x in json_dict["tokens"]] + [Token(END_SYMBOL)],
+            [Token(START_SYMBOL)] + [Token(x) for x in json_dict["tokens"].split(' ')] + [Token(END_SYMBOL)],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
         fields["amr_tokens"] = tokens
+        coref_int = [int(x) + 1 for x in json_dict['coref'].split(' ')] 
+        fields["coref_index"] = SequenceLabelField(
+            labels=[0] + coref_int + [len(coref_int)],
+            sequence_field=fields["amr_tokens"],
+            label_namespace="coref_tags",
+        )
         return Instance(fields)
     
     def dump_line(self, outputs: JsonDict) -> str:  # pylint: disable=no-self-use
