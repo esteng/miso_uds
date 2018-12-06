@@ -11,7 +11,7 @@ logger = logging.init_logger()
 class FeatureAnnotator:
 
     NumberTexts = ('hundred', 'thousand', 'million', 'billion', 'trillion',
-                    'hundreds', 'thousands', 'millions', 'billions', 'trillions')
+                   'hundreds', 'thousands', 'millions', 'billions', 'trillions')
     DashedNumbers = re.compile(r'-*\d+-\d+')
 
     def __init__(self, url, compound_map_file):
@@ -185,9 +185,9 @@ class FeatureAnnotator:
 if __name__ == '__main__':
     import argparse
 
-    from stog.data.dataset_readers.amr_parsing.processor import AMRProcessor
+    from stog.data.dataset_readers.amr_parsing.io import AMRIO
 
-    parser = argparse.ArgumentParser('add_features.py')
+    parser = argparse.ArgumentParser('feature_annotator.py')
     parser.add_argument('files', nargs='+', help='files to annotate.')
     parser.add_argument('--compound_file', default='')
 
@@ -197,8 +197,8 @@ if __name__ == '__main__':
 
     for file_path in args.files:
         logger.info('Processing {}'.format(file_path))
-        with open(file_path + '.add_features', 'w', encoding='utf-8') as f:
-            for i, amr in enumerate(AMRProcessor.read(file_path), 1):
+        with open(file_path + '.features', 'w', encoding='utf-8') as f:
+            for i, amr in enumerate(AMRIO.read(file_path), 1):
                 if i % 1000 == 0:
                     logger.info('{} processed.'.format(i))
                 annotation = annotator(amr.sentence)
@@ -206,5 +206,5 @@ if __name__ == '__main__':
                 amr.lemmas = annotation['lemmas']
                 amr.pos_tags = annotation['pos_tags']
                 amr.ner_tags = annotation['ner_tags']
-                AMRProcessor.dump([amr], f)
+                AMRIO.dump([amr], f)
     logger.info('Done!')
