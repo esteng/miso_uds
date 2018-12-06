@@ -25,6 +25,7 @@ class AMRTree():
         self.root_node = None
         self.node_list = []
         self.original_sentence = sent
+        self.amr_string=string
         if len(string) > 0:
             self._parse_string(string)
             self._cal_corefenrence()
@@ -108,7 +109,7 @@ class AMRTree():
             return node
 
     def _is_relation(self, token):
-        return token[0] == ":"
+        return token[0] == ":" and len(token) > 1
 
     def _is_end(self, token):
         return token[-1] == ")"
