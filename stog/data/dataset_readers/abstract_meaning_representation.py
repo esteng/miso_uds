@@ -16,6 +16,7 @@ from stog.data.tokenizers.word_splitter import SpacyWordSplitter
 from stog.data.dataset_readers.dataset_utils.span_utils import enumerate_spans
 from stog.utils.checks import ConfigurationError
 from stog.utils.string import START_SYMBOL, END_SYMBOL
+import json
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -62,8 +63,12 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                             sentence_id = line.split(" ")[2]
                         elif "# ::snt" in line:
                             sentence_text = line.strip().split("snt")[-1]
+                        elif "# ::lemmas" in line:
+                            lemmas = " ".join(json.loads(line.strip().split("lemmas")[-1]))
 
-                    tree = AMRTree(sequence.strip(), sentence_text)
+
+                    # Use lemmas for now
+                    tree = AMRTree(sequence.strip(), lemmas)
                     stacked_lines = []
                     sentence_conter += 1
                     yield self.text_to_instance(tree)
