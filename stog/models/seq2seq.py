@@ -483,7 +483,7 @@ class Seq2Seq(Model):
             dropout=InputVariationalDropout(p=params['decoder']['dropout'])
         )
 
-        if params['use_self_copy']:
+        if params.get('use_self_copy', False):
             attention_module = DotProductAttention(
                 decoder_hidden_size=params['decoder']['hidden_size'],
                 encoder_hidden_size=params['decoder']['hidden_size'],
@@ -515,7 +515,7 @@ class Seq2Seq(Model):
         return cls(
             vocab=vocab,
             use_char_cnn=params['use_char_cnn'],
-            use_self_copy=params['use_self_copy'],
+            use_self_copy=params.get('use_self_copy', False),
             max_decode_length=params.get('max_decode_length', 50),
             encoder_token_embedding=encoder_token_embedding,
             encoder_char_embedding=encoder_char_embedding,

@@ -28,12 +28,14 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
     def __init__(self,
                  token_indexers: Dict[str, TokenIndexer] = None,
                  word_splitter = None,
-                 lazy: bool = False
+                 lazy: bool = False,
+                 skip_first_line: bool = True
                  ) -> None:
 
         super().__init__(lazy=lazy)
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
         self._word_splitter = word_splitter or SpacyWordSplitter()
+        self._skip_first_line = skip_first_line
 
     @overrides
     def _read(self, file_path):
@@ -47,7 +49,8 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         sentence_id = ""
         sentence_text = ""
         with open(file_path, 'r') as f:
-            f.readline()
+            if self._skip_first_line:
+                f.readline()
             for line in f:
                 if len(line) <= 1 and len(stacked_lines) > 0:
                     sequence = ""

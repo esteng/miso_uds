@@ -101,7 +101,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
         # Batch automatically pad all the instance to the same lengths, so remove the last two.
         headers = batch.get("head_indices", None)
         labels = batch.get("head_tags", None)
-        coreference = batch.get('coref', None)
+        coreference = batch.get('coref_index', None)
 
         if headers is not None:
             headers = headers[:, :-2]
@@ -168,13 +168,13 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             loss=loss / num_tokens,
             edge_loss=edge_nll / num_tokens,
             label_loss=label_nll / num_tokens,
-            amr_tokens=input_token
+            amr_tokens=input_token,
+            coref_index=coreference[:, 1:]
         )
 
     def decode(self, torch_dict):
         output_list = []
         batch_size, max_len = torch_dict['mask'].size()
-        #import pdb;pdb.set_trace()
         for i in range(batch_size):
             current_len = int(torch.sum(torch_dict['mask'][i]).tolist())
             head_tags = [self.vocab.get_token_from_index(x, "head_tags") for x in torch_dict['relations'][i][:current_len].tolist()]
@@ -182,8 +182,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             head_indices = [x for x in head_indices]
             tokens = [ self.vocab.get_token_from_index(x,"decoder_token_ids") for x in torch_dict['amr_tokens'][i][:current_len].tolist() ]
             
-            #TODO: coreference here
-            coref = [ii + 1 for ii in range(current_len)]
+            coref = torch_dict['coref_index'][i][:current_len].tolist()
 
             t = AMRTree()
             t.recover_from_list(
