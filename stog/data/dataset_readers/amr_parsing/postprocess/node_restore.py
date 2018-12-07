@@ -52,14 +52,14 @@ if __name__ == '__main__':
     from stog.data.dataset_readers.amr_parsing.node_utils import NodeUtilities as NU
 
     parser = argparse.ArgumentParser('node_restore.py')
-    parser.add_argument('--amr_train_files', nargs='+', required=True)
+    parser.add_argument('--amr_train_files', nargs='+')
     parser.add_argument('--amr_dev_files', nargs='+', required=True)
-    parser.add_argument('--propbank_dir', default='data/misc/propbank-frames-xml-2016-03-08/')
-    parser.add_argument('--verbalize_file', default='data/misc/verbalization-list-v1.06.txt')
+    parser.add_argument('--json_dir', default='./temp')
+    parser.add_argument('--threshold', type=int, default=5)
 
     args = parser.parse_args()
 
-    node_utils = NU(args.amr_train_files, args.propbank_dir, args.verbalize_file, args.amr_dev_files)
+    node_utils = NU.from_json(args.json_dir, args.threshold)
 
     nr = NodeRestore(node_utils)
 
