@@ -11,6 +11,7 @@ conllu
 pyyaml
 pycorenlp
 penman
+editdistance
 
 # Write logs for training visualisation with the Tensorboard application
 # Install the Tensorboard application separately (part of tensorflow) to view them.
