@@ -52,6 +52,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                 output, memory_bank, mask)
 
             output = self.dropout(output)
+            augmented_output = self.dropout(augmented_output)
 
             input_feed = output # .clone()
 
