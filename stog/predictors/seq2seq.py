@@ -45,22 +45,12 @@ class Seq2SeqPredictor(Predictor):
 
     @overrides
     def dump_line(self, output):
-        pred_token_index = output["predictions"]
-        pred_token_str = []
-        pred_coref_str = []
-        for ii, index in enumerate(output["predictions"]):
-            if index == self._model.vocab.get_token_index(END_SYMBOL, "decoder_token_ids"):
-                break
-            pred_token_str.append(
-                self._model.vocab.get_token_from_index(index, "decoder_token_ids")
-            )
-            pred_coref_str.append(
-                str(output['copy_indexes'][ii])
-            )
-        
+        pred_token_str = output["tokens"]
+        pred_coref_str = output["copy_indexes"]
 
         dict_to_print = {
-            "tokens" : " ".join(pred_token_str),
-            "coref" : " ".join(pred_coref_str)
+            "tokens" : " ".join(output["tokens"]),
+            #"coref" : output["copy_indexes"]
+             "coref" : [x for x in range(len(output["copy_indexes"]))]
         }
         return json.dumps(dict_to_print) + '\n'
