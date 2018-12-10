@@ -135,7 +135,7 @@ class Seq2Seq(Model):
         )
 
         if for_training and has_decoder_inputs:
-            decoder_memory_bank, source_attentions, decoder_final_states = self.decode_for_training(
+            decoder_memory_bank, aug_decoder_memory_bank, source_attentions, decoder_final_states = self.decode_for_training(
                 decoder_token_inputs,
                 decoder_char_inputs,
                 encoder_memory_bank,
@@ -149,8 +149,8 @@ class Seq2Seq(Model):
             )
 
             if self.use_self_copy:
-                copy_attentions = self.self_copy_attention(decoder_memory_bank, decoder_memory_bank)
-                _generator_output = self.generator(decoder_memory_bank, copy_attentions, copy_attention_maps)
+                copy_attentions = self.self_copy_attention(aug_decoder_memory_bank, aug_decoder_memory_bank)
+                _generator_output = self.generator(decoder_memory_bank, aug_decoder_memory_bank, copy_attentions, copy_attention_maps)
                 generator_output = self.generator.compute_loss(
                     _generator_output['probs'],
                     _generator_output['predictions'],
@@ -207,9 +207,9 @@ class Seq2Seq(Model):
 
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
-        decoder_outputs, attentions, decoder_final_states, _ = \
+        decoder_outputs, augmented_decoder_outputs, attentions, decoder_final_states, _ = \
             self.decoder(decoder_inputs, memory_bank, mask, states)
-        return decoder_outputs, attentions, decoder_final_states
+        return decoder_outputs, augmented_decoder_outputs, attentions, decoder_final_states
 
     def _get_encoder_char_cnn_output(self, chars):
         # [batch, num_tokens, num_chars, embedding_size]
@@ -280,7 +280,7 @@ class Seq2Seq(Model):
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
             # Decode one step.
-            _decoder_outputs, _source_attentions, states, input_feed = \
+            _decoder_outputs, _aug_decoder_outputs, _source_attentions, states, input_feed = \
                 self.decoder(decoder_inputs, memory_bank, mask, states, input_feed)
 
             generator_output = self.generator(_decoder_outputs)
@@ -313,7 +313,7 @@ class Seq2Seq(Model):
         input_feed = None
         source_attentions = []
         copy_attentions = []
-        decoder_outputs = []
+        aug_decoder_outputs = []
         predictions = []
         copy_indexes = []
 
@@ -343,7 +343,7 @@ class Seq2Seq(Model):
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
             # Decode one step.
-            _decoder_outputs, _source_attentions, states, input_feed = \
+            _decoder_outputs, _aug_decoder_outputs, _source_attentions, states, input_feed = \
                 self.decoder(decoder_inputs, memory_bank, mask, states, input_feed)
 
             if step_i == 0:
@@ -351,18 +351,18 @@ class Seq2Seq(Model):
                 _copy_attentions = _decoder_outputs.new_ones(batch_size, 1, 1).type_as(memory_bank)
                 _attention_maps = _decoder_outputs.new_zeros(batch_size, 1, 1).type_as(memory_bank)
             else:
-                decoder_outputs_by_far = torch.cat(decoder_outputs, dim=1)
-                _copy_attentions = self.self_copy_attention(_decoder_outputs, decoder_outputs_by_far)
+                decoder_outputs_by_far = torch.cat(aug_decoder_outputs, dim=1)
+                _copy_attentions = self.self_copy_attention(_aug_decoder_outputs, decoder_outputs_by_far)
                 _attention_maps = attention_maps[:, :step_i]
 
             # Generate.
-            generator_output = self.generator(_decoder_outputs, _copy_attentions, _attention_maps)
+            generator_output = self.generator(_decoder_outputs, _aug_decoder_outputs, _copy_attentions, _attention_maps)
             _predictions = generator_output['predictions']
 
             # Update decoder outputs.
             copy_attentions += [_copy_attentions]
             source_attentions += _source_attentions
-            decoder_outputs += [_decoder_outputs]
+            aug_decoder_outputs += [_aug_decoder_outputs]
 
             tokens, copy_index = self._update_maps_and_get_next_input(
                 step_i, _predictions.squeeze(1), attention_maps, dynamic_vocab_maps)
@@ -485,8 +485,8 @@ class Seq2Seq(Model):
 
         if params.get('use_self_copy', False):
             attention_module = DotProductAttention(
-                decoder_hidden_size=params['decoder']['hidden_size'],
-                encoder_hidden_size=params['decoder']['hidden_size'],
+                decoder_hidden_size=params['decoder']['hidden_size'] * 2,
+                encoder_hidden_size=params['decoder']['hidden_size'] * 2,
                 add_linear=params['self_copy_attention'].get('add_linear', True)
             )
             self_copy_attention = SelfCopyAttention(

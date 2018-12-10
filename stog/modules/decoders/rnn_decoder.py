@@ -33,6 +33,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         one_step_length = [1] * batch_size
         attentions = []
         output_sequences = []
+        augmented_output_sequences = []
 
         if input_feed is None:
             input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
@@ -47,14 +48,17 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             # output: [batch_size, 1, hidden_size]
             output, _ = pad_packed_sequence(packed_output, batch_first=True)
 
-            output, attention = self.attention_layer(output, memory_bank, mask)
+            output, augmented_output, attention = self.attention_layer(
+                output, memory_bank, mask)
 
             output = self.dropout(output)
 
             input_feed = output # .clone()
 
             output_sequences.append(output)
+            augmented_output_sequences.append(augmented_output)
             attentions.append(attention)
 
         output_sequences = torch.cat(output_sequences, 1)
-        return output_sequences, attentions, hidden_state, input_feed
+        augmented_output_sequences = torch.cat(augmented_output_sequences, 1)
+        return output_sequences, augmented_output_sequences, attentions, hidden_state, input_feed
