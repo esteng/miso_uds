@@ -1,8 +1,8 @@
 # Parameters of the Seq2Seq Model
 
 # Device-sensitive parameters
-amr_data_dir: &amr_data_dir /export/ssd/xma/data/all_amr
-glove: &glove /export/ssd/sheng/data/glove/glove.840B.300d.zip
+amr_data_dir: &amr_data_dir data/all_amr
+glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
 
 
 # Model parameters
@@ -81,6 +81,14 @@ model:
     force_copy: True
 
 
+# Vocabulary
+vocab:
+  min_count:
+      encoder_token_ids: 2
+      decoder_token_ids: 2
+  max_vocab_size: 30000
+
+
 # Data parameters
 data:
   data_dir: *amr_data_dir
@@ -89,7 +97,7 @@ data:
   test_data: test_amr.txt
   data_type: AMR
   batch_first: True
-  train_batch_size: &train_batch_size 50
+  train_batch_size: &train_batch_size 32
   test_batch_size: 32
   iter_type: BucketIterator
   pretrain_token_emb: *glove
@@ -102,7 +110,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir selfcopy-ckpt
+  serialization_dir: &serialization_dir selfcopy-ckpt-vocab
   file_friendly_logging: False
   gpu: True
   cuda_device: 0
