@@ -5,6 +5,10 @@ import penman
 import networkx as nx
 
 
+# Disable inverting ':mod' relation.
+penman.AMRCodec._inversions.pop('domain')
+penman.AMRCodec._deinversions.pop('mod')
+
 amr_codec = penman.AMRCodec(indent=6)
 
 WORDSENSE_RE = re.compile(r'-\d\d$')
@@ -89,6 +93,14 @@ class AMRNode:
             ret += '\n\t:{} {}'.format(key, value)
         return ret
 
+    @property
+    def instance(self):
+        for key, value in self.attributes:
+            if key == 'instance':
+                return value
+        else:
+            return None
+
     def remove_attribute(self, attr, value):
         self.attributes.remove((attr, value))
 
@@ -134,6 +146,18 @@ class AMRGraph(penman.Graph):
             G.add_edge(source, target, label=edge.relation)
 
         self._G = G
+
+    def attributes(self, source=None, relation=None, target=None):
+        # Refine attributes because there's a bug in penman.attributes()
+        # See https://github.com/goodmami/penman/issues/29
+        attrmatch = lambda a: (
+                (source is None or source == a.source) and
+                (relation is None or relation == a.relation) and
+                (target is None or target == a.target)
+        )
+        variables = self.variables()
+        attrs = [t for t in self.triples() if t.target not in variables or t.relation == 'instance']
+        return list(filter(attrmatch, attrs))
 
     def _update_penman_graph(self, triples):
         self._triples = triples

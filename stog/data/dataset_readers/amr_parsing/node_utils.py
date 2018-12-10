@@ -38,24 +38,36 @@ class NodeUtilities:
         self.lemma_frame_map = None
         self.frame_lemma_map = None
 
-    def get_lemma(self, frame):
+    def get_lemmas(self, frame):
+        """
+        Given a frame, find the most likely lemmas for the frame.
+        If no lemma is found, return a single element list [frame].
+        """
         if frame not in self.frame_lemma_map:
-            return frame
+            return [frame]
         else:
             frame_lemma = re.sub(r'-\d\d$', '', frame)
-            lemmas = self.frame_lemma_map[frame]
-            return max(lemmas, key=lambda lemma: editdistance.eval(frame_lemma, lemma))
+            lemmas = list(self.frame_lemma_map[frame])
+            lemmas.sort(key=lambda lemma: editdistance.eval(frame_lemma, lemma), reverse=True)
+            return lemmas
 
-    def get_frame(self, lemma):
+    def get_frames(self, lemma):
+        """
+        Given a lemma, find the most likely frames for the lemma.
+        If no lemma is found or it should be a senseless node, return a single element list [lemma].
+        """
         if lemma in self.frequent_senseless_nodes or lemma not in self.lemma_frame_map:
-            return lemma
+            return [lemma]
         else:
-            frames = self.lemma_frame_map[lemma]
-            return max(frames,
-                       key=lambda frame: (
-                            editdistance.eval(re.sub(r'-\d\d$', '', frame), lemma),
-                            -int(frame[-2:]) if re.search(r'-\d\d$', frame) else 0
-                    ))
+            frames = list(self.lemma_frame_map[lemma])
+            frames.sort(
+                key=lambda frame: (
+                    editdistance.eval(re.sub(r'-\d\d$', '', frame), lemma),
+                    -int(frame[-2:]) if re.search(r'-\d\d$', frame) else 0
+                ),
+                reverse=True
+            )
+            return frames
 
     @classmethod
     def from_json(cls, json_dir, frequent_threshold=50):
