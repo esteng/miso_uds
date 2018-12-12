@@ -65,6 +65,9 @@ class Params(object):
     def __len__(self):
         return len(self.params)
 
+    def items(self):
+        return self.params.items()
+
     def get(self, key, default=None):
         return self.params.get(key, default)
 

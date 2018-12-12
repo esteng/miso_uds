@@ -169,9 +169,6 @@ class Trainer:
         train_generator_tqdm = Tqdm.tqdm(train_generator, total=num_training_batches)
 
         for batch in train_generator_tqdm:
-            if batch['amr_tokens']['decoder_tokens'].size(1) == 1:
-                continue
-
             batches_this_epoch += 1
             self._num_trained_batches += 1
 

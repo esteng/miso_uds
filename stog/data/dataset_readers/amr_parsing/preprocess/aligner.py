@@ -1,83 +1,92 @@
 import re
 
+import nltk
+
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
 
 
 class Aligner:
+    """
+    This aligner **only** aligns instances of AMR nodes to lemmas of the input sentence.
+    Other attributes' alignment will be done in the recategorization stage because some
+    attributes will be collapsed into a simpler one, and some attributes are numerical, will
+    be handled differently.
+    """
 
     def __init__(self, node_utils):
         self.node_utils = node_utils
+        self.stemmer = nltk.stem.SnowballStemmer('english').stem
         self.reset_statistics()
-
-    def align_instance(self, amr):
-        graph = amr.graph
-        for node in graph.get_nodes():
-            for attr, value in node.attributes:
-                amr_lemma = self.get_amr_lemma(value)
-                lemma = self.align_amr_lemma(amr_lemma, amr)
-                self.update_graph(graph, node, attr, value, lemma)
 
     def align_file(self, file_path):
         for amr in AMRIO.read(file_path):
-            self.align_instance(amr)
+            self.align_graph(amr)
             yield amr
 
-    def get_amr_lemma(self, value):
-        # TODO: add more rules.
-        # Get AMR lemma.
-        if isinstance(value, str):
-            if re.search(r'-\d\d$', value):  # frame
-                amr_lemma = self.node_utils.get_lemma(value)
-            elif re.search(r'^".*"$', value):  # literal constant
-                amr_lemma = value[1:-1]
-            else:
-                amr_lemma = value
-        else:
-            # int, float
-            amr_lemma = value
-        return amr_lemma
+    def align_graph(self, amr):
+        graph = amr.graph
+        for node in graph.get_nodes():
+            instance = node.instance
+            lemmas = self.map_instance_to_lemmas(instance)
+            lemma = self.find_corresponding_lemma(instance, lemmas, amr)
+            self.update_graph(graph, node, instance, lemma)
 
-    @staticmethod
-    def align_amr_lemma(amr_lemma, amr):
+    def map_instance_to_lemmas(self, instance):
+        """
+        Get the candidate lemmas which can be used to represent the instance.
+        """
+        # Make sure it's a string and not quoted.
+        assert isinstance(instance, str) and not re.search(r'^".*"$', instance)
+        if re.search(r'-\d\d$', instance):  # frame
+            lemmas = self.node_utils.get_lemmas(instance)
+        else:
+            lemmas = [instance]
+        return lemmas
+
+    def find_corresponding_lemma(self, instance, lemmas, amr):
         # TODO: Add more align rules.
         # amr_lemma is case-sensitive, so try casing it in different ways: Aaa, AAA, aaa.
-        if str(amr_lemma) in amr.lemmas:
-            return amr_lemma
-        return None
+        self.amr_instance_count += 1
+        aligned_lemma = None
+        stems = [self.stemmer(l) for l in amr.lemmas]
+        for lemma in lemmas:
+            if lemma in amr.lemmas:
+                aligned_lemma = lemma
+                break
+            lemma_stem = self.stemmer(lemma)
+            if lemma_stem in stems:
+                amr.lemmas[stems.index(lemma_stem)] = lemma
+                aligned_lemma = lemma
+                break
 
-    def update_graph(self, graph, node, attr, old, new):
-        self.amr_lemma_count += 1
-        if new is not None:
-            self.align_count += 1
-            graph.replace_node_attribute(node, attr, old, new)
-            self.try_restore(old, new)
+        if aligned_lemma is None:
+            self.no_aligned_instances.add(instance)
         else:
-            self.no_align_lemma_set.add(old)
+            self.aligned_instance_count += 1
+
+        return aligned_lemma
+
+    def update_graph(self, graph, node, old, new):
+        if new is not None:
+            graph.replace_node_attribute(node, 'instance', old, new)
+            self.try_restore(old, new)
 
     def try_restore(self, old, new):
-        if not isinstance(old, str):
-            if isinstance(old, int):
-                _old = int(new)
-            else:
-                _old = float(new)
-        elif re.search(r'^".*"$', old):  # literal constant
-            _old = '"' + new + '"'
-        else:
-            _old = self.node_utils.get_frame(new)
+        _old = self.node_utils.get_frames(new)[0]
         self.restore_count += int(old == _old)
 
     def reset_statistics(self):
-        self.align_count = 0
-        self.amr_lemma_count = 0
-        self.no_align_lemma_set = set()
+        self.aligned_instance_count = 0
+        self.amr_instance_count = 0
         self.restore_count = 0
+        self.no_aligned_instances = set()
 
     def print_statistics(self):
         print('align rate: {}% ({}/{})'.format(
-            self.align_count / self.amr_lemma_count, self.align_count, self.amr_lemma_count))
+            self.aligned_instance_count / self.amr_instance_count, self.aligned_instance_count, self.amr_instance_count))
         print('restore rate: {}% ({}/{})'.format(
-            self.restore_count / self.align_count, self.restore_count, self.align_count))
-        print('size of no align lemma set: {}'.format(len(self.no_align_lemma_set)))
+            self.restore_count / self.aligned_instance_count, self.restore_count, self.aligned_instance_count))
+        print('size of no align lemma set: {}'.format(len(self.no_aligned_instances)))
 
 
 if __name__ == '__main__':
@@ -86,24 +95,24 @@ if __name__ == '__main__':
     from stog.data.dataset_readers.amr_parsing.node_utils import NodeUtilities as NU
 
     parser = argparse.ArgumentParser('aligner.py')
-    parser.add_argument('--amr_train_files', nargs='+', required=True)
+    parser.add_argument('--amr_train_files', nargs='+', default=[])
     parser.add_argument('--amr_dev_files', nargs='+', required=True)
-    parser.add_argument('--propbank_dir', default='data/misc/propbank-frames-xml-2016-03-08/')
-    parser.add_argument('--verbalize_file', default='data/misc/verbalization-list-v1.06.txt')
+    parser.add_argument('--json_dir', default='./temp')
 
     args = parser.parse_args()
 
-    node_utils = NU(args.amr_train_files, args.propbank_dir, args.verbalize_file, args.amr_dev_files)
+    node_utils = NU.from_json(args.json_dir)
 
     aligner = Aligner(node_utils)
 
-    for file_path in args.amr_train_files:
-        with open(file_path + '.align', 'w', encoding='utf-8') as f:
-            for amr in aligner.align_file(file_path):
-                f.write(str(amr) + '\n\n')
+    if len(args.amr_train_files) != 0:
+        for file_path in args.amr_train_files:
+            with open(file_path + '.align', 'w', encoding='utf-8') as f:
+                for amr in aligner.align_file(file_path):
+                    f.write(str(amr) + '\n\n')
 
-    aligner.print_statistics()
-    aligner.reset_statistics()
+        aligner.print_statistics()
+        aligner.reset_statistics()
 
     for file_path in args.amr_dev_files:
         with open(file_path + '.align', 'w', encoding='utf-8') as f:

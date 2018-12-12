@@ -99,14 +99,8 @@ def train_model(params: Params):
     test_data = dataset.get('test')
 
     # Vocabulary and iterator are created here.
-    vocab = Vocabulary.from_instances(
-        instances=train_data, 
-        non_padded_namespaces=(), 
-        min_count={
-            "encoder-token-ids" : params.get("mini_count", 0),
-            "decoder-token-ids" : params.get("mini_count", 0)
-        }
-    )
+    vocab_params = params.get('vocab', {})
+    vocab = Vocabulary.from_instances(instances=train_data, non_padded_namespaces=(), **vocab_params)
     # Initializing the model can have side effect of expanding the vocabulary
     vocab.save_to_files(os.path.join(environment_params['serialization_dir'], "vocabulary"))
 

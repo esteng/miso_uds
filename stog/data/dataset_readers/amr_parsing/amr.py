@@ -8,6 +8,10 @@ from penman import Triple
 from collections import defaultdict
 
 
+# Disable inverting ':mod' relation.
+penman.AMRCodec._inversions.pop('domain')
+penman.AMRCodec._deinversions.pop('mod')
+
 amr_codec = penman.AMRCodec(indent=6)
 
 WORDSENSE_RE = re.compile(r'-\d\d$')
@@ -95,6 +99,14 @@ class AMRNode:
             ret += '\n\t:{} {}'.format(key, value)
         return ret
 
+    @property
+    def instance(self):
+        for key, value in self.attributes:
+            if key == 'instance':
+                return value
+        else:
+            return None
+
     def remove_attribute(self, attr, value):
         self.attributes.remove((attr, value))
 
@@ -156,10 +168,8 @@ class AMRGraph(penman.Graph):
         self._G = G
 
     def attributes(self, source=None, relation=None, target=None):
-        """
-        Return attributes filtered by their *source*, *relation*, or *target*.
-        Attributes don't include triples where the target is a nonterminal.
-        """
+        # Refine attributes because there's a bug in penman.attributes()
+        # See https://github.com/goodmami/penman/issues/29
         attrmatch = lambda a: (
                 (source is None or source == a.source) and
                 (relation is None or relation == a.relation) and
