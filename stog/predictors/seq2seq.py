@@ -45,11 +45,12 @@ class Seq2SeqPredictor(Predictor):
 
     @overrides
     def dump_line(self, output):
-        # TODO: print attention
-        if output['copy_indexes'] is None:
-            return ' '.join(output['tokens']) + '\n'
-        else:
-            return ' '.join(
-                '{}/{}'.format(t, c) for t, c in zip(output['tokens'], output['copy_indexes'])
-            ) + '\n'
+        pred_token_str = output["tokens"]
+        pred_coref_str = output["copy_indexes"]
 
+        dict_to_print = {
+            "tokens" : " ".join(output["tokens"]),
+            #"coref" : output["copy_indexes"]
+             "coref" : [x for x in range(len(output["copy_indexes"]))]
+        }
+        return json.dumps(dict_to_print) + '\n'

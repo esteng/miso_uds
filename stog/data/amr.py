@@ -270,7 +270,13 @@ class AMRTree():
 
         #print(self.pretty_str())
         #import pdb;pdb.set_trace()
-
+    @staticmethod
+    def avoid_illegal_token(token):
+        if "\/" in token:
+            return '"{}"'.format(token)
+        if ":" in token:
+            return '"{}"'.format(token)
+        return token
     def pretty_str(self):
 
         def _print_node(node, level, relation=None):
@@ -281,10 +287,10 @@ class AMRTree():
                 if node.instance is None or (node.name == node.instance and node.instance != "i"):
                     return "{}".format(node.name)
                 else:
-                    return "({} / {})".format(node.name, node.instance)
+                    return "({} / {})".format(node.name, avoid_illegal_token(node.instance))
             else:
                 if node.instance:
-                    string = "({} / {}".format(node.name, node.instance)
+                    string = "({} / {}".format(node.name, avoid_illegal_token(node.instance))
                 elif re.match('[+-]?([0-9]*[.])?[0-9]+', node.name):
                     string = "({} / {}".format(node.name, node.name)
                 else:

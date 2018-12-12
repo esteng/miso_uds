@@ -61,9 +61,9 @@ class BiaffineDependencyParserPredictor(Predictor):
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
         fields["amr_tokens"] = tokens
-        coref_int = [int(x) + 1 for x in json_dict['coref'].split(' ')] 
+        coref_int = json_dict['coref'] 
         fields["coref_index"] = SequenceLabelField(
-            labels=[0] + coref_int + [len(coref_int)],
+            labels=[0] + [x + 1 for x in coref_int] + [len(coref_int)],
             sequence_field=fields["amr_tokens"],
             label_namespace="coref_tags",
         )
