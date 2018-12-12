@@ -2,7 +2,6 @@ import json
 
 from stog.data.dataset_readers.amr_parsing.amr import AMR, AMRGraph
 
-
 class AMRIO:
 
     def __init__(self):

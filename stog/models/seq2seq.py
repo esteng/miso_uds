@@ -286,7 +286,7 @@ class Seq2Seq(Model):
 
             # Update decoder outputs.
             source_attentions += _source_attentions
-            decoder_outputs.append(_decoder_outputs)
+            decoder_outputs += [_decoder_outputs]
 
             # Generate.
             _predictions = generator_output['predictions']

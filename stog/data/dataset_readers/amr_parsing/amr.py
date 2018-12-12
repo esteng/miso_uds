@@ -4,6 +4,9 @@ import json
 import penman
 import networkx as nx
 
+from penman import Triple
+from collections import defaultdict
+
 
 # Disable inverting ':mod' relation.
 penman.AMRCodec._inversions.pop('domain')
@@ -95,6 +98,9 @@ class AMR:
                 fields.append('# ::{} {}'.format(k, v))
         return '\n'.join(fields)
 
+    def get_src_tokens(self):
+        return self.lemmas if self.lemmas else self.sentence.split()
+
 
 class AMRNode:
 
@@ -114,7 +120,7 @@ class AMRNode:
         return self.identifier == other.identifier
 
     def __repr__(self):
-        ret = self.identifier
+        ret = str(self.identifier)
         for k, v in self.attributes:
             if k == 'instance':
                 ret += ' / ' + v
@@ -179,17 +185,31 @@ class AMRGraph(penman.Graph):
     def _build_extras(self):
         G = nx.DiGraph()
 
-        variable_to_node = {}
+        self.variable_to_node = {}
         for v in self.variables():
+            if type(v) is not str:
+                continue
             attributes = [(t.relation, t.target) for t in self.attributes(source=v)]
             node = AMRNode(v, attributes)
             G.add_node(node)
-            variable_to_node[v] = node
+            self.variable_to_node[v] = node
 
         for edge in self.edges():
-            source = variable_to_node[edge.source]
-            target = variable_to_node[edge.target]
-            G.add_edge(source, target, label=edge.relation)
+            if type(edge.source) is not str:
+                print("A source is not string : {} (type : {})".format(edge, type(edge.source)))
+                continue
+            source = self.variable_to_node[edge.source]
+            target = self.variable_to_node[edge.target]
+            relation = edge.relation
+
+
+            if source == target:
+                continue
+
+            if edge.inverted:
+                source, target, relation = target, source, amr_codec.invert_relation(edge.relation)
+
+            G.add_edge(source, target, label=relation)
 
         self._G = G
 
@@ -268,6 +288,80 @@ class AMRGraph(penman.Graph):
 
     def get_edges(self):
         return self._G.edges
+
+    def get_list_node(self):
+        visited = defaultdict(int)
+        node_list = []
+
+        def dfs(node, relation, parent):
+
+            node_list.append((node, relation, parent))
+
+            if len(self._G[node]) > 0 and visited[node] == 0:
+                visited[node] = 1
+                for child_node, child_relation in self._G[node].items():
+                    dfs(child_node, child_relation["label"], node)
+
+        dfs(
+            self.variable_to_node[self._top],
+            'root',
+            self.variable_to_node[self._top]
+        )
+
+        return node_list
+
+
+    def get_list_data(self, bos=None, eos=None):
+        node_list = self.get_list_node()
+
+        tokens = []
+        head_tags = []
+        head_index = []
+
+        node_to_idx = defaultdict(list)
+
+
+        def update_info(node, relation, parent, token):
+            head_index.append(node_to_idx[parent][-1])
+            head_tags.append(relation)
+            tokens.append(str(token))
+
+        for node, relation, parent_node in node_list:
+
+            node_to_idx[node].append(len(tokens))
+
+            instance = [attr[1] for attr in node.attributes if attr[0] =="instance"]
+            assert len(instance) == 1
+            instance = instance[0]
+
+            update_info(node, relation, parent_node, instance)
+
+            if len(node.attributes) > 1:
+                for attr in node.attributes:
+                    if attr[0] != "instance":
+                        update_info(node, attr[0], parent_node, attr[1])
+
+
+        # Corefenrence
+        offset = 1 if bos else 0
+        pad_eos = 1 if eos else 0
+        coref_index = [i for i in range(offset + len(tokens) + pad_eos)]
+
+        for node, indices in node_to_idx.items():
+            if len(indices) > 1:
+                copy_idx = indices[0] + offset
+                for token_idx in indices[1:]:
+                    coref_index[token_idx + offset] = copy_idx
+
+        coref_map = [(token_idx, copy_idx) for token_idx, copy_idx in enumerate(coref_index)]
+
+        return {
+            "amr_tokens" : tokens,
+            "coref_index" : coref_index,
+            "coref_map" : coref_map,
+            "head_tags" : head_tags,
+            "head_indices" : head_index
+        }
 
     @classmethod
     def decode(cls, raw_graph_string):
