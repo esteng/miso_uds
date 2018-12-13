@@ -1,27 +1,42 @@
+import os
 import re
-from collections import namedtuple, defaultdict
+import json
+from collections import defaultdict
 
 import nltk
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
 from stog.data.dataset_readers.amr_parsing.preprocess import input_cleaner
+from stog.utils import logging
 
 
-Entity = namedtuple('Entity', ('span', 'type', 'node', 'confidence'))
+logger = logging.init_logger()
 
-# Sometimes there are different ways to say the same thing.
-entity_map = {
-    'Netherlands': ['Dutch'],
-    'Shichuan': ['Sichuan'],
-    'France': ['Frence'],
-    'al-Qaida': ['Al-Qaida'],
-    'Gorazde': ['Gerlaridy'],
-    'Sun': ['Solar'],
-    'China': ['Sino'],
-    'America': ['US', 'U.S.'],
-    'U.S.': ['US'],
-    'Georgia': ['GA']
-}
+
+class Entity:
+
+    # Sometimes there are different ways to say the same thing.
+    entity_map = {
+        'Netherlands': ['Dutch'],
+        'Shichuan': ['Sichuan'],
+        'France': ['Frence'],
+        'al-Qaida': ['Al-Qaida'],
+        'Gorazde': ['Gerlaridy'],
+        'Sun': ['Solar'],
+        'China': ['Sino'],
+        'America': ['US', 'U.S.'],
+        'U.S.': ['US'],
+        'Georgia': ['GA']
+    }
+
+    unknown_entity_type = 'ENTITY'
+
+    def __init__(self, span=None, node=None, ner_type=None, amr_type=None, confidence=0):
+        self.span = span
+        self.node = node
+        self.ner_type = ner_type
+        self.amr_type = amr_type
+        self.confidence = confidence
 
 
 def strip_lemma(lemma):
@@ -81,9 +96,55 @@ class Recategorizer:
     #   2. Decide whether to further collapse the name node.
     #   3. Check the mismatch between aligned entities and ops.
 
-    def __init__(self, node_utils):
-        self.node_utils = node_utils
+    def __init__(self, train_data=None, build_map=False, map_dir=None):
         self.stemmer = nltk.stem.SnowballStemmer('english').stem
+        self.train_data = train_data
+        self.build_map = build_map
+        if build_map:
+            # Build two maps from the training data.
+            #   name_node_type_map counts the number of times that a type of AMR name node
+            #       (e.g., "country", "person") is aligned to a named entity span in the
+            #       input sentence that has been tagged with a NER type, i.e.,
+            #           count = self.name_node_type_map[name_node_type][ner_type]
+            #
+            #   entity_map maps a named entity span to a NER type.
+            self.name_node_type_map_done = False
+            self.name_node_type_map = defaultdict(lambda: defaultdict(int))
+            self.entity_map = {}
+            self._build_map()
+            self._dump_map(map_dir)
+        else:
+            self._load_map(map_dir)
+
+    def _build_map(self):
+        logger.info('Building name_node_type_map...')
+        for _ in self.recategorize_file(self.train_data):
+            pass
+        self.name_node_type_map_done = True
+        logger.info('Done.')
+        logger.info('Building entity_map...')
+        for _ in self.recategorize_file(self.train_data):
+            pass
+        logger.info('Done.')
+
+    def _dump_map(self, directory):
+        with open(os.path.join(directory, 'name_node_type_map.json'), 'w', encoding='utf-8') as f:
+            json.dump(self.name_node_type_map, f, indent=4)
+        with open(os.path.join(directory, 'entity_map.json'), 'w', encoding='utf-8') as f:
+            json.dump(self.entity_map, f, indent=4)
+
+    def _load_map(self, directory):
+        with open(os.path.join(directory, 'name_node_type_map.json'), encoding='utf-8') as f:
+            self.name_node_type_map = json.load(f)
+        with open(os.path.join(directory, 'entity_map.json'), 'w', encoding='utf-8') as f:
+            self.entity_map = json.load(f)
+
+    def _map_name_node_type(self, name_node_type):
+        if not self.build_map and name_node_type in self.name_node_type_map:
+            return max(self.name_node_type_map[name_node_type].keys(),
+                       key=lambda ner_type: self.name_node_type_map[name_node_type][ner_type])
+        else:
+            return Entity.unknown_entity_type
 
     def recategorize_file(self, file_path):
         for amr in AMRIO.read(file_path):
@@ -104,7 +165,10 @@ class Recategorizer:
                 if entity is not None:
                     entities.append(entity)
         entities = resolve_conflict_entities(entities)
-        self._collapse_name_nodes(entities, amr)
+        if not self.build_map:
+            self._collapse_name_nodes(entities, amr)
+        else:
+            self._update_map(entities, amr)
 
     def _get_aligned_entity(self, node, amr):
         ops = node.ops
@@ -163,30 +227,25 @@ class Recategorizer:
         ):
             return 1
         # Match after mapping.
-        elif op in entity_map:
-            return max(self._maybe_align_op_to(mapped_op, index, amr) for mapped_op in entity_map[op])
+        elif op in Entity.entity_map:
+            return max(self._maybe_align_op_to(mapped_op, index, amr) for mapped_op in Entity.entity_map[op])
         else:
             return 0
 
     def _get_entity_for_ops(self, alignment, node, amr):
         spans = group_indexes_to_spans(alignment.keys())
         spans.sort(key=lambda span: len(span), reverse=True)
+        amr_type = amr.graph.get_name_node_type(node)
+        backup_ner_type = self._map_name_node_type(amr_type)
         candidate_entities = []
         for span in spans:
-            entity = None
-            for index in []:  # span:
+            confidence = sum(alignment[j][1] for j in span)
+            ner_type = backup_ner_type
+            for index in span:
                 if amr.is_named_entity(index):
-                    entity_span = amr.get_named_entity_span(index)
-                    entity_type = amr.ner_tags[index]
-                    confidence = sum(alignment[j][1] for j in entity_span if j in alignment)
-                    entity = Entity(entity_span, entity_type, node, confidence)
+                    ner_type = amr.ner_tags[index]
                     break
-            if entity is None:
-                confidence = sum(alignment[j][1] for j in span)
-                entity_type = amr.ner_tags[span[0]]
-                if entity_type in ('0', 'O'):
-                    entity_type = 'ENTITY'
-                entity = Entity(span, entity_type, node, confidence)
+            entity = Entity(span, node, ner_type, amr_type, confidence)
             candidate_entities.append(entity)
 
         if len(candidate_entities):
@@ -208,6 +267,16 @@ class Recategorizer:
             amr.graph.add_node_attribute(entity.node, 'collapsed-ops', abstract)
             offset += len(entity.span) - 1
 
+    def _update_map(self, entities, amr):
+        if self.name_node_type_map_done:
+            for entity in entities:
+                entity_text = ' '.join(amr.tokens[index] for index in entity.span)
+                self.entity_map[entity_text] = entity.ner_type
+        else:
+            for entity in entities:
+                if entity.ner_type != Entity.unknown_entity_type:
+                    self.name_node_type_map[entity.amr_type][entity.ner_type] += 1
+
 
 if __name__ == '__main__':
     import argparse
@@ -215,15 +284,14 @@ if __name__ == '__main__':
     from stog.data.dataset_readers.amr_parsing.node_utils import NodeUtilities as NU
 
     parser = argparse.ArgumentParser('recategorizer.py')
-    parser.add_argument('--amr_train_files', nargs='+', default=[])
-    parser.add_argument('--amr_dev_files', nargs='+', required=True)
-    parser.add_argument('--json_dir', default='./temp')
+    parser.add_argument('--amr_train', default='data/all_amr/train_amr.txt.features.align')
+    parser.add_argument('--amr_dev_files', nargs='+', default=[])
+    parser.add_argument('--dump_dir', default='./temp')
 
     args = parser.parse_args()
 
-    node_utils = NU.from_json(args.json_dir)
+    recategorizer = Recategorizer(train_data=args.amr_train, build_map=True, map_dir=args.dump_dir)
 
-    recategorizer = Recategorizer(node_utils)
 
     for file_path in args.amr_dev_files:
         with open(file_path + '.recategorized', 'w', encoding='utf-8') as f:
