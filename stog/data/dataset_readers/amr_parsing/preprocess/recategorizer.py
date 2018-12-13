@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 
 import nltk
+from nltk.tokenize import word_tokenize
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
 from stog.data.dataset_readers.amr_parsing.preprocess import input_cleaner
@@ -26,7 +27,15 @@ class Entity:
         'China': ['Sino'],
         'America': ['US', 'U.S.'],
         'U.S.': ['US'],
-        'Georgia': ['GA']
+        'Georgia': ['GA'],
+        'Pennsylvania': ['PA', 'PA.'],
+        'Missouri': ['MO', 'MO.'],
+        'WWII': ['WW2'],
+        'WWI': ['WW1'],
+        'Iran': ['Ian'],
+        'Jew': ['Semitism', 'Semites'],
+        'Islam': ['Muslim'],
+        'influenza': ['flu'],
     }
 
     unknown_entity_type = 'ENTITY'
@@ -41,10 +50,10 @@ class Entity:
 
 def strip_lemma(lemma):
     # Remove twitter '@'.
-    if lemma[0] == '@':
+    if len(lemma) and lemma[0] == '@':
         lemma = lemma[1:]
     # Remove '-$' suffix.
-    if lemma[-1] == '$':
+    if len(lemma) and lemma[-1] == '$':
         lemma = lemma[:-1]
     return lemma
 
@@ -53,7 +62,12 @@ def resolve_conflict_entities(entities):
     # If there's overlap between any two entities,
     # remove the one that has lower confidence.
     index_entity_map = {}
+    empty_entities = []
     for entity in entities:
+        if len(entity.span) == 0:
+            empty_entities.append(entity)
+            continue
+
         for index in entity.span:
             if index in index_entity_map:
                 _entity = index_entity_map[index]
@@ -64,20 +78,34 @@ def resolve_conflict_entities(entities):
     node_entity_map = {}
     for entity in index_entity_map.values():
         node_entity_map[entity.node] = entity
-    return list(node_entity_map.values())
+    return list(node_entity_map.values()) + empty_entities
 
 
-def group_indexes_to_spans(indexes):
+def group_indexes_to_spans(indexes, amr):
     indexes = list(indexes)
     indexes.sort()
     spans = []
     last_index = None
     for idx in indexes:
-        if last_index is None or idx - last_index != 1:
+        if last_index is None or idx - last_index > 2:
+            spans.append([])
+        elif idx - last_index == 2 and not re.search(r"(,|'s)", amr.tokens[idx - 1]):
             spans.append([])
         last_index = idx
         spans[-1].append(idx)
     return spans
+
+
+def tokenize_ops(ops):
+    ret = []
+    for op in ops:
+        if not isinstance(op, str):
+            ret += [op]
+            continue
+        if re.search(r'^".*"$', op):
+            op = op[1:-1]
+        ret += re.split(r"(-|'s|n't|')", op)
+    return ret
 
 
 def rephrase_ops(ops):
@@ -87,6 +115,13 @@ def rephrase_ops(ops):
         ret.append('"America"')
     elif joined_ops == '"World" "War" "II"':
         ret.append('"WWII"')
+    elif joined_ops == '"Republican" "National" "Convention"':
+        ret.append('"RNC"')
+    elif joined_ops == '"Grand" "Old" "Party"':
+        ret.append('"GOP"')
+    elif joined_ops == '"United" "Nations"':
+        ret.append('"U.N."')
+
     return ret
 
 
@@ -136,7 +171,7 @@ class Recategorizer:
     def _load_map(self, directory):
         with open(os.path.join(directory, 'name_node_type_map.json'), encoding='utf-8') as f:
             self.name_node_type_map = json.load(f)
-        with open(os.path.join(directory, 'entity_map.json'), 'w', encoding='utf-8') as f:
+        with open(os.path.join(directory, 'entity_map.json'), encoding='utf-8') as f:
             self.entity_map = json.load(f)
 
     def _map_name_node_type(self, name_node_type):
@@ -147,9 +182,17 @@ class Recategorizer:
             return Entity.unknown_entity_type
 
     def recategorize_file(self, file_path):
-        for amr in AMRIO.read(file_path):
-            self.recategorize_graph(amr)
+        self.start = False
+        self.count = 0
+        self.recat_count = 0
+        for i, amr in enumerate(AMRIO.read(file_path), 1):
+            if True: # amr.sentence.startswith("Two Thumbs said he felt this too in PA"):
+                self.start = True
+            if self.start:
+                self.recategorize_graph(amr)
             yield amr
+            if i % 1000 == 0:
+                print('{} ({}/{})'.format(self.recat_count / self.count, self.recat_count, self.count))
 
     def recategorize_graph(self, amr):
         input_cleaner.clean(amr)
@@ -161,9 +204,11 @@ class Recategorizer:
         entities = []
         for node in graph.get_nodes():
             if graph.is_name_node(node):
+                self.count += 1
                 entity = self._get_aligned_entity(node, amr)
-                if entity is not None:
-                    entities.append(entity)
+                if len(entity.span):
+                    self.recat_count += 1
+                entities.append(entity)
         entities = resolve_conflict_entities(entities)
         if not self.build_map:
             self._collapse_name_nodes(entities, amr)
@@ -174,17 +219,26 @@ class Recategorizer:
         ops = node.ops
         if len(ops) == 0:
             return None
-        alignment = self._get_alignment_for_ops(ops, amr)
+        rephrased_ops = rephrase_ops(ops)
+        alignment = self._get_alignment_for_ops(rephrased_ops, amr)
         if len(alignment) == 0:
-            ops = rephrase_ops(ops)
             alignment = self._get_alignment_for_ops(ops, amr)
         entity = self._get_entity_for_ops(alignment, node, amr)
-        if entity is None:
-            print(node)
-            import pdb; pdb.set_trace()
-        else:
-            print(' '.join(amr.tokens[i] for i in entity.span), end='')
-            print(' --> ' + ' '.join(map(str, entity.node.ops)))
+        # Try the tokenized version.
+        ops = tokenize_ops(ops)
+        alignment = self._get_alignment_for_ops(ops, amr)
+        _entity = self._get_entity_for_ops(alignment, node, amr)
+        if _entity.confidence > entity.confidence:
+            entity = _entity
+        if entity.confidence == 0:
+            if len(entity.span):
+                print(' '.join(amr.tokens[i] for i in entity.span), end='')
+                print(' --> ' + ' '.join(map(str, entity.node.ops)))
+            # print(node)
+            # import pdb; pdb.set_trace()
+        # else:
+        #     print(' '.join(amr.tokens[i] for i in entity.span), end='')
+        #     print(' --> ' + ' '.join(map(str, entity.node.ops)))
         return entity
 
     def _get_alignment_for_ops(self, ops, amr):
@@ -195,7 +249,6 @@ class Recategorizer:
                 if confidence > 0:
                     if j not in alignment or (j in alignment and alignment[j][1] < confidence):
                         alignment[j] = (i, confidence)
-                    break
         return alignment
 
     def _maybe_align_op_to(self, op, index, amr):
@@ -208,7 +261,9 @@ class Recategorizer:
         lemma_lower = amr.lemmas[index].lower()
         stripped_lemma_lower = strip_lemma(lemma_lower)
         # Exact match.
-        if op_lower == token_lower or op_lower == lemma_lower or op_lower == stripped_lemma_lower:
+        if amr.tokens[index] == op or amr.lemmas[index] == op:
+            return 15
+        elif op_lower == token_lower or op_lower == lemma_lower or op_lower == stripped_lemma_lower:
             return 10
         # Stem exact match.
         elif self.stemmer(op) == amr.stems[index]:
@@ -233,8 +288,9 @@ class Recategorizer:
             return 0
 
     def _get_entity_for_ops(self, alignment, node, amr):
-        spans = group_indexes_to_spans(alignment.keys())
+        spans = group_indexes_to_spans(alignment.keys(), amr)
         spans.sort(key=lambda span: len(span), reverse=True)
+        spans = self._clean_span(spans, alignment, amr)
         amr_type = amr.graph.get_name_node_type(node)
         backup_ner_type = self._map_name_node_type(amr_type)
         candidate_entities = []
@@ -250,7 +306,21 @@ class Recategorizer:
 
         if len(candidate_entities):
             return max(candidate_entities, key=lambda entity: entity.confidence)
-        return None
+        return Entity([], node, backup_ner_type, amr_type, 0)
+
+    def _clean_span(self, spans, alignment, amr):
+        # Make sure each op only appears once in a span.
+        clean_spans = []
+        for span in spans:
+            _align = {}
+            for index in span:
+                op, confidence = alignment[index]
+                if op not in _align or (op in _align and _align[op][1] < confidence):
+                    _align[op] = (index, confidence)
+            indexes = [i for i, _ in _align.values()]
+            _spans = group_indexes_to_spans(indexes, amr)
+            clean_spans.append(max(_spans, key=lambda s: len(s)))
+        return clean_spans
 
     def _collapse_name_nodes(self, entities, amr):
         if len(entities) == 0:
@@ -259,21 +329,30 @@ class Recategorizer:
         entities.sort(key=lambda entity: entity.span[-1])
         offset = 0
         for entity in entities:
-            type_counter[entity.type] += 1
-            abstract = '{}_{}'.format(entity.type, type_counter[entity.type])
-            span_with_offset = [index - offset for index in entity.span]
-            amr.replace_span(span_with_offset, [abstract], ['NNP'], [entity.type])
-            amr.graph.remove_node_ops(entity.node)
-            amr.graph.add_node_attribute(entity.node, 'collapsed-ops', abstract)
-            offset += len(entity.span) - 1
+            type_counter[entity.ner_type] += 1
+            abstract = '{}_{}_{}'.format(
+                entity.ner_type, type_counter[entity.ner_type], len(entity.span))
+            if len(entity.span) > 0:
+                span_with_offset = [index - offset for index in entity.span]
+                amr.replace_span(span_with_offset, [abstract], ['NNP'], [entity.ner_type])
+                amr.graph.remove_node_ops(entity.node)
+                amr.graph.add_node_attribute(entity.node, 'collapsed-ops', abstract)
+                offset += len(entity.span) - 1
+            else:
+                amr.graph.remove_node_ops(entity.node)
+                amr.graph.add_node_attribute(entity.node, 'collapsed-ops', abstract)
 
     def _update_map(self, entities, amr):
         if self.name_node_type_map_done:
             for entity in entities:
+                if len(entity.span) == 0:
+                    continue
                 entity_text = ' '.join(amr.tokens[index] for index in entity.span)
                 self.entity_map[entity_text] = entity.ner_type
         else:
             for entity in entities:
+                if len(entity.span) == 0:
+                    continue
                 if entity.ner_type != Entity.unknown_entity_type:
                     self.name_node_type_map[entity.amr_type][entity.ner_type] += 1
 
@@ -287,10 +366,11 @@ if __name__ == '__main__':
     parser.add_argument('--amr_train', default='data/all_amr/train_amr.txt.features.align')
     parser.add_argument('--amr_dev_files', nargs='+', default=[])
     parser.add_argument('--dump_dir', default='./temp')
+    parser.add_argument('--build_map', action='store_true')
 
     args = parser.parse_args()
 
-    recategorizer = Recategorizer(train_data=args.amr_train, build_map=True, map_dir=args.dump_dir)
+    recategorizer = Recategorizer(train_data=args.amr_train, build_map=args.build_map, map_dir=args.dump_dir)
 
 
     for file_path in args.amr_dev_files:
