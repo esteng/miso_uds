@@ -156,6 +156,8 @@ class AMRGraph(penman.Graph):
             target = self.variable_to_node[edge.target]
             relation = edge.relation
 
+            if relation == "instance":
+                continue
 
             if source == target:
                 continue
@@ -265,6 +267,8 @@ class AMRGraph(penman.Graph):
         head_index = []
 
         node_to_idx = defaultdict(list)
+            
+        visited = defaultdict(int)
 
 
         def update_info(node, relation, parent, token):
@@ -281,11 +285,14 @@ class AMRGraph(penman.Graph):
             instance = instance[0]
 
             update_info(node, relation, parent_node, instance)
+            
 
-            if len(node.attributes) > 1:
+            if len(node.attributes) > 1 and visited[node] == 0:
                 for attr in node.attributes:
                     if attr[0] != "instance":
                         update_info(node, attr[0], parent_node, attr[1])
+            
+            visited[node] = 1
 
 
         # Corefenrence
