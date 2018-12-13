@@ -4,27 +4,24 @@ from collections import namedtuple, defaultdict
 import nltk
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
+from stog.data.dataset_readers.amr_parsing.preprocess import input_cleaner
 
 
 Entity = namedtuple('Entity', ('span', 'type', 'node', 'confidence'))
 
+# Sometimes there are different ways to say the same thing.
 entity_map = {
-    'Netherlands': 'Dutch',
-    'Shichuan': 'Sichuan',
-    'France': 'Frence',
-    'al-Qaida': 'Al-Qaida',
-    'Gorazde': 'Gerlaridy',
-    'Sun': 'Solar',
-    'China': 'Sino',
-    'America': 'US',
-    'America': 'U.S.',
-    'U.S.': 'US',
-    'Georgia': 'GA'
+    'Netherlands': ['Dutch'],
+    'Shichuan': ['Sichuan'],
+    'France': ['Frence'],
+    'al-Qaida': ['Al-Qaida'],
+    'Gorazde': ['Gerlaridy'],
+    'Sun': ['Solar'],
+    'China': ['Sino'],
+    'America': ['US', 'U.S.'],
+    'U.S.': ['US'],
+    'Georgia': ['GA']
 }
-
-tokens_to_join = [
-    (['Al', '-', 'Faleh'], 'Al-Faleh', 'NNP', 'PERSON'),
-]
 
 
 def strip_lemma(lemma):
@@ -38,6 +35,8 @@ def strip_lemma(lemma):
 
 
 def resolve_conflict_entities(entities):
+    # If there's overlap between any two entities,
+    # remove the one that has lower confidence.
     index_entity_map = {}
     for entity in entities:
         for index in entity.span:
@@ -66,87 +65,21 @@ def group_indexes_to_spans(indexes):
     return spans
 
 
-def add_more_ops(ops):
-    more_ops = []
+def rephrase_ops(ops):
+    ret = []
     joined_ops = ' '.join(map(str, ops))
     if joined_ops == '"United" "States"':
-        more_ops.append('"America"')
+        ret.append('"America"')
     elif joined_ops == '"World" "War" "II"':
-        more_ops.append('"WWII"')
-    return ops + more_ops
-
-
-def reorganize_tokens(amr):
-    # for tokens, joined_tokens, pos, ner in tokens_to_join:
-    #     span = amr.find_span_indexes(tokens)
-    #     if span:
-    #         amr.replace_span(span, [joined_tokens], [pos], [ner])
-
-    # Joint the words starting with a cap letter which is followed by '^-\d+$'
-    while True:
-        span = None
-        if len(amr.tokens) < 2:
-            break
-        for i in range(len(amr.tokens) - 1):
-            x, y = amr.tokens[i: i + 2]
-            if x.isupper() and re.search(r'^-\d+$', y):
-                span = list(range(i, i + 2))
-                joined_tokens = ''.join([x, y])
-                break
-        else:
-            break
-        amr.replace_span(span, [joined_tokens], ['NNP'], ['ENTITY'])
-
-    # Join the words starting with ['Al', '-'] or ['al', '-'].
-    while True:
-        span = None
-        if len(amr.tokens) < 3:
-            break
-        for i in range(len(amr.tokens) - 2):
-            x, y, z = amr.tokens[i:i + 3]
-            if x in ('al', 'Al') and y == '-' and z[0].isupper():
-                span = list(range(i, i + 3))
-                joined_tokens = ''.join(['Al', y, z])
-                break
-        else:
-            break
-        amr.replace_span(span, [joined_tokens], ['NNP'], ['PERSON'])
-
-    # Split word with 'pro-' prefix.
-    while True:
-        index = None
-        for i, lemma in enumerate(amr.lemmas):
-            if lemma.lower().startswith('pro-'):
-                index = i
-                break
-        else:
-            break
-        pos = amr.pos_tags[index]
-        ner = amr.ner_tags[index]
-        _, lemma = amr.lemmas[index].split('-', 1)
-        amr.replace_span([index], ['pro', lemma], ['JJ', pos], ['O', ner])
-
-    # Split word with 'anti-' prefix.
-    while True:
-        index = None
-        for i, lemma in enumerate(amr.lemmas):
-            if lemma.lower().startswith('anti-'):
-                index = i
-                break
-        else:
-            break
-        pos = amr.pos_tags[index]
-        ner = amr.ner_tags[index]
-        _, lemma = amr.lemmas[index].split('-', 1)
-        amr.replace_span([index], ['anti', lemma], ['JJ', pos], ['O', ner])
-
-    # Replace 'NT' in front of '$' with 'Taiwan'.
-    for i, token in enumerate(amr.tokens):
-        if token == 'NT' and len(amr.tokens) > i + 1 and amr.tokens[i + 1] in ('$', 'dollars', 'dollar'):
-            amr.replace_span([i], ['Taiwan'], ['NNP'], ['COUNTRY'])
+        ret.append('"WWII"')
+    return ret
 
 
 class Recategorizer:
+    # TODO:
+    #   1. Decide how to choose type for abstract named entities.
+    #   2. Decide whether to further collapse the name node.
+    #   3. Check the mismatch between aligned entities and ops.
 
     def __init__(self, node_utils):
         self.node_utils = node_utils
@@ -158,7 +91,7 @@ class Recategorizer:
             yield amr
 
     def recategorize_graph(self, amr):
-        reorganize_tokens(amr)
+        input_cleaner.clean(amr)
         amr.stems = [self.stemmer(l) for l in amr.lemmas]
         self.recategorize_name_nodes(amr)
 
@@ -177,8 +110,10 @@ class Recategorizer:
         ops = node.ops
         if len(ops) == 0:
             return None
-        ops = add_more_ops(ops)
         alignment = self._get_alignment_for_ops(ops, amr)
+        if len(alignment) == 0:
+            ops = rephrase_ops(ops)
+            alignment = self._get_alignment_for_ops(ops, amr)
         entity = self._get_entity_for_ops(alignment, node, amr)
         if entity is None:
             print(node)
@@ -208,23 +143,28 @@ class Recategorizer:
         token_lower = amr.tokens[index].lower()
         lemma_lower = amr.lemmas[index].lower()
         stripped_lemma_lower = strip_lemma(lemma_lower)
+        # Exact match.
         if op_lower == token_lower or op_lower == lemma_lower or op_lower == stripped_lemma_lower:
             return 10
+        # Stem exact match.
         elif self.stemmer(op) == amr.stems[index]:
             return 8
+        # Tagged as named entity and match the first 3 chars.
         elif amr.is_named_entity(index) and (
                 op_lower[:3] == token_lower[:3] or
                 op_lower[:3] == lemma_lower[:3] or
                 op_lower[:3] == stripped_lemma_lower[:3]
         ):
             return 5
+        # Match the first 3 chars.
         elif (op_lower[:3] == token_lower[:3] or
               op_lower[:3] == lemma_lower[:3] or
               op_lower[:3] == stripped_lemma_lower[:3]
         ):
             return 1
+        # Match after mapping.
         elif op in entity_map:
-            return self._maybe_align_op_to(entity_map[op], index, amr)
+            return max(self._maybe_align_op_to(mapped_op, index, amr) for mapped_op in entity_map[op])
         else:
             return 0
 
@@ -234,7 +174,7 @@ class Recategorizer:
         candidate_entities = []
         for span in spans:
             entity = None
-            for index in []: # span:
+            for index in []:  # span:
                 if amr.is_named_entity(index):
                     entity_span = amr.get_named_entity_span(index)
                     entity_type = amr.ner_tags[index]
@@ -265,9 +205,8 @@ class Recategorizer:
             span_with_offset = [index - offset for index in entity.span]
             amr.replace_span(span_with_offset, [abstract], ['NNP'], [entity.type])
             amr.graph.remove_node_ops(entity.node)
-            amr.graph.add_node_attribute(entity.node, 'ABSTRACTops', abstract)
+            amr.graph.add_node_attribute(entity.node, 'collapsed-ops', abstract)
             offset += len(entity.span) - 1
-
 
 
 if __name__ == '__main__':
