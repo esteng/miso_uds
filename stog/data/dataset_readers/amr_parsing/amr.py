@@ -38,6 +38,42 @@ class AMR:
         self.ner_tags = ner_tags
         self.misc = misc
 
+    def is_named_entity(self, index):
+        return self.ner_tags[index] not in ('0', 'O')
+
+    def get_named_entity_span(self, index):
+        if self.ner_tags is None or not self.is_named_entity(index):
+            return []
+        span = [index]
+        tag = self.ner_tags[index]
+        prev = index - 1
+        while prev > 0 and self.ner_tags[prev] == tag:
+            span.append(prev)
+            prev -= 1
+        next = index + 1
+        while next < len(self.ner_tags) and self.ner_tags[next] == tag:
+            span.append(next)
+            next += 1
+        return span
+
+    def find_span_indexes(self, span):
+        for i, token in enumerate(self.tokens):
+            if token == span[0]:
+                _span = self.tokens[i: i + len(span)]
+                if len(_span) == len(span) and all(x == y for x, y in zip(span, _span)):
+                    return list(range(i, i + len(span)))
+        return None
+
+    def replace_span(self, indexes, new, pos=None, ner=None):
+        self.tokens = self.tokens[:indexes[0]] + new + self.tokens[indexes[-1] + 1:]
+        self.lemmas = self.lemmas[:indexes[0]] + new + self.lemmas[indexes[-1] + 1:]
+        if pos is None:
+            pos = [self.pos_tags[indexes[0]]]
+        self.pos_tags = self.pos_tags[:indexes[0]] + pos + self.pos_tags[indexes[-1] + 1:]
+        if ner is None:
+            ner = [self.ner_tags[indexes[0]]]
+        self.ner_tags = self.ner_tags[:indexes[0]] + ner + self.ner_tags[indexes[-1] + 1:]
+
     def __repr__(self):
         fields = []
         for k, v in dict(
@@ -106,6 +142,16 @@ class AMRNode:
                 return value
         else:
             return None
+
+    @property
+    def ops(self):
+        ops = []
+        for key, value in self.attributes:
+            if re.search(r'op\d+', key):
+                ops.append((int(key[2:]), value))
+        if len(ops):
+            ops.sort(key=lambda x: x[0])
+        return [v for k, v in ops]
 
     def remove_attribute(self, attr, value):
         self.attributes.remove((attr, value))
@@ -193,6 +239,12 @@ class AMRGraph(penman.Graph):
         source, target = edges[0]
         return self._G[source][target]['label'] == 'name'
 
+    def get_name_node_type(self, node):
+        edges = list(self._G.in_edges(node))
+        assert len(edges) == 1
+        source, _ = edges[0]
+        return source.instance
+
     def remove_edge(self, x, y):
         if isinstance(x, AMRNode) and isinstance(y, AMRNode):
             self._G.remove_edge(x, y)
@@ -223,13 +275,21 @@ class AMRGraph(penman.Graph):
 
     def remove_node_attribute(self, node, attr, value):
         node.remove_attribute(attr, value)
-        triples = [t for t in self._triples if t.source != node.identifier and t.relation != attr and t.target != value]
+        triples = [t for t in self._triples if not (t.source == node.identifier and t.relation == attr and t.target == value)]
         self._update_penman_graph(triples)
 
     def add_node_attribute(self, node, attr, value):
         node.add_attribute(attr, value)
         t = penman.Triple(source=node.identifier, relation=attr, target=value)
         self._triples = penman.alphanum_order(self._triples + [t])
+
+    def remove_node_ops(self, node):
+        ops = []
+        for attr, value in node.attributes:
+            if re.search(r'^op\d+$', attr):
+                ops.append((attr, value))
+        for attr, value in ops:
+            self.remove_node_attribute(node, attr, value)
 
     def get_nodes(self):
         return self._G.nodes
@@ -258,7 +318,6 @@ class AMRGraph(penman.Graph):
 
         return node_list
 
-
     def get_list_data(self, bos=None, eos=None):
         node_list = self.get_list_node()
 
@@ -269,7 +328,6 @@ class AMRGraph(penman.Graph):
         node_to_idx = defaultdict(list)
             
         visited = defaultdict(int)
-
 
         def update_info(node, relation, parent, token):
             head_index.append(node_to_idx[parent][-1])
@@ -294,8 +352,7 @@ class AMRGraph(penman.Graph):
             
             visited[node] = 1
 
-
-        # Corefenrence
+        # Coreference
         offset = 1 if bos else 0
         pad_eos = 1 if eos else 0
         coref_index = [i for i in range(offset + len(tokens) + pad_eos)]

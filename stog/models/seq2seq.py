@@ -252,7 +252,6 @@ class Seq2Seq(Model):
 
         input_feed = None
         source_attentions = []
-        copy_attentions = []
         decoder_outputs = []
         predictions = []
         for step_i in range(self.max_decode_length):
@@ -300,7 +299,6 @@ class Seq2Seq(Model):
             predictions=torch.cat(predictions, dim=1),
             # [batch_size, max_decode_length, encoder_length]
             std_attentions=torch.cat(source_attentions, dim=1) if len(source_attentions) != 0 else None,
-            copy_attentions=torch.cat(copy_attentions, dim=1) if len(copy_attentions) != 0 else None
         )
 
     def greedy_decode_with_copy(self, memory_bank, mask, states):
