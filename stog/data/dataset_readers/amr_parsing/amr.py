@@ -202,7 +202,6 @@ class AMRGraph(penman.Graph):
             target = self.variable_to_node[edge.target]
             relation = edge.relation
 
-
             if source == target:
                 continue
 
@@ -236,6 +235,12 @@ class AMRGraph(penman.Graph):
             return False
         source, target = edges[0]
         return self._G[source][target]['label'] == 'name'
+
+    def get_name_node_type(self, node):
+        edges = list(self._G.in_edges(node))
+        assert len(edges) == 1
+        source, _ = edges[0]
+        return source.instance
 
     def remove_edge(self, x, y):
         if isinstance(x, AMRNode) and isinstance(y, AMRNode):
@@ -310,7 +315,6 @@ class AMRGraph(penman.Graph):
 
         return node_list
 
-
     def get_list_data(self, bos=None, eos=None):
         node_list = self.get_list_node()
 
@@ -319,7 +323,6 @@ class AMRGraph(penman.Graph):
         head_index = []
 
         node_to_idx = defaultdict(list)
-
 
         def update_info(node, relation, parent, token):
             head_index.append(node_to_idx[parent][-1])
@@ -341,8 +344,7 @@ class AMRGraph(penman.Graph):
                     if attr[0] != "instance":
                         update_info(node, attr[0], parent_node, attr[1])
 
-
-        # Corefenrence
+        # Coreference
         offset = 1 if bos else 0
         pad_eos = 1 if eos else 0
         coref_index = [i for i in range(offset + len(tokens) + pad_eos)]
