@@ -36,6 +36,8 @@ class AMRIO:
                         amr.pos_tags = json.loads(line[len('# ::pos_tags '):])
                     elif line.startswith('# ::ner_tags '):
                         amr.ner_tags = json.loads(line[len('# ::ner_tags '):])
+                    elif line.startswith('# ::abstract_map '):
+                        amr.abstract_map = json.loads(line[len('# ::abstract_map '):])
                     else:
                         misc_lines.append(line)
                 else:

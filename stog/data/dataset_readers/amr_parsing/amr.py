@@ -28,6 +28,7 @@ class AMR:
                  lemmas=None,
                  pos_tags=None,
                  ner_tags=None,
+                 abstract_map=None,
                  misc=None):
         self.id = id
         self.sentence = sentence
@@ -36,6 +37,7 @@ class AMR:
         self.lemmas = lemmas
         self.pos_tags = pos_tags
         self.ner_tags = ner_tags
+        self.abstract_map = abstract_map
         self.misc = misc
 
     def is_named_entity(self, index):
@@ -83,6 +85,7 @@ class AMR:
             lemmas=self.lemmas,
             pos_tags=self.pos_tags,
             ner_tags=self.ner_tags,
+            abstract_map=self.abstract_map,
             misc=self.misc,
             graph=self.graph
         ).items():
@@ -202,7 +205,7 @@ class AMRGraph(penman.Graph):
             target = self.variable_to_node[edge.target]
             relation = edge.relation
 
-            if relation == "instance":
+            if relation == 'instance':
                 continue
 
             if source == target:
@@ -244,6 +247,9 @@ class AMRGraph(penman.Graph):
         assert len(edges) == 1
         source, _ = edges[0]
         return source.instance
+
+    def is_date_node(self, node):
+        return node.instance == 'date-entity'
 
     def remove_edge(self, x, y):
         if isinstance(x, AMRNode) and isinstance(y, AMRNode):
@@ -326,7 +332,6 @@ class AMRGraph(penman.Graph):
         head_index = []
 
         node_to_idx = defaultdict(list)
-            
         visited = defaultdict(int)
 
         def update_info(node, relation, parent, token):
@@ -343,13 +348,11 @@ class AMRGraph(penman.Graph):
             instance = instance[0]
 
             update_info(node, relation, parent_node, instance)
-            
 
             if len(node.attributes) > 1 and visited[node] == 0:
                 for attr in node.attributes:
                     if attr[0] != "instance":
                         update_info(node, attr[0], parent_node, attr[1])
-            
             visited[node] = 1
 
         # Coreference
