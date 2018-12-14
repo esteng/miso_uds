@@ -48,6 +48,16 @@ class Entity:
         self.confidence = confidence
 
 
+class DATE(Entity):
+
+    attributes = ('year', 'month', 'day', 'decade', 'time', 'century', 'era', 'timezone',
+                  'quant', 'value', 'quarter', 'year2')
+
+    def __init__(self, **kwargs):
+        super(DATE, self).__init__(**kwargs)
+
+
+
 def strip_lemma(lemma):
     # Remove twitter '@'.
     if len(lemma) and lemma[0] == '@':
@@ -127,9 +137,8 @@ def rephrase_ops(ops):
 
 class Recategorizer:
     # TODO:
-    #   1. Decide how to choose type for abstract named entities.
-    #   2. Decide whether to further collapse the name node.
-    #   3. Check the mismatch between aligned entities and ops.
+    #   1. Recategorize date-entity and other '*-entity'.
+    #   2. Check the mismatch between aligned entities and ops.
 
     def __init__(self, train_data=None, build_map=False, map_dir=None):
         self.stemmer = nltk.stem.SnowballStemmer('english').stem
@@ -150,6 +159,22 @@ class Recategorizer:
             self._dump_map(map_dir)
         else:
             self._load_map(map_dir)
+        self.named_entity_count = 0
+        self.recat_named_entity_count = 0
+        self.date_entity_count = 0
+        self.recat_date_entity_count = 0
+        self.removed_wiki_count = 0
+
+    def _print_statistics(self):
+        if self.named_entity_count != 0:
+            logger.info('Named entity collapse rate: {} ({}/{})'.format(
+                self.recat_named_entity_count / self.named_entity_count,
+                self.recat_named_entity_count, self.named_entity_count))
+        if self.date_entity_count != 0:
+            logger.info('Dated entity collapse rate: {} ({}/{})'.format(
+                self.recat_date_entity_count / self.date_entity_count,
+                self.recat_date_entity_count, self.date_entity_count))
+        logger.info('Removed {} wikis.'.format(self.removed_wiki_count))
 
     def _build_map(self):
         logger.info('Building name_node_type_map...')
@@ -182,38 +207,58 @@ class Recategorizer:
             return Entity.unknown_entity_type
 
     def recategorize_file(self, file_path):
-        self.start = False
-        self.count = 0
-        self.recat_count = 0
         for i, amr in enumerate(AMRIO.read(file_path), 1):
-            if True: # amr.sentence.startswith("Two Thumbs said he felt this too in PA"):
-                self.start = True
-            if self.start:
-                self.recategorize_graph(amr)
+            self.recategorize_graph(amr)
             yield amr
             if i % 1000 == 0:
-                print('{} ({}/{})'.format(self.recat_count / self.count, self.recat_count, self.count))
+                logger.info('Processed {} examples.'.format(i))
+                self._print_statistics()
+        logger.info('Done.')
+        self._print_statistics()
 
     def recategorize_graph(self, amr):
         input_cleaner.clean(amr)
         amr.stems = [self.stemmer(l) for l in amr.lemmas]
+        self.remove_wiki(amr)
         self.recategorize_name_nodes(amr)
+        # self.recategorize_date_nodes(amr)
+
+    def remove_wiki(self, amr):
+        graph = amr.graph
+        for node in graph.get_nodes():
+            for attr, value in node.attributes.copy():
+                if attr == 'wiki':
+                    self.removed_wiki_count += 1
+                    graph.remove_node_attribute(node, attr, value)
 
     def recategorize_name_nodes(self, amr):
         graph = amr.graph
         entities = []
         for node in graph.get_nodes():
             if graph.is_name_node(node):
-                self.count += 1
+                self.named_entity_count += 1
                 entity = self._get_aligned_entity(node, amr)
                 if len(entity.span):
-                    self.recat_count += 1
+                    self.recat_named_entity_count += 1
                 entities.append(entity)
         entities = resolve_conflict_entities(entities)
         if not self.build_map:
             self._collapse_name_nodes(entities, amr)
         else:
             self._update_map(entities, amr)
+
+    def recategorize_date_nodes(self, amr):
+        graph = amr.graph
+        dates = []
+        for node in graph.get_nodes():
+            if graph.is_date_node(node):
+                self.date_entity_count += 1
+                date = self._get_aligned_date(node, amr)
+                if len(date.span):
+                    self.recat_date_entity_count += 1
+                dates.append(date)
+        dates = resolve_conflict_entities(dates)
+        self._collapse_date_nodes(dates, amr)
 
     def _get_aligned_entity(self, node, amr):
         ops = node.ops
@@ -323,24 +368,26 @@ class Recategorizer:
         return clean_spans
 
     def _collapse_name_nodes(self, entities, amr):
+        amr.abstract_map = {}
         if len(entities) == 0:
             return
         type_counter = defaultdict(int)
         entities.sort(key=lambda entity: entity.span[-1])
         offset = 0
         for entity in entities:
-            type_counter[entity.ner_type] += 1
-            abstract = '{}_{}_{}'.format(
-                entity.ner_type, type_counter[entity.ner_type], len(entity.span))
             if len(entity.span) > 0:
+                type_counter[entity.ner_type] += 1
+                abstract = '{}_{}'.format(
+                    entity.ner_type, type_counter[entity.ner_type])
                 span_with_offset = [index - offset for index in entity.span]
+                amr.abstract_map[abstract] = ' '.join(map(amr.tokens.__getitem__, span_with_offset))
                 amr.replace_span(span_with_offset, [abstract], ['NNP'], [entity.ner_type])
                 amr.graph.remove_node_ops(entity.node)
-                amr.graph.add_node_attribute(entity.node, 'collapsed-ops', abstract)
+                amr.graph.replace_node_attribute(
+                    entity.node, 'instance', entity.node.instance, abstract)
                 offset += len(entity.span) - 1
             else:
-                amr.graph.remove_node_ops(entity.node)
-                amr.graph.add_node_attribute(entity.node, 'collapsed-ops', abstract)
+                amr.graph.remove_node(entity.node)
 
     def _update_map(self, entities, amr):
         if self.name_node_type_map_done:
