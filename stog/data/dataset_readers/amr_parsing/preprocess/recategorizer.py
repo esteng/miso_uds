@@ -68,10 +68,42 @@ class DATE:
         ('December', 'Dec.', 'Dec')
     ]
 
+    era_map = {
+        'BC': ['BCE', 'bce'],
+        'AD': ['CE', 'ce']
+    }
+
     def __init__(self, node):
         self.node = node
-        self.attributes = {attr: value for attr, value in node.attributes if attr in ('year', 'month', 'day', 'decade', 'time')}
+        self.attributes = {attr: value for attr, value in node.attributes
+                           if attr in self.attribute_list}
         self.span = None
+        self.confidence = 0
+        self.ner_type = '_DATE'
+
+    @staticmethod
+    def collapse_date_nodes(dates, amr):
+        if amr.abstract_map is None:
+            amr.abstract_map = {}
+        dates.sort(key=lambda date: date.span[-1] if date.span else float('inf'))
+        offset = 0
+        align_count = 0
+        for date in dates:
+            if date.span:
+                align_count += 1
+                abstract = '{}_{}'.format(date.ner_type, align_count)
+                span_with_offset = [index - offset for index in date.span]
+                amr.abstract_map[abstract] = ' '.join(map(amr.lemmas.__getitem__, span_with_offset))
+                amr.replace_span(span_with_offset, [abstract], ['NNP'], [date.ner_type])
+                for attr, value in date.attributes.items():
+                    amr.graph.remove_node_attribute(date.node, attr, value)
+                amr.graph.replace_node_attribute(
+                    date.node, 'instance', date.node.instance, abstract
+                )
+                offset += len(date.span) - 1
+            else:
+                for attr, value in date.attributes.items():
+                    amr.graph.remove_node_attribute(date.node, attr, value)
 
     def _is_covered(self, alignment):
         attributes = self.attributes.copy()
@@ -93,7 +125,7 @@ class DATE:
         return alignment
 
     def _get_span(self, alignment, amr):
-        spans = group_indexes_to_spans(alignment.keys(), amr)
+        spans = self.group_indexes_to_spans(alignment.keys(), amr)
         span_scores = []
         for span in spans:
             attr_set = set()
@@ -108,7 +140,8 @@ class DATE:
         if len(spans):
             self.span = max(spans, key=lambda span: sum(
                 max(alignment[i], key=lambda x: x[1])[1] for i in span if i in alignment))
-        if len(spans) == 0 or not self._is_covered(alignment) and 'time' in self.attributes:
+            self.confidence = sum(max(alignment[i], key=lambda x: x[1])[1] for i in self.span if i in alignment)
+        if len(spans) == 0 or not self._is_covered(alignment):
             print(self.node)
             import pdb; pdb.set_trace()
 
@@ -126,7 +159,7 @@ class DATE:
                     if item not in _align or _align[item][1] < confidence:
                         _align[item] = (index, confidence)
             indexes = [i for i, _ in _align.values()] + trivial_indexes
-            _spans = group_indexes_to_spans(indexes, amr)
+            _spans = self.group_indexes_to_spans(indexes, amr)
             clean_spans.append(max(_spans, key=lambda s: len(s)))
         return clean_spans
 
@@ -140,12 +173,22 @@ class DATE:
         elif attr == 'decade':
             return self._maybe_align_decade(value, index, amr)
         elif attr == 'time':
-            return self._maybe_align_basic(value, index, amr)
+            return self._maybe_align_time(value, index, amr)
+        elif attr == 'century':
+            return self._maybe_align_century(value, index, amr)
+        elif attr == 'era':
+            return self._maybe_align_era(value, index, amr)
+        elif attr == 'quant':
+            return self._maybe_align_quant(value, index, amr)
+        elif attr == 'quarter':
+            return self._maybe_align_quarter(value, index, amr)
         else:
             return self._maybe_align_basic(value, index, amr)
 
     def _maybe_align_basic(self, value, index, amr):
         value = str(value)
+        if re.search(r'^".*"$', value):
+            value = value[1:-1]
         if amr.tokens[index] == value or amr.lemmas[index] == value:
             return 10
         if self._strip_date_lemma(amr.lemmas[index]) == value:
@@ -167,7 +210,7 @@ class DATE:
         lemma = amr.lemmas[index]
         stripped_lemma = self._strip_date_lemma(lemma)
         year_short = str(value)[-2:]
-        if lemma.startswith(year_short) or stripped_lemma.startswith(year_short):
+        if ':' not in lemma and (lemma.startswith(year_short) or stripped_lemma.startswith(year_short)):
             return 10
         year_with_s = str(value) + 's'
         if year_with_s == lemma:
@@ -234,6 +277,103 @@ class DATE:
             return 10
         return 0
 
+    def _maybe_align_time(self, value, index, amr):
+        if re.search(r'^".*"$', value):
+            value = value[1:-1]
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        lemma = amr.lemmas[index]
+        m = re.search(r'^(\d{2})(\d{2})(\d{0,2})$', lemma)
+        if m is None or m.group(1) == '':
+            m = re.search(r'-?(\d{1,2})[:.]?(\d{0,2})[:.]?(\d{0,2}).*$', lemma)
+            # if m is None or m.group(1) == '':
+            #     m = re.search(r'(\d{2})?(\d{2})?(\d{2})?$', lemma)
+            if m is None or m.group(1) == '':
+                return 0
+        _hour, _min, _sec = m.group(1), m.group(2), m.group(3)
+        m = re.search(r'(\d*)[:.]?(\d*)[:.]?(\d*)$', value)
+        hour, min, sec = m.group(1), m.group(2), m.group(3)
+        hour_in_12 = str(int(hour) - 12)
+        if ((_sec == '00' or _sec == '') and (sec == '00' or sec == '')) or _sec == sec:
+            if ((_min == '00' or _min == '') and (min == '00' or min == '')) or _min == min:
+                if _hour == '':
+                    import pdb; pdb.set_trace()
+                if _hour == hour or int(_hour) == int(hour):
+                    return 10
+                elif _hour == hour_in_12 or int(_hour) == int(hour_in_12):
+                    return 8
+                elif _hour == '12' and hour == '0':
+                    return 8
+        return 0
+
+    def _maybe_align_century(self, value, index, amr):
+        value = str(value)
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        lemma = amr.lemmas[index]
+        m = re.search(r'^(\d+)(st|nd|rd|th)?(century)?$', lemma)
+        if m and m.group(1) == value:
+            return 10
+        return 0
+
+    def _maybe_align_era(self, value, index, amr):
+        value = str(value)
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        lemma = amr.lemmas[index].replace('.', '')
+        if re.search(r'^".*"$', value):
+            value = value[1:-1]
+        if value == lemma or lemma in self.era_map.get(value, []):
+            return 10
+        return 0
+
+    def _maybe_align_quant(self, value, index, amr):
+        value = str(value)
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        lemma = amr.lemmas[index]
+        if value == '1' and (lemma == 'one' or lemma == 'a'):
+            return 8
+        return 0
+
+    def _maybe_align_quarter(self, value, index, amr):
+        value = str(value)
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        lemma = amr.lemmas[index]
+        try:
+            w2n_number = str(w2n.word_to_num(lemma))
+        except:
+            w2n_number = None
+        if w2n_number == lemma:
+            return 8
+        return 0
+
+    def group_indexes_to_spans(self, indexes, amr):
+        indexes = list(indexes)
+        indexes.sort()
+        spans = []
+        last_index = None
+        for idx in indexes:
+            if last_index is None or idx - last_index > 3:
+                spans.append([])
+            elif idx - last_index <= 3:
+                for i in range(last_index + 1, idx):
+                    if re.search(r"(,|'s|of|'|-|in|at|on|about|\(|\))", amr.tokens[idx - 1]):
+                        continue
+                    else:
+                        spans.append([])
+                        break
+                else:
+                    spans[-1] += list(range(last_index + 1, idx))
+            last_index = idx
+            spans[-1].append(idx)
+        return spans
 
 def strip_lemma(lemma):
     # Remove twitter '@'.
@@ -251,7 +391,7 @@ def resolve_conflict_entities(entities):
     index_entity_map = {}
     empty_entities = []
     for entity in entities:
-        if len(entity.span) == 0:
+        if not entity.span:
             empty_entities.append(entity)
             continue
 
@@ -437,8 +577,8 @@ class Recategorizer:
                 if date.span is not None:
                     self.recat_date_entity_count += 1
                 dates.append(date)
-        # dates = resolve_conflict_entities(dates)
-        # self._collapse_date_nodes(dates, amr)
+        dates = resolve_conflict_entities(dates)
+        DATE.collapse_date_nodes(dates, amr)
 
     def _get_aligned_entity(self, node, amr):
         ops = node.ops
@@ -566,7 +706,8 @@ class Recategorizer:
         return clean_spans
 
     def _collapse_name_nodes(self, entities, amr):
-        amr.abstract_map = {}
+        if amr.abstract_map is None:
+            amr.abstract_map = {}
         if len(entities) == 0:
             return
         type_counter = defaultdict(int)

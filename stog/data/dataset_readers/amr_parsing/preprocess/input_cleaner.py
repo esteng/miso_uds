@@ -1,5 +1,7 @@
 import re
 
+from word2number import w2n
+
 
 def clean(amr):
     correct_errors(amr)
@@ -15,6 +17,7 @@ def clean(amr):
     split_entity_prefix(amr, 'pro')
     replace_NT_dollar_abbr(amr)
     # Date
+    join_time_description(amr)
     split_date_duration(amr)
     split_numerical_date(amr)
     split_year_month(amr)
@@ -140,6 +143,12 @@ def correct_errors(amr):
                 pos = ['CD']
                 ner = ['DATE']
                 break
+            if token == 'midnight':
+                index = i
+                tokens = ['0:00']
+                pos = ['CD']
+                ner = ['TIME']
+                break
         else:
             break
         amr.replace_span([index], tokens, pos, ner)
@@ -192,6 +201,78 @@ def join_possessive_stroke_in_entity(amr):
                 pos = amr.pos_tags[i]
                 ner = amr.ner_tags[i]
                 break
+        else:
+            break
+        amr.replace_span(span, [joined_tokens], [pos], [ner])
+
+
+def join_time_description(amr):
+    # 4 o'clock; 4 am; 4 a.m., etc.
+    while True:
+        span = None
+        if len(amr.tokens) < 2:
+            break
+        for i in range(1, len(amr.tokens)):
+            x, y = amr.tokens[i - 1: i + 1]
+            if y.lower() in ("o'clock", 'am', 'a.m.', 'pm', 'p.m') and re.search(r'^\d+[.:]?\d*[.:]?\d*$', x):
+                span = list(range(i - 1, i + 1))
+                joined_tokens = ''.join([x, y])
+                pos = 'CD'
+                ner = 'TIME'
+                break
+            if y.lower() in ("o'clock", 'am', 'a.m.', 'pm', 'p.m') and x.isalpha():
+                try:
+                    x = w2n.word_to_num(x)
+                except:
+                    continue
+                x = str(x)
+                span = list(range(i - 1, i + 1))
+                joined_tokens = ''.join([x, y])
+                pos = 'CD'
+                ner = 'TIME'
+                break
+            if y == 'Greenwich' and i + 2 < len(amr.tokens) and amr.tokens[i + 1: i + 3] == ['Mean', 'Time']:
+                span = list(range(i, i + 3))
+                joined_tokens = 'GMT'
+                pos = 'NNP'
+                ner = 'TIME'
+                break
+            if y in ('century', 'Century'):
+                m = re.search(r'^(\d+)(st|nd|rd|th)?$', x)
+                if m and m.group(1) != '':
+                    span = list(range(i - 1, i + 1))
+                    joined_tokens = ''.join([m.group(1), y.lower()])
+                    pos = 'CD'
+                    ner = 'TIME'
+                    break
+                elif x == 'first' and amr.tokens[i - 2] == '-' and amr.tokens[i - 3] == 'twenty':
+                    span = list(range(i - 3, i + 1))
+                    joined_tokens = '21century'
+                    pos = 'CD'
+                    ner = 'TIME'
+                    break
+                elif x.lower() == 'eighth':
+                    span = list(range(i - 1, i + 1))
+                    joined_tokens = '8century'
+                    pos = 'CD'
+                    ner = 'TIME'
+                    break
+                elif x.lower() == 'fifth':
+                    span = list(range(i - 1, i + 1))
+                    joined_tokens = '5century'
+                    pos = 'CD'
+                    ner = 'TIME'
+                    break
+                else:
+                    try:
+                        x = w2n.word_to_num(x)
+                    except:
+                        continue
+                    span = list(range(i - 1, i + 1))
+                    joined_tokens = ''.join([x, y.lower()])
+                    pos = 'CD'
+                    ner = 'TIME'
+                    break
         else:
             break
         amr.replace_span(span, [joined_tokens], [pos], [ner])
