@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import nltk
 from nltk.tokenize import word_tokenize
+from word2number import w2n
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
 from stog.data.dataset_readers.amr_parsing.preprocess import input_cleaner
@@ -48,14 +49,190 @@ class Entity:
         self.confidence = confidence
 
 
-class DATE(Entity):
+class DATE:
 
-    attributes = ('year', 'month', 'day', 'decade', 'time', 'century', 'era', 'timezone',
-                  'quant', 'value', 'quarter', 'year2')
+    attribute_list = ['year', 'month', 'day', 'decade', 'time', 'century', 'era', 'timezone',
+                  'quant', 'value', 'quarter', 'year2']
+    month_map = [
+        ('January', 'Jan.', 'Jan'),
+        ('February', 'Feb.', 'Feb', 'Febuary'),
+        ('March', 'Mar.', 'Mar'),
+        ('April', 'Apr.', 'Apr', 'Aril'),
+        ('May',),
+        ('June', 'Jun.', 'Jun'),
+        ('July', 'Jul.', 'Jul'),
+        ('August', 'Aug.', 'Aug'),
+        ('September', 'Sep.', 'Sep', 'Sept.'),
+        ('October', 'Oct.', 'Oct'),
+        ('November', 'Nov.', 'Nov', 'Novmber'),
+        ('December', 'Dec.', 'Dec')
+    ]
 
-    def __init__(self, **kwargs):
-        super(DATE, self).__init__(**kwargs)
+    def __init__(self, node):
+        self.node = node
+        self.attributes = {attr: value for attr, value in node.attributes if attr in ('year', 'month', 'day', 'decade', 'time')}
+        self.span = None
 
+    def _is_covered(self, alignment):
+        attributes = self.attributes.copy()
+        for index in self.span:
+            if index in alignment:
+                for item, _ in alignment[index]:
+                    if item[0] in attributes:
+                        attributes.pop(item[0])
+        return len(attributes) == 0
+
+    def _get_alignment(self, amr):
+        alignment = defaultdict(list)
+        for item in self.attributes.items():
+            attr, value = item
+            for i in range(len(amr.tokens)):
+                confidence = self._maybe_align(attr, value, i, amr)
+                if confidence != 0:
+                    alignment[i].append((item, confidence))
+        return alignment
+
+    def _get_span(self, alignment, amr):
+        spans = group_indexes_to_spans(alignment.keys(), amr)
+        span_scores = []
+        for span in spans:
+            attr_set = set()
+            for index in span:
+                if index in alignment:
+                    for item, _ in alignment[index]:
+                        attr_set.add(item[0])
+            span_scores.append((span, len(span), len(attr_set)))
+        span_scores.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        spans = [span for span, _, _ in span_scores]
+        # spans = self._clean_span(spans, alignment, amr)
+        if len(spans):
+            self.span = max(spans, key=lambda span: sum(
+                max(alignment[i], key=lambda x: x[1])[1] for i in span if i in alignment))
+        if len(spans) == 0 or not self._is_covered(alignment) and 'time' in self.attributes:
+            print(self.node)
+            import pdb; pdb.set_trace()
+
+    def _clean_span(self, spans, alignment, amr):
+        # Make sure each op only appears once in a span.
+        clean_spans = []
+        for span in spans:
+            _align = {}
+            trivial_indexes = []
+            for index in span:
+                if index not in alignment:
+                    trivial_indexes.append(index)
+                    continue
+                for item, confidence in alignment[index]:
+                    if item not in _align or _align[item][1] < confidence:
+                        _align[item] = (index, confidence)
+            indexes = [i for i, _ in _align.values()] + trivial_indexes
+            _spans = group_indexes_to_spans(indexes, amr)
+            clean_spans.append(max(_spans, key=lambda s: len(s)))
+        return clean_spans
+
+    def _maybe_align(self, attr, value, index, amr):
+        if attr == 'year':
+            return self._maybe_align_year(value, index, amr)
+        elif attr == 'month':
+            return self._maybe_align_month(value, index, amr)
+        elif attr == 'day':
+            return self._maybe_align_day(value, index, amr)
+        elif attr == 'decade':
+            return self._maybe_align_decade(value, index, amr)
+        elif attr == 'time':
+            return self._maybe_align_basic(value, index, amr)
+        else:
+            return self._maybe_align_basic(value, index, amr)
+
+    def _maybe_align_basic(self, value, index, amr):
+        value = str(value)
+        if amr.tokens[index] == value or amr.lemmas[index] == value:
+            return 10
+        if self._strip_date_lemma(amr.lemmas[index]) == value:
+            return 10
+        return 0
+
+    def _strip_date_lemma(self, lemma):
+        # Remove '-'.
+        if len(lemma) and lemma[0] == '-':
+            lemma = lemma[1:]
+        if len(lemma) and lemma[-1] == '-':
+            lemma = lemma[:-1]
+        return lemma
+
+    def _maybe_align_year(self, value, index, amr):
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        lemma = amr.lemmas[index]
+        stripped_lemma = self._strip_date_lemma(lemma)
+        year_short = str(value)[-2:]
+        if lemma.startswith(year_short) or stripped_lemma.startswith(year_short):
+            return 10
+        year_with_s = str(value) + 's'
+        if year_with_s == lemma:
+            return 10
+        year_with_stroke = "'" + year_short
+        if year_with_stroke == lemma:
+            return 10
+        return 0
+
+    def _maybe_align_month(self, value, index, amr):
+        lemma = amr.lemmas[index]
+        if 0 < value < 13:
+            for month in self.month_map[value - 1]:
+                if month.lower() == lemma.lower():
+                    return 15
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        month_fixed_length = '{:02d}'.format(value)
+        if month_fixed_length == lemma:
+            return 10
+        return 0
+
+    def _maybe_align_day(self, value, index, amr):
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        lemma = amr.lemmas[index]
+        day_fixed_length = '{:02d}'.format(value)
+        if day_fixed_length == lemma:
+            return 10
+        day = str(value)
+        if (day + 'th' == lemma or
+            day + 'st' == lemma or
+            day + 'nd' == lemma or
+            day + 'rd' == lemma or
+            day + 'sr' == lemma
+        ):
+            return 10
+        if value == 1 and lemma == 'first':
+            return 8
+        if value == 2 and lemma == 'second':
+            return 8
+        if value == 3 and lemma == 'third':
+            return 8
+        return 0
+
+    def _maybe_align_decade(self, value, index, amr):
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        year_confidence = self._maybe_align_year(value, index, amr)
+        if year_confidence != 0:
+            return year_confidence
+        try:
+            w2n_number = str(w2n.word_to_num(amr.lemmas[index]))
+        except:
+            w2n_number = None
+        decade_short = str(value)[-2:]
+        lemma = amr.lemmas[index]
+        if lemma.endswith(decade_short + 's'):
+            return 10
+        if decade_short == w2n_number:
+            return 10
+        return 0
 
 
 def strip_lemma(lemma):
@@ -99,8 +276,11 @@ def group_indexes_to_spans(indexes, amr):
     for idx in indexes:
         if last_index is None or idx - last_index > 2:
             spans.append([])
-        elif idx - last_index == 2 and not re.search(r"(,|'s)", amr.tokens[idx - 1]):
-            spans.append([])
+        elif idx - last_index == 2:
+            if re.search(r"(,|'s|of|'|-|in)", amr.tokens[idx - 1]):
+                spans[-1].append(idx - 1)
+            else:
+                spans.append([])
         last_index = idx
         spans[-1].append(idx)
     return spans
@@ -220,8 +400,8 @@ class Recategorizer:
         input_cleaner.clean(amr)
         amr.stems = [self.stemmer(l) for l in amr.lemmas]
         self.remove_wiki(amr)
-        self.recategorize_name_nodes(amr)
-        # self.recategorize_date_nodes(amr)
+        # self.recategorize_name_nodes(amr)
+        self.recategorize_date_nodes(amr)
 
     def remove_wiki(self, amr):
         graph = amr.graph
@@ -251,14 +431,14 @@ class Recategorizer:
         graph = amr.graph
         dates = []
         for node in graph.get_nodes():
-            if graph.is_date_node(node):
+            if graph.is_date_node(node) and len(node.attributes) > 1:
                 self.date_entity_count += 1
                 date = self._get_aligned_date(node, amr)
-                if len(date.span):
+                if date.span is not None:
                     self.recat_date_entity_count += 1
                 dates.append(date)
-        dates = resolve_conflict_entities(dates)
-        self._collapse_date_nodes(dates, amr)
+        # dates = resolve_conflict_entities(dates)
+        # self._collapse_date_nodes(dates, amr)
 
     def _get_aligned_entity(self, node, amr):
         ops = node.ops
@@ -285,6 +465,20 @@ class Recategorizer:
         #     print(' '.join(amr.tokens[i] for i in entity.span), end='')
         #     print(' --> ' + ' '.join(map(str, entity.node.ops)))
         return entity
+
+    def _get_aligned_date(self, node, amr):
+        date = DATE(node)
+        if len(date.attributes) == 0:
+            return date
+        alignment = date._get_alignment(amr)
+        date._get_span(alignment, amr)
+        if date.span is None:
+            print(date.node)
+            import pdb; pdb.set_trace()
+        else:
+            print(' '.join([amr.tokens[index] for index in date.span]))
+            print(' --> ' + str(node) + '\n')
+        return date
 
     def _get_alignment_for_ops(self, ops, amr):
         alignment = {}
@@ -340,7 +534,7 @@ class Recategorizer:
         backup_ner_type = self._map_name_node_type(amr_type)
         candidate_entities = []
         for span in spans:
-            confidence = sum(alignment[j][1] for j in span)
+            confidence = sum(alignment[j][1] for j in span if j in alignment)
             ner_type = backup_ner_type
             for index in span:
                 if amr.is_named_entity(index):
@@ -358,11 +552,15 @@ class Recategorizer:
         clean_spans = []
         for span in spans:
             _align = {}
+            trivial_indexes = []
             for index in span:
+                if index not in alignment:
+                    trivial_indexes.append(index)
+                    continue
                 op, confidence = alignment[index]
                 if op not in _align or (op in _align and _align[op][1] < confidence):
                     _align[op] = (index, confidence)
-            indexes = [i for i, _ in _align.values()]
+            indexes = [i for i, _ in _align.values()] + trivial_indexes
             _spans = group_indexes_to_spans(indexes, amr)
             clean_spans.append(max(_spans, key=lambda s: len(s)))
         return clean_spans
@@ -372,7 +570,7 @@ class Recategorizer:
         if len(entities) == 0:
             return
         type_counter = defaultdict(int)
-        entities.sort(key=lambda entity: entity.span[-1])
+        entities.sort(key=lambda entity: entity.span[-1] if len(entity.span) else float('inf'))
         offset = 0
         for entity in entities:
             if len(entity.span) > 0:
