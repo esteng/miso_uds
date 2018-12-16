@@ -58,6 +58,7 @@ class Seq2Seq(Model):
                  encoder_output_dropout,
                  # Decoder
                  decoder_token_embedding,
+                 decoder_coref_embedding,
                  decoder_char_embedding,
                  decoder_char_cnn,
                  decoder_embedding_dropout,
@@ -81,6 +82,7 @@ class Seq2Seq(Model):
         self.encoder_output_dropout = encoder_output_dropout
 
         self.decoder_token_embedding = decoder_token_embedding
+        self.decoder_coref_embedding = decoder_coref_embedding
         self.decoder_char_embedding = decoder_char_embedding
         self.decoder_char_cnn = decoder_char_cnn
         self.decoder_embedding_dropout = decoder_embedding_dropout
@@ -122,6 +124,7 @@ class Seq2Seq(Model):
 
             vocab_targets = targets
 
+            decoder_coref_inputs = batch["coref_index"][:, :-1].contiguous()
             copy_targets = batch["coref_index"][:, 1:]
             copy_attention_maps = batch['coref_map'][:, 1:]
 
@@ -138,6 +141,7 @@ class Seq2Seq(Model):
             decoder_memory_bank, aug_decoder_memory_bank, source_attentions, decoder_final_states = self.decode_for_training(
                 decoder_token_inputs,
                 decoder_char_inputs,
+                decoder_coref_inputs,
                 encoder_memory_bank,
                 encoder_mask,
                 encoder_final_states
@@ -196,12 +200,13 @@ class Seq2Seq(Model):
 
         return encoder_outputs, encoder_final_states
 
-    def decode_for_training(self, tokens, chars, memory_bank, mask, states):
+    def decode_for_training(self, tokens, chars, corefs, memory_bank, mask, states):
         # [batch, num_tokens, embedding_size]
         token_embeddings = self.decoder_token_embedding(tokens)
+        coref_embeddings = self.decoder_coref_embedding(corefs)
         if self.use_char_cnn:
             char_cnn_output = self._get_decoder_char_cnn_output(chars)
-            decoder_inputs = torch.cat([token_embeddings, char_cnn_output], 2)
+            decoder_inputs = torch.cat([token_embeddings, coref_embeddings, char_cnn_output], 2)
         else:
             decoder_inputs = token_embeddings
 
@@ -307,6 +312,7 @@ class Seq2Seq(Model):
         tokens = torch.ones(batch_size, 1) \
                  * self.vocab.get_token_index(START_SYMBOL, "decoder_token_ids")
         tokens = tokens.type_as(mask).long()
+        corefs = torch.zeros(batch_size, 1).type_as(mask).long()
 
         input_feed = None
         source_attentions = []
@@ -325,6 +331,7 @@ class Seq2Seq(Model):
         for step_i in range(self.max_decode_length):
             # Get embeddings.
             token_embeddings = self.decoder_token_embedding(tokens)
+            coref_embeddings = self.decoder_coref_embedding(corefs)
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
                 # [batch_size, 1, num_chars]
@@ -335,7 +342,7 @@ class Seq2Seq(Model):
                 )
 
                 char_cnn_output = self._get_decoder_char_cnn_output(chars)
-                decoder_inputs = torch.cat([token_embeddings, char_cnn_output], 2)
+                decoder_inputs = torch.cat([token_embeddings, coref_embeddings, char_cnn_output], 2)
             else:
                 decoder_inputs = token_embeddings
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
@@ -365,9 +372,10 @@ class Seq2Seq(Model):
             tokens, copy_index = self._update_maps_and_get_next_input(
                 step_i, _predictions.squeeze(1), attention_maps, dynamic_vocab_maps)
             tokens = tokens.unsqueeze(1)
+            corefs = copy_index.unsqueeze(1)
 
             predictions += [tokens]
-            copy_indexes += [copy_index.unsqueeze(1)]
+            copy_indexes += [corefs]
 
         predictions = torch.cat(predictions, dim=1)
         copy_indexes = torch.cat(copy_indexes, dim=1)
@@ -450,6 +458,7 @@ class Seq2Seq(Model):
 
         # Decoder
         decoder_token_embedding = Embedding.from_params(vocab, params['decoder_token_embedding'])
+        decoder_coref_embedding = Embedding.from_params(vocab, params['decoder_coref_embedding'])
         if params['use_char_cnn']:
             decoder_char_embedding = Embedding.from_params(vocab, params['decoder_char_embedding'])
             decoder_char_cnn = CnnEncoder(
@@ -522,6 +531,7 @@ class Seq2Seq(Model):
             encoder=encoder,
             encoder_output_dropout=encoder_output_dropout,
             decoder_token_embedding=decoder_token_embedding,
+            decoder_coref_embedding=decoder_coref_embedding,
             decoder_char_cnn=decoder_char_cnn,
             decoder_char_embedding=decoder_char_embedding,
             decoder_embedding_dropout=decoder_embedding_dropout,
