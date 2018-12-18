@@ -61,6 +61,7 @@ def create_serialization_dir(params: Params) -> None:
             raise ConfigurationError(f"--recover specified but serialization_dir ({serialization_dir}) "
                                      "does not exist.  There is nothing to recover from.")
         os.makedirs(serialization_dir, exist_ok=True)
+        params.to_file(os.path.join(serialization_dir, CONFIG_NAME))
 
 
 def train_model(params: Params):
@@ -83,7 +84,6 @@ def train_model(params: Params):
     create_serialization_dir(params)
     environment.prepare_global_logging(environment_params)
     environment.check_for_gpu(environment_params)
-    params.to_file(os.path.join(environment_params['serialization_dir'], CONFIG_NAME))
     if environment_params['gpu']:
         device = torch.device('cuda:{}'.format(environment_params['cuda_device']))
         environment.occupy_gpu(device)
