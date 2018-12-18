@@ -10,7 +10,7 @@ class CopyGenerator(torch.nn.Module):
         self.linear = torch.nn.Linear(input_size, vocab_size)
         self.softmax = torch.nn.Softmax(dim=-1)
 
-        self.linear_copy = torch.nn.Linear(input_size * 2, 1)
+        self.linear_copy = torch.nn.Linear(input_size, 1)
         self.sigmoid = torch.nn.Sigmoid()
 
         self.metrics = Seq2SeqMetrics()
@@ -22,7 +22,7 @@ class CopyGenerator(torch.nn.Module):
 
         self.eps = 1e-20
 
-    def forward(self, hiddens, augmented_hiddens, attentions, attention_maps):
+    def forward(self, hiddens, attentions, attention_maps):
         """
         Compute a distribution over the target dictionary
         extended by the dynamic dictionary implied by copying target nodes.
@@ -38,10 +38,9 @@ class CopyGenerator(torch.nn.Module):
         """
         batch_size, num_target_nodes, _ = hiddens.size()
         hiddens = hiddens.view(batch_size * num_target_nodes, -1)
-        augmented_hiddens = augmented_hiddens.view(batch_size * num_target_nodes, -1)
 
         # Copying probability.
-        p_copy = self.sigmoid(self.linear_copy(augmented_hiddens))
+        p_copy = self.sigmoid(self.linear_copy(hiddens))
         p_copy = p_copy.view(batch_size, num_target_nodes, 1)
         # The first target node is always generated.
         # p_copy[:, 0] = 0
@@ -124,7 +123,9 @@ class CopyGenerator(torch.nn.Module):
         num_correct_pred = pred_eq.sum().item()
         num_copy = copy_mask.mul(non_pad_mask).sum().item()
         num_correct_copy = pred_eq.mul(copy_mask).sum().item()
-        self.metrics(loss.sum().item(), num_non_pad, num_correct_pred, num_copy, num_correct_copy)
+        num_correct_binary = predictions.ge(self.vocab_size).mul(copy_mask).mul(non_pad_mask).sum().item()
+        self.metrics(loss.sum().item(), num_non_pad, num_correct_pred,
+                     num_copy, num_correct_copy, num_correct_binary)
 
         if self.force_copy:
             num_tokens = num_non_pad
