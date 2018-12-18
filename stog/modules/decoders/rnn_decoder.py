@@ -20,7 +20,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         self.attention_layer = attention_layer
         self.self_attention_layer = self_attention_layer
 
-    def forward(self, inputs, memory_bank, mask, hidden_state, input_feed=None):
+    def forward(self, inputs, memory_bank, mask, hidden_state, input_feed=None, output_sequences=None):
         """
 
         :param inputs: [batch_size, decoder_seq_length, embedding_size]
@@ -34,7 +34,10 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         one_step_length = [1] * batch_size
         attentions = []
         copy_attentions = []
-        output_sequences = []
+        if output_sequences is None:
+            output_sequences = []
+        else:
+            output_sequences = list(output_sequences.split(1, dim=1))
 
         if input_feed is None:
             input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
@@ -56,10 +59,15 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
             if self.self_attention_layer is not None:
                 if step_i == 0:
-                    _, copy_attention = self.self_attention_layer(output, None)
-                    copy_attention = torch.nn.functional.pad(
-                        copy_attention, (0, sequence_length - 1), 'constant', 0
-                    )
+                    if len(output_sequences) == 0:
+                        _, copy_attention = self.self_attention_layer(output, None)
+                        copy_attention = torch.nn.functional.pad(
+                            copy_attention, (0, sequence_length - 1), 'constant', 0
+                        )
+                    else:
+                        _, copy_attention = self.self_attention_layer(
+                            output, torch.cat(output_sequences, 1)
+                        )
                 else:
                     _, copy_attention = self.self_attention_layer(
                         output, torch.cat(output_sequences, 1)

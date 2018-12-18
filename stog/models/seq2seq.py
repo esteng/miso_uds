@@ -317,7 +317,7 @@ class Seq2Seq(Model):
         input_feed = None
         source_attentions = []
         copy_attentions = []
-        aug_decoder_outputs = []
+        _decoder_outputs = None
         predictions = []
         copy_indexes = []
 
@@ -348,26 +348,25 @@ class Seq2Seq(Model):
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
             # Decode one step.
-            _decoder_outputs, _aug_decoder_outputs, _source_attentions, states, input_feed = \
-                self.decoder(decoder_inputs, memory_bank, mask, states, input_feed)
+            _decoder_outputs, _copy_attentions, _source_attentions, states, input_feed = \
+                self.decoder(decoder_inputs, memory_bank, mask, states, input_feed, _decoder_outputs)
 
             if step_i == 0:
                 # Dummy copy attention for the first step will never be chosen.
-                _copy_attentions = _decoder_outputs.new_ones(batch_size, 1, 1).type_as(memory_bank)
+                # _copy_attentions = _decoder_outputs.new_ones(batch_size, 1, 1).type_as(memory_bank)
                 _attention_maps = _decoder_outputs.new_zeros(batch_size, 1, 1).type_as(memory_bank)
             else:
-                decoder_outputs_by_far = torch.cat(aug_decoder_outputs, dim=1)
-                _copy_attentions = self.self_copy_attention(_aug_decoder_outputs, decoder_outputs_by_far)
+                # decoder_outputs_by_far = torch.cat(aug_decoder_outputs, dim=1)
+                # _copy_attentions = self.self_copy_attention(_aug_decoder_outputs, decoder_outputs_by_far)
                 _attention_maps = attention_maps[:, :step_i]
 
             # Generate.
-            generator_output = self.generator(_decoder_outputs, _aug_decoder_outputs, _copy_attentions, _attention_maps)
+            generator_output = self.generator(_decoder_outputs[:, -1].unsqueeze(1), _copy_attentions, _attention_maps)
             _predictions = generator_output['predictions']
 
             # Update decoder outputs.
             copy_attentions += [_copy_attentions]
             source_attentions += _source_attentions
-            aug_decoder_outputs += [_aug_decoder_outputs]
 
             tokens, copy_index = self._update_maps_and_get_next_input(
                 step_i, _predictions.squeeze(1), attention_maps, dynamic_vocab_maps)
