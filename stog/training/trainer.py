@@ -409,7 +409,7 @@ class Trainer:
 
     def _description_from_metrics(self, metrics: Dict[str, float]) -> str:
         return ', '.join(["%s: %.4f" % (name, value) for name, value in
-                          metrics.items() if not name.startswith("_")][:4]) + " ||"
+                          metrics.items() if not name.startswith("_")][:5]) + " ||"
 
     def _save_checkpoint(self,
                          epoch: Union[int, str],
