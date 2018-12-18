@@ -103,10 +103,12 @@ class GlobalAttention(torch.nn.Module):
         concat_c = torch.cat([c, source], 2).view(batch_*target_l, -1)
         attn_h = self.output_layer(concat_c).view(batch_, target_l, -1)
 
+        concat_c = concat_c.view(batch_, target_l, -1)
         attn_h = torch.tanh(attn_h)
 
         if memory_bank is not None and one_step:
+            concat_c = concat_c.squeeze(1)
             attn_h = attn_h.squeeze(1)
             align_vectors = align_vectors.squeeze(1)
 
-        return attn_h, align_vectors
+        return attn_h, concat_c, align_vectors

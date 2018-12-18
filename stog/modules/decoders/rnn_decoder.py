@@ -39,6 +39,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         else:
             output_sequences = list(output_sequences.split(1, dim=1))
         pre_attn_output_seq = []
+        switch_input_seq = []
 
         if input_feed is None:
             input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
@@ -56,16 +57,16 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             if self.self_attention_layer is not None:
                 if step_i == 0:
                     if len(output_sequences) == 0:
-                        _, copy_attention = self.self_attention_layer(output, None)
+                        _, _, copy_attention = self.self_attention_layer(output, None)
                         copy_attention = torch.nn.functional.pad(
                             copy_attention, (0, sequence_length - 1), 'constant', 0
                         )
                     else:
-                        _, copy_attention = self.self_attention_layer(
+                        _, _, copy_attention = self.self_attention_layer(
                             output, torch.cat(pre_attn_output_seq, 1)
                         )
                 else:
-                    _, copy_attention = self.self_attention_layer(
+                    _, _, copy_attention = self.self_attention_layer(
                         output, torch.cat(pre_attn_output_seq, 1)
                     )
                     copy_attention = torch.nn.functional.pad(
@@ -75,8 +76,10 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
             pre_attn_output_seq.append(output)
 
-            output, attention = self.attention_layer(
+            output, concat, attention = self.attention_layer(
                 output, memory_bank, mask)
+
+            switch_input_seq.append(torch.cat([concat, _input], 2))
 
             output = self.dropout(output)
 
@@ -86,6 +89,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             attentions.append(attention)
 
         output_sequences = torch.cat(output_sequences, 1)
+        switch_input_seq = torch.cat(switch_input_seq, 1)
         if len(copy_attentions):
             copy_attentions = torch.cat(copy_attentions, 1)
-        return output_sequences, copy_attentions, attentions, hidden_state, input_feed
+        return output_sequences, switch_input_seq, copy_attentions, attentions, hidden_state, input_feed

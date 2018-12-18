@@ -5,12 +5,12 @@ from stog.metrics.seq2seq_metrics import Seq2SeqMetrics
 
 class CopyGenerator(torch.nn.Module):
 
-    def __init__(self, input_size, vocab_size, vocab_pad_idx, force_copy):
+    def __init__(self, input_size, switch_input_size, vocab_size, vocab_pad_idx, force_copy):
         super(CopyGenerator, self).__init__()
         self.linear = torch.nn.Linear(input_size, vocab_size)
         self.softmax = torch.nn.Softmax(dim=-1)
 
-        self.linear_copy = torch.nn.Linear(input_size, 1)
+        self.linear_copy = torch.nn.Linear(switch_input_size , 1)
         self.sigmoid = torch.nn.Sigmoid()
 
         self.metrics = Seq2SeqMetrics()
@@ -22,7 +22,7 @@ class CopyGenerator(torch.nn.Module):
 
         self.eps = 1e-20
 
-    def forward(self, hiddens, attentions, attention_maps):
+    def forward(self, hiddens, switchs, attentions, attention_maps):
         """
         Compute a distribution over the target dictionary
         extended by the dynamic dictionary implied by copying target nodes.
@@ -38,9 +38,10 @@ class CopyGenerator(torch.nn.Module):
         """
         batch_size, num_target_nodes, _ = hiddens.size()
         hiddens = hiddens.view(batch_size * num_target_nodes, -1)
+        switchs = switchs.view(batch_size * num_target_nodes, -1)
 
         # Copying probability.
-        p_copy = self.sigmoid(self.linear_copy(hiddens))
+        p_copy = self.sigmoid(self.linear_copy(switchs))
         p_copy = p_copy.view(batch_size, num_target_nodes, 1)
         # The first target node is always generated.
         # p_copy[:, 0] = 0

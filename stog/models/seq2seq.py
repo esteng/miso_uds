@@ -138,7 +138,7 @@ class Seq2Seq(Model):
         )
 
         if for_training and has_decoder_inputs:
-            decoder_memory_bank, copy_attentions, source_attentions, decoder_final_states = self.decode_for_training(
+            decoder_memory_bank, switch_inputs, copy_attentions, source_attentions, decoder_final_states = self.decode_for_training(
                 decoder_token_inputs,
                 decoder_char_inputs,
                 decoder_coref_inputs,
@@ -154,7 +154,7 @@ class Seq2Seq(Model):
 
             if self.use_self_copy:
                 # copy_attentions = self.self_copy_attention(aug_decoder_memory_bank, aug_decoder_memory_bank)
-                _generator_output = self.generator(decoder_memory_bank, copy_attentions, copy_attention_maps)
+                _generator_output = self.generator(decoder_memory_bank, switch_inputs, copy_attentions, copy_attention_maps)
                 generator_output = self.generator.compute_loss(
                     _generator_output['probs'],
                     _generator_output['predictions'],
@@ -212,9 +212,9 @@ class Seq2Seq(Model):
 
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
-        decoder_outputs, copy_attentions, attentions, decoder_final_states, _ = \
+        decoder_outputs, switch_inputs, copy_attentions, attentions, decoder_final_states, _ = \
             self.decoder(decoder_inputs, memory_bank, mask, states)
-        return decoder_outputs, copy_attentions, attentions, decoder_final_states
+        return decoder_outputs, switch_inputs, copy_attentions, attentions, decoder_final_states
 
     def _get_encoder_char_cnn_output(self, chars):
         # [batch, num_tokens, num_chars, embedding_size]
@@ -494,8 +494,10 @@ class Seq2Seq(Model):
                 encoder_hidden_size=params['decoder']['hidden_size'],
                 attention=attention_module
             )
+            switch_input_size = params['decoder']['hidden_size'] + params['decoder']['input_size'] + params['encoder']['hidden_size'] * 2
             generator = CopyGenerator(
                 input_size=params['decoder']['hidden_size'],
+                switch_input_size=switch_input_size,
                 vocab_size=vocab.get_vocab_size('decoder_token_ids'),
                 force_copy=params['generator'].get('force_copy', True),
                 # TODO: Set the following indices.
