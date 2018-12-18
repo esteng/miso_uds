@@ -138,7 +138,7 @@ class Seq2Seq(Model):
         )
 
         if for_training and has_decoder_inputs:
-            decoder_memory_bank, aug_decoder_memory_bank, source_attentions, decoder_final_states = self.decode_for_training(
+            decoder_memory_bank, copy_attentions, source_attentions, decoder_final_states = self.decode_for_training(
                 decoder_token_inputs,
                 decoder_char_inputs,
                 decoder_coref_inputs,
@@ -153,8 +153,8 @@ class Seq2Seq(Model):
             )
 
             if self.use_self_copy:
-                copy_attentions = self.self_copy_attention(aug_decoder_memory_bank, aug_decoder_memory_bank)
-                _generator_output = self.generator(decoder_memory_bank, aug_decoder_memory_bank, copy_attentions, copy_attention_maps)
+                # copy_attentions = self.self_copy_attention(aug_decoder_memory_bank, aug_decoder_memory_bank)
+                _generator_output = self.generator(decoder_memory_bank, copy_attentions, copy_attention_maps)
                 generator_output = self.generator.compute_loss(
                     _generator_output['probs'],
                     _generator_output['predictions'],
@@ -212,9 +212,9 @@ class Seq2Seq(Model):
 
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
-        decoder_outputs, augmented_decoder_outputs, attentions, decoder_final_states, _ = \
+        decoder_outputs, copy_attentions, attentions, decoder_final_states, _ = \
             self.decoder(decoder_inputs, memory_bank, mask, states)
-        return decoder_outputs, augmented_decoder_outputs, attentions, decoder_final_states
+        return decoder_outputs, copy_attentions, attentions, decoder_final_states
 
     def _get_encoder_char_cnn_output(self, chars):
         # [batch, num_tokens, num_chars, embedding_size]
@@ -483,20 +483,16 @@ class Seq2Seq(Model):
             encoder_hidden_size=params['encoder']['hidden_size'] * 2,
             attention=attention
         )
-        decoder = InputFeedRNNDecoder(
-            rnn_cell=StackedLstm.from_params(params['decoder']),
-            attention_layer=attention_layer,
-            # TODO: modify the dropout so that the dropout mask is unchanged across the steps.
-            dropout=InputVariationalDropout(p=params['decoder']['dropout'])
-        )
 
         if params.get('use_self_copy', False):
             attention_module = DotProductAttention(
-                decoder_hidden_size=params['decoder']['hidden_size'] * 2,
-                encoder_hidden_size=params['decoder']['hidden_size'] * 2,
+                decoder_hidden_size=params['decoder']['hidden_size'],
+                encoder_hidden_size=params['decoder']['hidden_size'],
                 add_linear=params['self_copy_attention'].get('add_linear', True)
             )
-            self_copy_attention = SelfCopyAttention(
+            self_copy_attention = GlobalAttention(
+                decoder_hidden_size=params['decoder']['hidden_size'],
+                encoder_hidden_size=params['decoder']['hidden_size'],
                 attention=attention_module
             )
             generator = CopyGenerator(
@@ -513,6 +509,14 @@ class Seq2Seq(Model):
             params['generator']['vocab_size'] = vocab.get_vocab_size('decoder_token_ids')
             params['generator']['pad_idx'] = 0
             generator = Generator.from_params(params['generator'])
+
+        decoder = InputFeedRNNDecoder(
+            rnn_cell=StackedLstm.from_params(params['decoder']),
+            attention_layer=attention_layer,
+            self_attention_layer=self_copy_attention,
+            # TODO: modify the dropout so that the dropout mask is unchanged across the steps.
+            dropout=InputVariationalDropout(p=params['decoder']['dropout'])
+        )
 
         logger.info('encoder_token: %d' %vocab.get_vocab_size('encoder_token_ids'))
         logger.info('encoder_chars: %d' %vocab.get_vocab_size('encoder_token_characters'))

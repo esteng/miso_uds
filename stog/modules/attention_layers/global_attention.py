@@ -72,38 +72,41 @@ class GlobalAttention(torch.nn.Module):
              `[tgt_len x batch x src_len]`
         """
 
-        # one step input
-        if source.dim() == 2:
-            one_step = True
-            source = source.unsqueeze(1)
-        else:
-            one_step = False
-
-        batch, source_l, dim = memory_bank.size()
         batch_, target_l, dim_ = source.size()
+        if memory_bank is None:
+            c = torch.zeros(batch_, target_l, self.encoder_hidden_size).type_as(source)
+            align_vectors = torch.zeros(batch_, target_l, 1).type_as(source)
 
-        align = self.attention(source, memory_bank)
+        else:
+            # one step input
+            if source.dim() == 2:
+                one_step = True
+                source = source.unsqueeze(1)
+            else:
+                one_step = False
 
-        if mask is not None:
-            mask = mask.byte().unsqueeze(1)  # Make it broadcastable.
-            align.masked_fill_(1 - mask, -float('inf'))
+            batch, source_l, dim = memory_bank.size()
 
-        align_vectors = F.softmax(align, 2)
+            align = self.attention(source, memory_bank)
 
-        # each context vector c_t is the weighted average
-        # over all the source hidden states
-        c = torch.bmm(align_vectors, memory_bank)
+            if mask is not None:
+                mask = mask.byte().unsqueeze(1)  # Make it broadcastable.
+                align.masked_fill_(1 - mask, -float('inf'))
+
+            align_vectors = F.softmax(align, 2)
+
+            # each context vector c_t is the weighted average
+            # over all the source hidden states
+            c = torch.bmm(align_vectors, memory_bank)
 
         # concatenate
-        concat_c = torch.cat([c, source], 2).view(batch*target_l, -1)
-        attn_h = self.output_layer(concat_c).view(batch, target_l, -1)
+        concat_c = torch.cat([c, source], 2).view(batch_*target_l, -1)
+        attn_h = self.output_layer(concat_c).view(batch_, target_l, -1)
 
-        concat_c = concat_c.view(batch, target_l, -1)
         attn_h = torch.tanh(attn_h)
 
-        if one_step:
-            concat_c = concat_c.squeeze(1)
+        if memory_bank is not None and one_step:
             attn_h = attn_h.squeeze(1)
             align_vectors = align_vectors.squeeze(1)
 
-        return attn_h, concat_c, align_vectors
+        return attn_h, align_vectors
