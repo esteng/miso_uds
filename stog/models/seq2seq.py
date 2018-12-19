@@ -148,11 +148,9 @@ class Seq2Seq(Model):
             copy_targets = batch["tgt_copy_indices"][:, 1:]
             copy_attention_maps = batch['tgt_copy_map'][:, 1:]
 
-            src_copy_targets = batch["src_copy_indices"][:, 1:]
-            src_copy_attention_maps = batch['src_copy_map'][:, 1:]
-            # for debugging
-            self.print_batch_details(batch, 0)
-            import pdb;pdb.set_trace()
+            # TODO: use these two tensors for source side copy
+            src_copy_targets = batch["src_copy_indices"]
+            src_copy_attention_maps = batch['src_copy_map']
 
         except:
             has_decoder_inputs = False
