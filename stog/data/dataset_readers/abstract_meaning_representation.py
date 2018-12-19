@@ -55,6 +55,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         fields: Dict[str, Field] = {}
 
+        import pdb;pdb.set_trace()
         list_data = amr.graph.get_list_data(START_SYMBOL, END_SYMBOL)
 
         # These four fields are used for seq2seq model and target side self copy
@@ -80,6 +81,24 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             sequence_field=fields["amr_tokens"],
             padding_value=0
         )
+        # These tree fields for source copy
+        fields["source_copy_target"] = SequenceLabelField(
+            labels=list_data["source_copy_target"],
+            sequence_field=fields["amr_tokens"],
+            label_namespace="source_copy_target_tags",
+        )
+
+
+        fields["source_copy_map"] = AdjacencyField(
+            indices=list_data["source_copy_map"],
+            sequence_field=fields["amr_tokens"],
+            padding_value=0
+        )
+
+        fields["source_copy_vocab"] = MetadataField(
+            list_data["source_copy_vocab"]
+        )
+
         
         # These two fields are used in biaffine parser
         fields["head_tags"] = SequenceLabelField(
