@@ -102,6 +102,29 @@ class Seq2Seq(Model):
     def get_metrics(self, reset: bool = False):
         return self.generator.metrics.get_metric(reset)
 
+    def print_batch_details(self, batch, batch_idx):
+        print(batch["amr"][batch_idx])
+        print()
+
+        print("Source tokens:")
+        print([(i, x) for i, x in enumerate(batch["src_tokens_str"][batch_idx])])
+        print()
+
+        print('Source copy vocab')
+        print(batch["src_copy_vocab"][batch_idx])
+        print()
+
+        print("Target tokens")
+        print([(i, x) for i, x in enumerate(batch["tgt_tokens_str"][batch_idx])])
+        print()
+
+        print('Source copy indices')
+        print([(i, x) for i, x in enumerate(batch["src_copy_indices"][batch_idx].tolist())])
+
+        print('Target copy indices')
+        print([(i, x) for i, x in enumerate(batch["tgt_copy_indices"][batch_idx].tolist())])
+
+
     def forward(self, batch, for_training=False):
 
         # [batch, num_tokens]
@@ -127,6 +150,8 @@ class Seq2Seq(Model):
 
             src_copy_targets = batch["src_copy_indices"][:, 1:]
             src_copy_attention_maps = batch['src_copy_map'][:, 1:]
+            # for debugging
+            self.print_batch_details(batch, 0)
             import pdb;pdb.set_trace()
 
         except:

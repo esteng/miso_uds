@@ -477,4 +477,4 @@ class SourceCopyVocabulary:
         return [(idx, target) for idx, target in enumerate(targets)]
 
     def __repr__(self):
-        return json.dumps(self.token_to_idx)
+        return json.dumps(self.idx_to_token)
