@@ -339,13 +339,13 @@ class AMRGraph(penman.Graph):
 
         tokens = []
         head_tags = []
-        head_index = []
+        head_indices = []
 
         node_to_idx = defaultdict(list)
         visited = defaultdict(int)
 
         def update_info(node, relation, parent, token):
-            head_index.append(node_to_idx[parent][-1])
+            head_indices.append(1 + node_to_idx[parent][-1])
             head_tags.append(relation)
             tokens.append(str(token))
 
@@ -364,6 +364,8 @@ class AMRGraph(penman.Graph):
                     if attr[0] != "instance":
                         update_info(node, attr[0], parent_node, attr[1])
             visited[node] = 1
+
+        head_indices[node_to_idx[self.variable_to_node[self.top]][0]] = 0
 
         # Coreference
         offset = 1 if bos else 0
