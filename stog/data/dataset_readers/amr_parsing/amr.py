@@ -7,6 +7,8 @@ import networkx as nx
 from penman import Triple
 from collections import defaultdict
 
+import json
+
 
 # Disable inverting ':mod' relation.
 penman.AMRCodec._inversions.pop('domain')
@@ -474,4 +476,5 @@ class SourceCopyVocabulary:
         targets = self.index_sequence(list_tokens)
         return [(idx, target) for idx, target in enumerate(targets)]
 
-
+    def __repr__(self):
+        return json.dumps(self.token_to_idx)

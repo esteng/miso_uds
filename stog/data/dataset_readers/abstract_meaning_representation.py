@@ -80,7 +80,8 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             sequence_field=fields["tgt_tokens"],
             padding_value=0
         )
-        # These tree fields for source copy
+
+        # These two fields for source copy
         fields["src_copy_indices"] = SequenceLabelField(
             labels=list_data["src_copy_indices"],
             sequence_field=fields["tgt_tokens"],
@@ -100,11 +101,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             padding_value=0
         )
 
-        fields["src_copy_vocab"] = MetadataField(
-            list_data["src_copy_vocab"]
-        )
 
-        
         # These two fields are used in biaffine parser
         fields["head_tags"] = SequenceLabelField(
             labels=list_data["head_tags"],
@@ -118,6 +115,23 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             sequence_field=fields["tgt_tokens"],
             label_namespace="head_index_tags",
             strip_sentence_symbols=True
+        )
+
+        # Metadata fields, good for debugging
+        fields["src_tokens_str"] = MetadataField(
+            list_data["src_tokens"]
+        )
+
+        fields["tgt_tokens_str"] = MetadataField(
+            list_data.get("tgt_tokens", [])
+        )
+
+        fields["src_copy_vocab"] = MetadataField(
+            list_data["src_copy_vocab"]
+        )
+
+        fields["amr"] = MetadataField(
+            amr
         )
 
         return Instance(fields)
