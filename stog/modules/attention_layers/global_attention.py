@@ -111,4 +111,4 @@ class GlobalAttention(torch.nn.Module):
             attn_h = attn_h.squeeze(1)
             align_vectors = align_vectors.squeeze(1)
 
-        return attn_h, concat_c, align_vectors
+        return attn_h, c, concat_c, align_vectors

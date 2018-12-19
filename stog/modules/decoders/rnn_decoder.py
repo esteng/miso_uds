@@ -39,6 +39,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             output_sequences = []
         else:
             output_sequences = list(output_sequences.split(1, dim=1))
+        raw_output_sequences = []
         switch_input_seq = []
 
         if input_feed is None:
@@ -53,35 +54,36 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             packed_output, hidden_state = self.rnn_cell(packed_input, hidden_state)
             # output: [batch_size, 1, hidden_size]
             output, _ = pad_packed_sequence(packed_output, batch_first=True)
-            output, concat, attention = self.attention_layer(
+            copy_input = output
+            output, _, concat, attention = self.attention_layer(
                 output, memory_bank, mask)
             output = self.dropout(output)
-            input_feed = output # .clone()
+            input_feed = output  # .clone()
 
-            copy_input = self.linear_copy(torch.cat([concat, input], 2))
+            # copy_input = torch.cat([concat, input], 2)
 
             if self.self_attention_layer is not None:
                 if step_i == 0:
                     if len(output_sequences) == 0:
-                        _, _, copy_attention = self.self_attention_layer(copy_input, None)
+                        copy_output, context, _, copy_attention = self.self_attention_layer(copy_input, None)
                         copy_attention = torch.nn.functional.pad(
                             copy_attention, (0, sequence_length - 1), 'constant', 0
                         )
                     else:
-                        _, _, copy_attention = self.self_attention_layer(
-                            copy_input, torch.cat(switch_input_seq, 1)
+                        copy_output, context, _, copy_attention = self.self_attention_layer(
+                            copy_input, torch.cat(raw_output_sequences, 1)
                         )
                 else:
-                    _, _, copy_attention = self.self_attention_layer(
-                        copy_input, torch.cat(switch_input_seq, 1)
+                    copy_output, context, _, copy_attention = self.self_attention_layer(
+                        copy_input, torch.cat(raw_output_sequences, 1)
                     )
                     copy_attention = torch.nn.functional.pad(
                         copy_attention, (0, sequence_length - step_i), 'constant', 0
                     )
                 copy_attentions.append(copy_attention)
 
-
-            switch_input_seq.append(copy_input)
+            switch_input_seq.append(torch.cat([concat, context, input], 2))
+            raw_output_sequences.append(copy_input)
             output_sequences.append(output)
             attentions.append(attention)
 

@@ -484,7 +484,7 @@ class Seq2Seq(Model):
         )
 
         if params.get('use_self_copy', False):
-            switch_input_size = params['decoder']['input_size'] + params['encoder']['hidden_size'] * 2
+            switch_input_size = params['decoder']['input_size'] + params['encoder']['hidden_size'] * 4
             linear_copy = torch.nn.Linear(switch_input_size, params['decoder']['hidden_size'])
             attention_module = DotProductAttention(
                 decoder_hidden_size=params['decoder']['hidden_size'],
@@ -498,7 +498,7 @@ class Seq2Seq(Model):
             )
             generator = CopyGenerator(
                 input_size=params['decoder']['hidden_size'],
-                switch_input_size=params['decoder']['hidden_size'],
+                switch_input_size=switch_input_size,
                 vocab_size=vocab.get_vocab_size('decoder_token_ids'),
                 force_copy=params['generator'].get('force_copy', True),
                 # TODO: Set the following indices.
