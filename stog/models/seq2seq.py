@@ -212,7 +212,7 @@ class Seq2Seq(Model):
 
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
-        decoder_outputs, switch_inputs, copy_attentions, attentions, decoder_final_states, _ = \
+        decoder_outputs, _, switch_inputs, copy_attentions, attentions, decoder_final_states, _ = \
             self.decoder(decoder_inputs, memory_bank, mask, states)
         return decoder_outputs, switch_inputs, copy_attentions, attentions, decoder_final_states
 
@@ -317,9 +317,9 @@ class Seq2Seq(Model):
         input_feed = None
         source_attentions = []
         copy_attentions = []
-        _decoder_outputs = None
         predictions = []
         copy_indexes = []
+        preattn_outputs = None
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
         # Here the maximum size of the dynamic vocab is just max_decode_length.
@@ -348,8 +348,8 @@ class Seq2Seq(Model):
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
             # Decode one step.
-            _decoder_outputs, _copy_attentions, _source_attentions, states, input_feed = \
-                self.decoder(decoder_inputs, memory_bank, mask, states, input_feed, _decoder_outputs)
+            _decoder_outputs, preattn_outputs, switch_inputs, _copy_attentions, _source_attentions, states, input_feed = \
+                self.decoder(decoder_inputs, memory_bank, mask, states, input_feed, preattn_outputs)
 
             if step_i == 0:
                 # Dummy copy attention for the first step will never be chosen.
@@ -361,7 +361,7 @@ class Seq2Seq(Model):
                 _attention_maps = attention_maps[:, :step_i]
 
             # Generate.
-            generator_output = self.generator(_decoder_outputs[:, -1].unsqueeze(1), _copy_attentions, _attention_maps)
+            generator_output = self.generator(_decoder_outputs, switch_inputs, _copy_attentions, _attention_maps)
             _predictions = generator_output['predictions']
 
             # Update decoder outputs.
