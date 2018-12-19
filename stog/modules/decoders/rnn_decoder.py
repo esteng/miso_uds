@@ -15,12 +15,13 @@ class RNNDecoderBase(torch.nn.Module):
 
 class InputFeedRNNDecoder(RNNDecoderBase):
 
-    def __init__(self, rnn_cell, attention_layer, self_attention_layer, dropout):
+    def __init__(self, rnn_cell, linear_copy, attention_layer, self_attention_layer, dropout):
         super(InputFeedRNNDecoder, self).__init__(rnn_cell, dropout)
+        self.linear_copy = linear_copy
         self.attention_layer = attention_layer
         self.self_attention_layer = self_attention_layer
 
-    def forward(self, inputs, memory_bank, mask, hidden_state, input_feed=None, pre_attn_output_seq=None):
+    def forward(self, inputs, memory_bank, mask, hidden_state, input_feed=None, output_sequences=None):
         """
 
         :param inputs: [batch_size, decoder_seq_length, embedding_size]
@@ -34,12 +35,10 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         one_step_length = [1] * batch_size
         attentions = []
         copy_attentions = []
-        output_sequences = []
-        if pre_attn_output_seq is None:
-            pre_attn_output_seq = []
+        if output_sequences is None:
+            output_sequences = []
         else:
-            pre_attn_output_seq = list(pre_attn_output_seq.split(1, dim=1))
-        pre_attn_output_seq = []
+            output_sequences = list(output_sequences.split(1, dim=1))
         switch_input_seq = []
 
         if input_feed is None:
@@ -54,38 +53,35 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             packed_output, hidden_state = self.rnn_cell(packed_input, hidden_state)
             # output: [batch_size, 1, hidden_size]
             output, _ = pad_packed_sequence(packed_output, batch_first=True)
+            output, concat, attention = self.attention_layer(
+                output, memory_bank, mask)
+            output = self.dropout(output)
+            input_feed = output # .clone()
+
+            copy_input = self.linear_copy(torch.cat([concat, input], 2))
 
             if self.self_attention_layer is not None:
                 if step_i == 0:
-                    if len(pre_attn_output_seq) == 0:
-                        _, copy_attention = self.self_attention_layer(output, None)
+                    if len(output_sequences) == 0:
+                        _, _, copy_attention = self.self_attention_layer(copy_input, None)
                         copy_attention = torch.nn.functional.pad(
                             copy_attention, (0, sequence_length - 1), 'constant', 0
                         )
                     else:
                         _, _, copy_attention = self.self_attention_layer(
-                            output, torch.cat(pre_attn_output_seq, 1)
+                            copy_input, torch.cat(switch_input_seq, 1)
                         )
                 else:
                     _, _, copy_attention = self.self_attention_layer(
-                        output, torch.cat(pre_attn_output_seq, 1)
+                        copy_input, torch.cat(switch_input_seq, 1)
                     )
                     copy_attention = torch.nn.functional.pad(
                         copy_attention, (0, sequence_length - step_i), 'constant', 0
                     )
                 copy_attentions.append(copy_attention)
 
-            pre_attn_output_seq.append(output)
 
-            output, concat, attention = self.attention_layer(
-                output, memory_bank, mask)
-
-            switch_input_seq.append(torch.cat([concat, _input], 2))
-
-            output = self.dropout(output)
-
-            input_feed = output # .clone()
-
+            switch_input_seq.append(copy_input)
             output_sequences.append(output)
             attentions.append(attention)
 
@@ -93,5 +89,4 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         switch_input_seq = torch.cat(switch_input_seq, 1)
         if len(copy_attentions):
             copy_attentions = torch.cat(copy_attentions, 1)
-            pre_attn_output_seq = torch.cat(pre_attn_output_seq, 1)
-        return output_sequences, pre_attn_output_seq, switch_input_seq, copy_attentions, attentions, hidden_state, input_feed
+        return output_sequences, switch_input_seq, copy_attentions, attentions, hidden_state, input_feed

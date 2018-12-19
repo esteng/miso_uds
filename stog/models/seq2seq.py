@@ -212,7 +212,7 @@ class Seq2Seq(Model):
 
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
-        decoder_outputs, _, switch_inputs, copy_attentions, attentions, decoder_final_states, _ = \
+        decoder_outputs, switch_inputs, copy_attentions, attentions, decoder_final_states, _ = \
             self.decoder(decoder_inputs, memory_bank, mask, states)
         return decoder_outputs, switch_inputs, copy_attentions, attentions, decoder_final_states
 
@@ -484,20 +484,21 @@ class Seq2Seq(Model):
         )
 
         if params.get('use_self_copy', False):
+            switch_input_size = params['decoder']['input_size'] + params['encoder']['hidden_size'] * 2
+            linear_copy = torch.nn.Linear(switch_input_size, params['decoder']['hidden_size'])
             attention_module = DotProductAttention(
                 decoder_hidden_size=params['decoder']['hidden_size'],
-                encoder_hidden_size=params['decoder']['hidden_size'],
+                encoder_hidden_size=params['encoder']['hidden_size'] * 2,
                 add_linear=params['self_copy_attention'].get('add_linear', True)
             )
             self_copy_attention = GlobalAttention(
                 decoder_hidden_size=params['decoder']['hidden_size'],
-                encoder_hidden_size=params['decoder']['hidden_size'],
+                encoder_hidden_size=params['encoder']['hidden_size'] * 2,
                 attention=attention_module
             )
-            switch_input_size = params['decoder']['hidden_size'] + params['decoder']['input_size'] + params['encoder']['hidden_size'] * 2
             generator = CopyGenerator(
                 input_size=params['decoder']['hidden_size'],
-                switch_input_size=switch_input_size,
+                switch_input_size=params['decoder']['hidden_size'],
                 vocab_size=vocab.get_vocab_size('decoder_token_ids'),
                 force_copy=params['generator'].get('force_copy', True),
                 # TODO: Set the following indices.
@@ -513,6 +514,7 @@ class Seq2Seq(Model):
 
         decoder = InputFeedRNNDecoder(
             rnn_cell=StackedLstm.from_params(params['decoder']),
+            linear_copy=linear_copy,
             attention_layer=attention_layer,
             self_attention_layer=self_copy_attention,
             # TODO: modify the dropout so that the dropout mask is unchanged across the steps.
