@@ -20,7 +20,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         self.attention_layer = attention_layer
         self.self_attention_layer = self_attention_layer
 
-    def forward(self, inputs, memory_bank, mask, hidden_state, input_feed=None, output_sequences=None):
+    def forward(self, inputs, memory_bank, mask, hidden_state, input_feed=None, pre_attn_output_seq=None):
         """
 
         :param inputs: [batch_size, decoder_seq_length, embedding_size]
@@ -34,11 +34,11 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         one_step_length = [1] * batch_size
         attentions = []
         copy_attentions = []
-        if output_sequences is None:
-            output_sequences = []
+        output_sequences = []
+        if pre_attn_output_seq is None:
+            pre_attn_output_seq = []
         else:
-            output_sequences = list(output_sequences.split(1, dim=1))
-        pre_attn_output_seq = []
+            pre_attn_output_seq = list(pre_attn_output_seq.split(1, dim=1))
 
         if input_feed is None:
             input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
@@ -55,7 +55,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
             if self.self_attention_layer is not None:
                 if step_i == 0:
-                    if len(output_sequences) == 0:
+                    if len(pre_attn_output_seq) == 0:
                         _, copy_attention = self.self_attention_layer(output, None)
                         copy_attention = torch.nn.functional.pad(
                             copy_attention, (0, sequence_length - 1), 'constant', 0
@@ -88,4 +88,5 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         output_sequences = torch.cat(output_sequences, 1)
         if len(copy_attentions):
             copy_attentions = torch.cat(copy_attentions, 1)
-        return output_sequences, copy_attentions, attentions, hidden_state, input_feed
+            pre_attn_output_seq = torch.cat(pre_attn_output_seq, 1)
+        return output_sequences, pre_attn_output_seq, copy_attentions, attentions, hidden_state, input_feed
