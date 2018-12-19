@@ -114,16 +114,20 @@ class Seq2Seq(Model):
         try:
             has_decoder_inputs = True
             # [batch, num_tokens]
-            decoder_token_inputs = batch['amr_tokens']['decoder_tokens'][:, :-1].contiguous()
+            decoder_token_inputs = batch['tgt_tokens']['decoder_tokens'][:, :-1].contiguous()
             # [batch, num_tokens, num_chars]
-            decoder_char_inputs = batch['amr_tokens']['decoder_characters'][:, :-1].contiguous()
+            decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, :-1].contiguous()
             # [batch, num_tokens]
-            targets = batch['amr_tokens']['decoder_tokens'][:, 1:].contiguous()
+            targets = batch['tgt_tokens']['decoder_tokens'][:, 1:].contiguous()
 
             vocab_targets = targets
 
-            copy_targets = batch["coref_index"][:, 1:]
-            copy_attention_maps = batch['coref_map'][:, 1:]
+            copy_targets = batch["tgt_copy_indices"][:, 1:]
+            copy_attention_maps = batch['tgt_copy_map'][:, 1:]
+
+            src_copy_targets = batch["src_copy_indices"][:, 1:]
+            src_copy_attention_maps = batch['src_copy_map'][:, 1:]
+            import pdb;pdb.set_trace()
 
         except:
             has_decoder_inputs = False

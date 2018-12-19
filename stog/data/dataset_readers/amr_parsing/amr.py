@@ -102,7 +102,6 @@ class AMR:
         return '\n'.join(fields)
 
     def get_src_tokens(self):
-        import pdb;pdb.set_trace()
         return self.lemmas if self.lemmas else self.sentence.split()
 
 
@@ -337,7 +336,7 @@ class AMRGraph(penman.Graph):
     def get_list_data(self, bos=None, eos=None):
         node_list = self.get_list_node()
 
-        tokens = []
+        tgt_tokens = []
         head_tags = []
         head_indices = []
 
@@ -347,11 +346,11 @@ class AMRGraph(penman.Graph):
         def update_info(node, relation, parent, token):
             head_indices.append(1 + node_to_idx[parent][-1])
             head_tags.append(relation)
-            tokens.append(str(token))
+            tgt_tokens.append(str(token))
 
         for node, relation, parent_node in node_list:
 
-            node_to_idx[node].append(len(tokens))
+            node_to_idx[node].append(len(tgt_tokens))
 
             instance = [attr[1] for attr in node.attributes if attr[0] =="instance"]
             assert len(instance) == 1
@@ -365,36 +364,43 @@ class AMRGraph(penman.Graph):
                         update_info(node, attr[0], parent_node, attr[1])
             visited[node] = 1
 
+
+        copy_offset = 0
+        if bos:
+            tgt_tokens = [bos] + tgt_tokens
+            copy_offset = 1
+        if eos:
+            tgt_tokens = tgt_tokens + [eos]
+
         head_indices[node_to_idx[self.variable_to_node[self.top]][0]] = 0
 
-        # Coreference
-        offset = 1 if bos else 0
-        pad_eos = 1 if eos else 0
-        coref_index = [i for i in range(offset + len(tokens) + pad_eos)]
+        # Target side Coreference
+        tgt_copy_indices = [i for i in range(len(tgt_tokens))]
 
         for node, indices in node_to_idx.items():
             if len(indices) > 1:
-                copy_idx = indices[0] + offset
+                copy_idx = indices[0] + copy_offset
                 for token_idx in indices[1:]:
-                    coref_index[token_idx + offset] = copy_idx
+                    tgt_copy_indices[token_idx + copy_offset] = copy_idx
 
-        coref_map = [(token_idx, copy_idx) for token_idx, copy_idx in enumerate(coref_index)]
+        tgt_copy_map = [(token_idx, copy_idx) for token_idx, copy_idx in enumerate(tgt_copy_indices)]
 
         # Source Copy
-        import pdb;pdb.set_trace()
-        source_copy_vocab = SourceCopyVocabulary(self.get_src_tokens())
-        source_copy_target = source_copy_vocab.index_sequence(tokens)
-        source_copy_map = source_copy_vocab.get_copy_map(tokens)
+        src_tokens = self.get_src_tokens()
+        src_copy_vocab = SourceCopyVocabulary(src_tokens)
+        src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
+        src_copy_map = src_copy_vocab.get_copy_map(tgt_tokens)
 
         return {
-            "amr_tokens" : tokens,
-            "coref_index" : coref_index,
-            "coref_map" : coref_map,
+            "tgt_tokens" : tgt_tokens,
+            "tgt_copy_indices" : tgt_copy_indices,
+            "tgt_copy_map" : tgt_copy_map,
+            "src_tokens" : src_tokens,
+            "src_copy_vocab" : src_copy_vocab,
+            "src_copy_indices" : src_copy_indices,
+            "src_copy_map" : src_copy_map,
             "head_tags" : head_tags,
-            "head_indices" : head_index,
-            "source_copy_vocab" : source_copy_vocab,
-            "source_copy_target" : source_copy_target,
-            "source_copy_map" : source_copy_map
+            "head_indices" : head_indices,
         }
 
     @classmethod
