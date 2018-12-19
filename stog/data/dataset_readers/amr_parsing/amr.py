@@ -11,6 +11,7 @@ from collections import defaultdict
 # Disable inverting ':mod' relation.
 penman.AMRCodec._inversions.pop('domain')
 penman.AMRCodec._deinversions.pop('mod')
+from penman import Triple
 
 amr_codec = penman.AMRCodec(indent=6)
 
@@ -407,6 +408,38 @@ class AMRGraph(penman.Graph):
     def decode(cls, raw_graph_string):
         _graph = amr_codec.decode(raw_graph_string)
         return cls(_graph)
+
+    @classmethod
+    def from_lists(cls, all_list):
+        head_tags = all_list['head_tags']
+        head_indices = all_list['head_indices']
+        tgt_tokens = all_list['tokens']
+
+        tgt_copy_indices = all_list['coref']
+        variables = []
+        variables_count = defaultdict(int)
+        for i, token in enumerate(tgt_tokens):
+            if tgt_copy_indices[i] != i:
+                variables.append(variables[tgt_copy_indices[i]])
+            else:
+                if token[0] in variables_count:
+                    variables.append(token[0] + str(variables_count[token[0]]))
+                else
+                    variables.append(token[0])
+
+                variables_count[token[0]] += 1
+
+        Triples = []
+        for variable, token in zip(variables, tgt_tokens):
+            Triples.append(Triple(variable, "instance", token))
+            Triples.append(
+                Triple(
+                    head_indices[variable],
+                    head_tags[variable],
+                    variable
+                )
+            )
+
 
 class SourceCopyVocabulary:
     def __init__(self, sentence, pad_token="@@PAD@@", unk_token="@@UNKNOWN@@"):
