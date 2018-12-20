@@ -27,7 +27,6 @@ def character_tensor_from_token_tensor(
         character_tokenizer,
         namespace=dict(tokens="decoder_token_ids", characters="decoder_token_characters")
     ):
-    #import pdb;pdb.set_trace()
     token_str = [vocab.get_token_from_index(i, namespace["tokens"]) for i in token_tensor.view(-1).tolist()]
     max_char_len = max([len(token) for token in token_str])
     indices = []
@@ -114,12 +113,17 @@ class Seq2Seq(Model):
         print(batch["src_copy_vocab"][batch_idx])
         print()
 
+        print('Source map')
+        print(batch["src_copy_map"][batch_idx].int())
+        print()
+
         print("Target tokens")
         print([(i, x) for i, x in enumerate(batch["tgt_tokens_str"][batch_idx])])
         print()
 
         print('Source copy indices')
         print([(i, x) for i, x in enumerate(batch["src_copy_indices"][batch_idx].tolist())])
+
 
         print('Target copy indices')
         print([(i, x) for i, x in enumerate(batch["tgt_copy_indices"][batch_idx].tolist())])

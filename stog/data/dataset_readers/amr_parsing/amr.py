@@ -392,7 +392,7 @@ class AMRGraph(penman.Graph):
         src_tokens = self.get_src_tokens()
         src_copy_vocab = SourceCopyVocabulary(src_tokens)
         src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
-        src_copy_map = src_copy_vocab.get_copy_map(tgt_tokens)
+        src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
 
         return {
             "tgt_tokens" : tgt_tokens,
@@ -426,7 +426,7 @@ class AMRGraph(penman.Graph):
             else:
                 if token[0] in variables_count:
                     variables.append(token[0] + str(variables_count[token[0]]))
-                else
+                else:
                     variables.append(token[0])
 
                 variables_count[token[0]] += 1
@@ -473,8 +473,13 @@ class SourceCopyVocabulary:
         return [self.get_token_idx(token) for token in list_tokens]
 
     def get_copy_map(self, list_tokens):
-        targets = self.index_sequence(list_tokens)
-        return [(idx, target) for idx, target in enumerate(targets)]
+        src_indices = self.index_sequence(list_tokens)
+        return [
+            (src_token_idx, src_idx) for src_idx, src_token_idx  in enumerate(src_indices)
+        ]
+
+    def get_special_tok_list(self):
+        return [self.pad_token, self.unk_token]
 
     def __repr__(self):
         return json.dumps(self.idx_to_token)

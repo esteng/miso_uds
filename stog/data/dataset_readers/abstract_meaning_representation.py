@@ -92,9 +92,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             indices=list_data["src_copy_map"],
             sequence_field=TextField(
                 [
-                    Token(" ") for _ in range(
-                        1 + max(list_data["src_copy_indices"] + [len(list_data["src_copy_indices"]) - 1])
-                    )
+                    Token(x) for x in list_data["src_copy_vocab"].get_special_tok_list() + list_data["src_tokens"]
                 ],
                 None
             ),
