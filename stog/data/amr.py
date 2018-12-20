@@ -287,10 +287,10 @@ class AMRTree():
                 if node.instance is None or (node.name == node.instance and node.instance != "i"):
                     return "{}".format(node.name)
                 else:
-                    return "({} / {})".format(node.name, avoid_illegal_token(node.instance))
+                    return "({} / {})".format(node.name, self.avoid_illegal_token(node.instance))
             else:
                 if node.instance:
-                    string = "({} / {}".format(node.name, avoid_illegal_token(node.instance))
+                    string = "({} / {}".format(node.name, self.avoid_illegal_token(node.instance))
                 elif re.match('[+-]?([0-9]*[.])?[0-9]+', node.name):
                     string = "({} / {}".format(node.name, node.name)
                 else:

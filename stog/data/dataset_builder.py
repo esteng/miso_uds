@@ -80,7 +80,7 @@ def iterator_from_params(vocab, params):
 
     if iter_type == "BucketIterator":
         train_iterator = BucketIterator(
-            sorting_keys=[("amr_tokens", "num_tokens")],
+            sorting_keys=[("tgt_tokens", "num_tokens")],
             batch_size=train_batch_size,
         )
     elif iter_type == "BasicIterator":

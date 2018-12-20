@@ -18,6 +18,7 @@ class AMRIO:
                 if line == '':
                     if len(graph_lines) != 0:
                         amr.graph = AMRGraph.decode(' '.join(graph_lines))
+                        amr.graph.set_src_tokens(amr.get_src_tokens())
                         amr.misc = misc_lines
                         yield amr
                         amr = AMR()
@@ -45,6 +46,7 @@ class AMRIO:
 
             if len(graph_lines) != 0:
                 amr.graph = AMRGraph.decode(' '.join(graph_lines))
+                amr.graph.set_src_tokens(amr.get_src_tokens())
                 amr.misc = misc_lines
                 yield amr
 

@@ -59,41 +59,77 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         # These four fields are used for seq2seq model and target side self copy
         fields["src_tokens"] = TextField(
-            tokens=[Token(x) for x in amr.get_src_tokens()],
+            tokens=[Token(x) for x in list_data["src_tokens"]],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
         )
 
-        fields["amr_tokens"] = TextField(
-            tokens=[Token(x) for x in [START_SYMBOL] + list_data["amr_tokens"] + [END_SYMBOL]],
+        fields["tgt_tokens"] = TextField(
+            tokens=[Token(x) for x in list_data["tgt_tokens"]],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
 
-        fields["coref_index"] = SequenceLabelField(
-            labels=list_data["coref_index"],
-            sequence_field=fields["amr_tokens"],
+        fields["tgt_copy_indices"] = SequenceLabelField(
+            labels=list_data["tgt_copy_indices"],
+            sequence_field=fields["tgt_tokens"],
             label_namespace="coref_tags",
         )
         
 
-        fields["coref_map"] = AdjacencyField(
-            indices=list_data["coref_map"],
-            sequence_field=fields["amr_tokens"],
+        fields["tgt_copy_map"] = AdjacencyField(
+            indices=list_data["tgt_copy_map"],
+            sequence_field=fields["tgt_tokens"],
             padding_value=0
         )
-        
+
+        # These two fields for source copy
+        fields["src_copy_indices"] = SequenceLabelField(
+            labels=list_data["src_copy_indices"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="source_copy_target_tags",
+        )
+
+        fields["src_copy_map"] = AdjacencyField(
+            indices=list_data["src_copy_map"],
+            sequence_field=TextField(
+                [
+                    Token(x) for x in list_data["src_copy_vocab"].get_special_tok_list() + list_data["src_tokens"]
+                ],
+                None
+            ),
+            padding_value=0
+        )
+
+
         # These two fields are used in biaffine parser
         fields["head_tags"] = SequenceLabelField(
             labels=list_data["head_tags"],
-            sequence_field=fields["amr_tokens"],
+            sequence_field=fields["tgt_tokens"],
             label_namespace="head_tags",
             strip_sentence_symbols=True
         )
 
         fields["head_indices"] = SequenceLabelField(
             labels=list_data["head_indices"],
-            sequence_field=fields["amr_tokens"],
+            sequence_field=fields["tgt_tokens"],
             label_namespace="head_index_tags",
             strip_sentence_symbols=True
+        )
+
+        # Metadata fields, good for debugging
+        fields["src_tokens_str"] = MetadataField(
+            list_data["src_tokens"]
+        )
+
+        fields["tgt_tokens_str"] = MetadataField(
+            list_data.get("tgt_tokens", [])
+        )
+
+        fields["src_copy_vocab"] = MetadataField(
+            list_data["src_copy_vocab"]
+        )
+
+        fields["amr"] = MetadataField(
+            amr
         )
 
         return Instance(fields)

@@ -7,10 +7,13 @@ import networkx as nx
 from penman import Triple
 from collections import defaultdict
 
+import json
+
 
 # Disable inverting ':mod' relation.
 penman.AMRCodec._inversions.pop('domain')
 penman.AMRCodec._deinversions.pop('mod')
+from penman import Triple
 
 amr_codec = penman.AMRCodec(indent=6)
 
@@ -184,6 +187,7 @@ class AMRGraph(penman.Graph):
         self._triples = penman_graph._triples
         self._top = penman_graph._top
         self._build_extras()
+        self._src_tokens = []
 
     def _build_extras(self):
         G = nx.DiGraph()
@@ -303,6 +307,14 @@ class AMRGraph(penman.Graph):
     def get_edges(self):
         return self._G.edges
 
+    def set_src_tokens(self, sentence):
+        if type(sentence) is not list:
+            sentence = sentence.split(" ")
+        self._src_tokens = sentence
+
+    def get_src_tokens(self):
+        return self._src_tokens
+
     def get_list_node(self):
         visited = defaultdict(int)
         node_list = []
@@ -327,21 +339,21 @@ class AMRGraph(penman.Graph):
     def get_list_data(self, bos=None, eos=None):
         node_list = self.get_list_node()
 
-        tokens = []
+        tgt_tokens = []
         head_tags = []
-        head_index = []
+        head_indices = []
 
         node_to_idx = defaultdict(list)
         visited = defaultdict(int)
 
         def update_info(node, relation, parent, token):
-            head_index.append(node_to_idx[parent][-1])
+            head_indices.append(1 + node_to_idx[parent][-1])
             head_tags.append(relation)
-            tokens.append(str(token))
+            tgt_tokens.append(str(token))
 
         for node, relation, parent_node in node_list:
 
-            node_to_idx[node].append(len(tokens))
+            node_to_idx[node].append(len(tgt_tokens))
 
             instance = [attr[1] for attr in node.attributes if attr[0] =="instance"]
             assert len(instance) == 1
@@ -355,28 +367,119 @@ class AMRGraph(penman.Graph):
                         update_info(node, attr[0], parent_node, attr[1])
             visited[node] = 1
 
-        # Coreference
-        offset = 1 if bos else 0
-        pad_eos = 1 if eos else 0
-        coref_index = [i for i in range(offset + len(tokens) + pad_eos)]
+
+        copy_offset = 0
+        if bos:
+            tgt_tokens = [bos] + tgt_tokens
+            copy_offset = 1
+        if eos:
+            tgt_tokens = tgt_tokens + [eos]
+
+        head_indices[node_to_idx[self.variable_to_node[self.top]][0]] = 0
+
+        # Target side Coreference
+        tgt_copy_indices = [i for i in range(len(tgt_tokens))]
 
         for node, indices in node_to_idx.items():
             if len(indices) > 1:
-                copy_idx = indices[0] + offset
+                copy_idx = indices[0] + copy_offset
                 for token_idx in indices[1:]:
-                    coref_index[token_idx + offset] = copy_idx
+                    tgt_copy_indices[token_idx + copy_offset] = copy_idx
 
-        coref_map = [(token_idx, copy_idx) for token_idx, copy_idx in enumerate(coref_index)]
+        tgt_copy_map = [(token_idx, copy_idx) for token_idx, copy_idx in enumerate(tgt_copy_indices)]
+
+        # Source Copy
+        src_tokens = self.get_src_tokens()
+        src_copy_vocab = SourceCopyVocabulary(src_tokens)
+        src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
+        src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
 
         return {
-            "amr_tokens" : tokens,
-            "coref_index" : coref_index,
-            "coref_map" : coref_map,
+            "tgt_tokens" : tgt_tokens,
+            "tgt_copy_indices" : tgt_copy_indices,
+            "tgt_copy_map" : tgt_copy_map,
+            "src_tokens" : src_tokens,
+            "src_copy_vocab" : src_copy_vocab,
+            "src_copy_indices" : src_copy_indices,
+            "src_copy_map" : src_copy_map,
             "head_tags" : head_tags,
-            "head_indices" : head_index
+            "head_indices" : head_indices,
         }
 
     @classmethod
     def decode(cls, raw_graph_string):
         _graph = amr_codec.decode(raw_graph_string)
         return cls(_graph)
+
+    @classmethod
+    def from_lists(cls, all_list):
+        head_tags = all_list['head_tags']
+        head_indices = all_list['head_indices']
+        tgt_tokens = all_list['tokens']
+
+        tgt_copy_indices = all_list['coref']
+        variables = []
+        variables_count = defaultdict(int)
+        for i, token in enumerate(tgt_tokens):
+            if tgt_copy_indices[i] != i:
+                variables.append(variables[tgt_copy_indices[i]])
+            else:
+                if token[0] in variables_count:
+                    variables.append(token[0] + str(variables_count[token[0]]))
+                else:
+                    variables.append(token[0])
+
+                variables_count[token[0]] += 1
+
+        Triples = []
+        for variable, token in zip(variables, tgt_tokens):
+            Triples.append(Triple(variable, "instance", token))
+            Triples.append(
+                Triple(
+                    head_indices[variable],
+                    head_tags[variable],
+                    variable
+                )
+            )
+
+
+class SourceCopyVocabulary:
+    def __init__(self, sentence, pad_token="@@PAD@@", unk_token="@@UNKNOWN@@"):
+        if type(sentence) is not list:
+            sentence = sentence.split(" ")
+
+        self.src_tokens = sentence
+        self.pad_token = pad_token
+        self.unk_token = unk_token
+
+        self.token_to_idx = {self.pad_token : 0, self.unk_token : 1}
+        self.idx_to_token = {0 : self.pad_token, 1 : self.unk_token}
+
+        self.vocab_size = 2
+
+        for token in sentence:
+            if token not in self.token_to_idx:
+                self.token_to_idx[token] = self.vocab_size
+                self.idx_to_token[self.vocab_size] = token
+                self.vocab_size += 1
+
+    def get_token_from_idx(self, idx):
+        return self.idx_to_token[idx]
+
+    def get_token_idx(self, token):
+        return self.token_to_idx.get(token, self.token_to_idx[self.unk_token])
+
+    def index_sequence(self, list_tokens):
+        return [self.get_token_idx(token) for token in list_tokens]
+
+    def get_copy_map(self, list_tokens):
+        src_indices = self.index_sequence(list_tokens)
+        return [
+            (src_token_idx, src_idx) for src_idx, src_token_idx  in enumerate(src_indices)
+        ]
+
+    def get_special_tok_list(self):
+        return [self.pad_token, self.unk_token]
+
+    def __repr__(self):
+        return json.dumps(self.idx_to_token)

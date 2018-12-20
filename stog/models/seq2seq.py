@@ -27,7 +27,6 @@ def character_tensor_from_token_tensor(
         character_tokenizer,
         namespace=dict(tokens="decoder_token_ids", characters="decoder_token_characters")
     ):
-    #import pdb;pdb.set_trace()
     token_str = [vocab.get_token_from_index(i, namespace["tokens"]) for i in token_tensor.view(-1).tolist()]
     max_char_len = max([len(token) for token in token_str])
     indices = []
@@ -104,6 +103,34 @@ class Seq2Seq(Model):
     def get_metrics(self, reset: bool = False):
         return self.generator.metrics.get_metric(reset)
 
+    def print_batch_details(self, batch, batch_idx):
+        print(batch["amr"][batch_idx])
+        print()
+
+        print("Source tokens:")
+        print([(i, x) for i, x in enumerate(batch["src_tokens_str"][batch_idx])])
+        print()
+
+        print('Source copy vocab')
+        print(batch["src_copy_vocab"][batch_idx])
+        print()
+
+        print('Source map')
+        print(batch["src_copy_map"][batch_idx].int())
+        print()
+
+        print("Target tokens")
+        print([(i, x) for i, x in enumerate(batch["tgt_tokens_str"][batch_idx])])
+        print()
+
+        print('Source copy indices')
+        print([(i, x) for i, x in enumerate(batch["src_copy_indices"][batch_idx].tolist())])
+
+
+        print('Target copy indices')
+        print([(i, x) for i, x in enumerate(batch["tgt_copy_indices"][batch_idx].tolist())])
+
+
     def forward(self, batch, for_training=False):
 
         # [batch, num_tokens]
@@ -116,17 +143,21 @@ class Seq2Seq(Model):
         try:
             has_decoder_inputs = True
             # [batch, num_tokens]
-            decoder_token_inputs = batch['amr_tokens']['decoder_tokens'][:, :-1].contiguous()
+            decoder_token_inputs = batch['tgt_tokens']['decoder_tokens'][:, :-1].contiguous()
             # [batch, num_tokens, num_chars]
-            decoder_char_inputs = batch['amr_tokens']['decoder_characters'][:, :-1].contiguous()
+            decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, :-1].contiguous()
             # [batch, num_tokens]
-            targets = batch['amr_tokens']['decoder_tokens'][:, 1:].contiguous()
+            targets = batch['tgt_tokens']['decoder_tokens'][:, 1:].contiguous()
 
             vocab_targets = targets
 
-            decoder_coref_inputs = batch["coref_index"][:, :-1].contiguous()
-            copy_targets = batch["coref_index"][:, 1:]
-            copy_attention_maps = batch['coref_map'][:, 1:]
+            decoder_coref_inputs = batch["tgt_copy_indices"][:, :-1].contiguous()
+            copy_targets = batch["tgt_copy_indices"][:, 1:]
+            copy_attention_maps = batch['tgt_copy_map'][:, 1:]
+
+            # TODO: use these two tensors for source side copy
+            src_copy_targets = batch["src_copy_indices"]
+            src_copy_attention_maps = batch['src_copy_map']
 
         except:
             has_decoder_inputs = False
