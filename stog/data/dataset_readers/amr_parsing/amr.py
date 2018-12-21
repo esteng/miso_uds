@@ -473,9 +473,9 @@ class SourceCopyVocabulary:
         return [self.get_token_idx(token) for token in list_tokens]
 
     def get_copy_map(self, list_tokens):
-        src_indices = self.index_sequence(list_tokens)
+        src_indices = [self.get_token_idx(self.unk_token)] + self.index_sequence(list_tokens)
         return [
-            (src_token_idx, src_idx) for src_idx, src_token_idx  in enumerate(src_indices)
+            (src_idx, src_token_idx) for src_idx, src_token_idx in enumerate(src_indices)
         ]
 
     def get_special_tok_list(self):
