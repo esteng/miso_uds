@@ -9,6 +9,7 @@ from stog.utils.archival import Archive, load_archive
 from stog.predictors.predictor import Predictor
 from stog.utils.string import START_SYMBOL, END_SYMBOL
 
+
 @Predictor.register('Seq2Seq')
 class Seq2SeqPredictor(Predictor):
     """
@@ -29,24 +30,39 @@ class Seq2SeqPredictor(Predictor):
     @overrides
     def predict_batch_instance(self, instances):
         outputs = []
+        gen_vocab_size = self._model.vocab.get_vocab_size('decoder_token_ids')
         _outputs = super(Seq2SeqPredictor, self).predict_batch_instance(instances)
-        for output in _outputs:
+        for instance, output in zip(instances, _outputs):
+            copy_vocab = instance.fields['src_copy_vocab'].metadata
             pred_token_indexes = output['predictions']
-            copy_indexes = output.get('copy_indexes', None)
-            tokens = self._model.vocab.get_tokens_from_list(pred_token_indexes, 'decoder_token_ids')
+            coref_indexes = output.get('coref_indexes', None)
+            tokens = []
+            copy_indicators = []
+            for token_index in pred_token_indexes:
+                if token_index >= gen_vocab_size:
+                    copy_token_index = token_index - gen_vocab_size
+                    tokens.append(copy_vocab.get_token_from_idx(copy_token_index))
+                    copy_indicators.append(1)
+                else:
+                    tokens.append(self._model.vocab.get_token_from_index(
+                        token_index, 'decoder_token_ids'
+                    ))
+                    copy_indicators.append(0)
+
             if END_SYMBOL in tokens:
                 tokens = tokens[:tokens.index(END_SYMBOL)]
-                copy_indexes = copy_indexes[:len(tokens)] if copy_indexes else None
+                coref_indexes = coref_indexes[:len(tokens)] if coref_indexes else None
             outputs.append(dict(
                 tokens=tokens,
-                copy_indexes=copy_indexes
+                coref_indexes=coref_indexes,
+                copy_indicators=copy_indicators
             ))
         return outputs
 
     @overrides
     def dump_line(self, output):
         dict_to_print = {
-            "tokens" : " ".join(output["tokens"]),
-            "coref" : output["copy_indexes"]
+            "tokens": " ".join(output["tokens"]),
+            "corefs": output["corefs_indexes"],
         }
         return json.dumps(dict_to_print) + '\n'
