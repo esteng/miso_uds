@@ -125,7 +125,10 @@ def pop_max_vocab_size(params: Params) -> Union[int, Dict[str, int]]:
         return size.as_dict()
     elif size is not None:
         # This is the int / str case.
-        return int(size)
+        try:
+            return int(size)
+        except:
+            return size
     else:
         return None
 
