@@ -16,7 +16,11 @@ class Aligner:
     def __init__(self, node_utils):
         self.node_utils = node_utils
         self.stemmer = nltk.stem.SnowballStemmer('english').stem
-        self.reset_statistics()
+
+        self.aligned_instance_count = 0
+        self.amr_instance_count = 0
+        self.restore_count = 0
+        self.no_aligned_instances = set()
 
     def align_file(self, file_path):
         for amr in AMRIO.read(file_path):
@@ -47,21 +51,25 @@ class Aligner:
         # TODO: Add more align rules.
         # amr_lemma is case-sensitive, so try casing it in different ways: Aaa, AAA, aaa.
         self.amr_instance_count += 1
+        aligned_index = None
         aligned_lemma = None
         stems = [self.stemmer(l) for l in amr.lemmas]
         for lemma in lemmas:
             if lemma in amr.lemmas:
+                aligned_index = amr.lemmas.index(lemma)
                 aligned_lemma = lemma
                 break
             lemma_stem = self.stemmer(lemma)
             if lemma_stem in stems:
                 amr.lemmas[stems.index(lemma_stem)] = lemma
+                aligned_index = stems.index(lemma_stem)
                 aligned_lemma = lemma
                 break
 
         if aligned_lemma is None:
             self.no_aligned_instances.add(instance)
         else:
+            # aligned_lemma = '{}~e.{}'.format(aligned_lemma, aligned_index)
             self.aligned_instance_count += 1
 
         return aligned_lemma
@@ -72,6 +80,7 @@ class Aligner:
             self.try_restore(old, new)
 
     def try_restore(self, old, new):
+        new = re.sub(r'~e.\d+$', '', new)
         _old = self.node_utils.get_frames(new)[0]
         self.restore_count += int(old == _old)
 

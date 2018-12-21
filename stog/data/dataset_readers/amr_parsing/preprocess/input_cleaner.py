@@ -3,8 +3,34 @@ import re
 from word2number import w2n
 
 
+ORDINAL_MAP = {
+    'first': 1,
+    'second': 2,
+    'third': 3,
+    'fourth': 4,
+    'fifth': 5,
+    'sixth': 6,
+    'seventh': 7,
+    'eighth': 8,
+    'ninth': 9
+}
+
+
+DECADE_MAP = {
+    'twenties': 20,
+    'thirties': 30,
+    'forties': 40,
+    'fifties': 50,
+    'sixties': 60,
+    'seventies': 70,
+    'eighties': 80,
+    'nineties': 90
+}
+
+
 def clean(amr):
     correct_errors(amr)
+    normalize_tokens(amr)
     # Named entity
     join_model_name(amr)
     # join_al_names(amr)
@@ -143,15 +169,44 @@ def correct_errors(amr):
                 pos = ['CD']
                 ner = ['DATE']
                 break
-            if token == 'midnight':
-                index = i
+        else:
+            break
+        amr.replace_span([index], tokens, pos, ner)
+
+
+def normalize_tokens(amr):
+    while True:
+        span = None
+        for i, lemma in enumerate(amr.lemmas):
+            lemma_lower = lemma.lower()
+            token_lower = amr.tokens[i].lower()
+            if lemma_lower == 'midnight':
+                span = [i]
                 tokens = ['0:00']
                 pos = ['CD']
                 ner = ['TIME']
                 break
+            if token_lower in DECADE_MAP:
+                span = [i]
+                tokens = [str(DECADE_MAP[token_lower])]
+                pos = ['CD']
+                ner = ['TIME']
+                break
+            if lemma_lower in ORDINAL_MAP:
+                span = [i]
+                tokens = [str(ORDINAL_MAP[lemma_lower])]
+                pos = ['CD']
+                ner = ['NUMBER']
+                break
+            if lemma_lower == 'quarter' and i > 0 and amr.pos_tags[i - 1] == 'CD':
+                span = [i - 1, i]
+                tokens = [amr.tokens[i - 1]]
+                pos = [amr.pos_tags[i - 1]]
+                ner = [amr.ner_tags[i - 1]]
+                break
         else:
             break
-        amr.replace_span([index], tokens, pos, ner)
+        amr.replace_span(span, tokens, pos, ner)
 
 
 def join_model_name(amr):
