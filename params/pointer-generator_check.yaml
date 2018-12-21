@@ -1,0 +1,131 @@
+# Parameters of the Seq2Seq Model
+
+# Device-sensitive parameters
+amr_data_dir: &amr_data_dir data/all_amr
+glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
+
+
+# Model parameters
+model:
+  model_type: Seq2Seq
+  use_char_cnn: True
+  use_self_copy: True
+
+  encoder_token_embedding:
+    num_embeddings:
+    vocab_namespace: 'encoder_token_ids'
+    embedding_dim: 300
+    padding_index: 0
+    dropout: 0
+    pretrained_file:
+
+  encoder_char_embedding:
+    num_embeddings:
+    vocab_namespace: 'encoder_token_characters'
+    embedding_dim: &encoder_char_embedding_dim 50
+    padding_index: 0
+    dropout: 0
+    pretrained_file:
+
+  encoder_char_cnn:
+    embedding_dim: *encoder_char_embedding_dim
+    num_filters: 50
+    ngram_filter_sizes: [3]
+
+  decoder_token_embedding:
+    num_embeddings:
+    vocab_namespace: 'decoder_token_ids'
+    embedding_dim: 300
+    padding_index: 0
+    dropout: 0
+    pretrained_file:
+
+  decoder_coref_embedding:
+    num_embeddings: 1000
+    embedding_dim: 50
+    padding_index: 0
+    dropout: 0
+
+  decoder_char_embedding:
+    num_embeddings:
+    vocab_namespace: 'decoder_token_characters'
+    embedding_dim: &decoder_char_embedding_dim 50
+    padding_index: 0
+    dropout: 0
+    pretrained_file:
+
+  decoder_char_cnn:
+    embedding_dim: *decoder_char_embedding_dim
+    num_filters: 50
+    ngram_filter_sizes: [3]
+
+  encoder:
+    input_size: 350
+    hidden_size: 256
+    num_layers: 2
+    use_highway: False
+    dropout: 0
+
+  decoder:
+    input_size: 912
+    hidden_size: &deocder_hidden_size 512
+    num_layers: 2
+    use_highway: False
+    dropout: 0
+
+  attention:
+    add_linear: True
+
+  self_copy_attention:
+    add_linear: True
+
+  generator:
+    input_size: *deocder_hidden_size
+    # Specify vocab_size and pad_idx dynamically
+    vocab_size:
+    pad_idx:
+    force_copy: True
+
+
+# Data parameters
+data:
+  data_dir: *amr_data_dir
+  train_data: dev_amr.txt.features.align.recategorized
+  dev_data: dev_amr.txt.features.align.recategorized
+  test_data: test_amr.txt.features.align.recategorized
+  data_type: AMR
+  batch_first: True
+  train_batch_size: &train_batch_size 64
+  test_batch_size: 32
+  iter_type: BucketIterator
+  pretrain_token_emb: *glove
+  pretrain_char_emb:
+
+
+# Training parameters
+environment:
+  recover: False
+  seed: 1
+  numpy_seed: 1
+  torch_seed: 1
+  serialization_dir: &serialization_dir debug-ckpt
+  file_friendly_logging: False
+  gpu: True
+  cuda_device: 0
+
+trainer:
+  device: # No need to be specified, will be updated at runtime
+  # Optimizer
+  no_grad: []
+  optimizer_type: adam
+  learning_rate: 0.001
+  max_grad_norm: 5.0
+  batch_size: *train_batch_size
+  shuffle: True
+  epochs: 50
+  dev_metric: ppl
+  serialization_dir: *serialization_dir
+  model_save_interval:
+
+test:
+  evaluate_on_test: True
