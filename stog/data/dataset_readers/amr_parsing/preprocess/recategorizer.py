@@ -47,7 +47,16 @@ def resolve_conflict_entities(entities):
     node_entity_map = {}
     for entity in index_entity_map.values():
         node_entity_map[entity.node] = entity
-    return list(node_entity_map.values()) + empty_entities
+
+    removed_entities = []
+    for entity in entities:
+        if not entity.span:
+            continue
+        if entity.node in node_entity_map:
+            continue
+        removed_entities.append(entity)
+
+    return list(node_entity_map.values()) + empty_entities, removed_entities
 
 
 def group_indexes_to_spans(indexes, amr):
@@ -206,9 +215,12 @@ class Recategorizer:
                 if len(entity.span):
                     self.recat_named_entity_count += 1
                 entities.append(entity)
-        entities = resolve_conflict_entities(entities)
+        entities, removed_entities = resolve_conflict_entities(entities)
         if not self.build_map:
-            self._collapse_name_nodes(entities, amr)
+            type_counter = self._collapse_name_nodes(entities, amr)
+            for entity in removed_entities:
+                entity = self._get_aligned_entity(entity.node, amr)
+                self._collapse_name_nodes([entity], amr, type_counter)
         else:
             self._update_map(entities, amr)
 
@@ -222,7 +234,7 @@ class Recategorizer:
                 if date.span is not None:
                     self.recat_date_entity_count += 1
                 dates.append(date)
-        dates = resolve_conflict_entities(dates)
+        dates, removed_dates = resolve_conflict_entities(dates)
         DATE.collapse_date_nodes(dates, amr)
 
     def _get_aligned_entity(self, node, amr):
@@ -351,12 +363,13 @@ class Recategorizer:
             clean_spans.append(max(_spans, key=lambda s: len(s)))
         return clean_spans
 
-    def _collapse_name_nodes(self, entities, amr):
+    def _collapse_name_nodes(self, entities, amr, type_counter=None):
         if amr.abstract_map is None:
             amr.abstract_map = {}
         if len(entities) == 0:
             return
-        type_counter = defaultdict(int)
+        if type_counter is None:
+            type_counter = defaultdict(int)
         entities.sort(key=lambda entity: entity.span[-1] if len(entity.span) else float('inf'))
         offset = 0
         for entity in entities:
@@ -373,6 +386,7 @@ class Recategorizer:
                 offset += len(entity.span) - 1
             else:
                 amr.graph.remove_node(entity.node)
+        return type_counter
 
     def _update_map(self, entities, amr):
         if self.name_node_type_map_done:

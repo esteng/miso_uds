@@ -241,16 +241,14 @@ class AMRGraph(penman.Graph):
 
     def is_name_node(self, node):
         edges = list(self._G.in_edges(node))
-        if len(edges) != 1:
-            return False
-        source, target = edges[0]
-        return self._G[source][target]['label'] == 'name'
+        return any(self._G[source][target].get('label', None) == 'name' for source, target in edges)
 
     def get_name_node_type(self, node):
         edges = list(self._G.in_edges(node))
-        assert len(edges) == 1
-        source, _ = edges[0]
-        return source.instance
+        for source, target in edges:
+            if self._G[source][target].get('label', None) == 'name':
+                return source.instance
+        raise KeyError
 
     def is_date_node(self, node):
         return node.instance == 'date-entity'
