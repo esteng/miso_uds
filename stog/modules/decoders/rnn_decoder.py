@@ -17,10 +17,11 @@ class RNNDecoderBase(torch.nn.Module):
 
 class InputFeedRNNDecoder(RNNDecoderBase):
 
-    def __init__(self, rnn_cell, copy_unknown, attention_layer, coref_attention_layer, dropout):
+    def __init__(self, rnn_cell, copy_unknown, coref_na, attention_layer, coref_attention_layer, dropout):
         super(InputFeedRNNDecoder, self).__init__(rnn_cell, dropout)
         # [1, 1, encoder_hidden_size]
         self.copy_unknown = copy_unknown
+        self.coref_na = coref_na
         self.attention_layer = attention_layer
         self.copy_attention_layer = copy.deepcopy(attention_layer)
         self.coref_attention_layer = coref_attention_layer
@@ -76,23 +77,19 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                 copy_attentions.append(copy_attention)
 
             if self.coref_attention_layer is not None:
-                if step_i == 0:
-                    if len(coref_inputs) == 0:
-                        _, coref_attention = self.coref_attention_layer(coref_input, None)
-                        coref_attention = torch.nn.functional.pad(
-                            coref_attention, (0, sequence_length - 1), 'constant', 0
-                        )
-                    else:
-                        _, coref_attention = self.coref_attention_layer(
-                            coref_input, torch.cat(coref_inputs, 1)
-                        )
+                coref_na = self.coref_na.expand(batch_size, 1, coref_input.size(-1))
+                coref_inputs_with_na = torch.cat([coref_na] + coref_inputs, 1)
+
+                if sequence_length == 1:
+                    _, coref_attention = self.coref_attention_layer(
+                        coref_input, coref_inputs_with_na)
                 else:
                     _, coref_attention = self.coref_attention_layer(
-                        coref_input, torch.cat(coref_inputs, 1)
-                    )
+                        coref_input, coref_inputs_with_na)
                     coref_attention = torch.nn.functional.pad(
                         coref_attention, (0, sequence_length - step_i), 'constant', 0
                     )
+
                 coref_attentions.append(coref_attention)
 
             coref_inputs.append(coref_input)
@@ -105,4 +102,5 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             copy_attentions = torch.cat(copy_attentions, 1)
         if len(coref_attentions):
             coref_attentions = torch.cat(coref_attentions, 1)
-        return output_sequences, coref_inputs, coref_attentions, copy_attentions, std_attentions, hidden_state, input_feed
+        return (output_sequences, coref_inputs, coref_attentions, copy_attentions,
+                std_attentions, hidden_state, input_feed)

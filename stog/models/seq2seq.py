@@ -141,21 +141,24 @@ class Seq2Seq(Model):
         try:
             has_decoder_inputs = True
             # [batch, num_tokens]
-            decoder_token_inputs = batch['tgt_tokens']['decoder_tokens'][:, :-1].contiguous()
+            decoder_token_inputs = batch['tgt_tokens']['decoder_tokens'][:, 1:-1].contiguous()
             # [batch, num_tokens, num_chars]
-            decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, :-1].contiguous()
+            decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, 1:-1].contiguous()
             # [batch, num_tokens]
-            targets = batch['tgt_tokens']['decoder_tokens'][:, 1:].contiguous()
+            targets = batch['tgt_tokens']['decoder_tokens'][:, 2:].contiguous()
 
             vocab_targets = targets
 
-            decoder_coref_inputs = batch["tgt_copy_indices"][:, :-1].contiguous()
-            coref_targets = batch["tgt_copy_indices"][:, 1:]
-            coref_attention_maps = batch['tgt_copy_map'][:, 1:]
+            decoder_coref_inputs = batch["tgt_copy_indices"][:, 1:-1].contiguous()
+            coref_targets = batch["tgt_copy_indices"][:, 2:]
+            # Skip BOS.
+            coref_attention_maps = torch.cat(
+                [batch['tgt_copy_map'][:, :1], batch['tgt_copy_map'][:, 2:]], 1)
 
             # TODO: use these two tensors for source side copy
-            copy_targets = batch["src_copy_indices"][:, 1:]
+            copy_targets = batch["src_copy_indices"][:, 2:]
             copy_attention_maps = batch['src_copy_map'][:, :-1]
+
         except:
             has_decoder_inputs = False
 
@@ -359,10 +362,11 @@ class Seq2Seq(Model):
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
         # Here the maximum size of the dynamic vocab is just max_decode_length.
-        coref_attention_maps = torch.zeros(batch_size, self.max_decode_length, self.max_decode_length).type_as(memory_bank)
+        coref_attention_maps = torch.zeros(batch_size, self.max_decode_length + 1, self.max_decode_length + 1).type_as(memory_bank)
+        coref_attention_maps[:, 0, 0] = 1
         # A matrix D where the element D_{ij} is for instance i the real vocab index of
         # the generated node at the decoding step `i'.
-        coref_vocab_maps = torch.zeros(batch_size, self.max_decode_length).type_as(mask).long()
+        coref_vocab_maps = torch.zeros(batch_size, self.max_decode_length + 1).type_as(mask).long()
 
         for step_i in range(self.max_decode_length):
             # Get embeddings.
@@ -386,14 +390,11 @@ class Seq2Seq(Model):
             # Decode one step.
             (_decoder_outputs, coref_inputs,
              _coref_attentions, _copy_attentions, _source_attentions,
-             states, input_feed ) = self.decoder(
+             states, input_feed) = self.decoder(
                 decoder_inputs, memory_bank, mask, states, input_feed, coref_inputs)
 
-            if step_i == 0:
-                # Dummy copy attention for the first step will never be chosen.
-                _coref_attention_maps = _decoder_outputs.new_zeros(batch_size, 1, 1).type_as(memory_bank)
-            else:
-                _coref_attention_maps = coref_attention_maps[:, :step_i]
+            _coref_attention_maps = coref_attention_maps[:, :step_i + 1]
+
 
             # Generate.
             generator_output = self.generator(
@@ -450,11 +451,9 @@ class Seq2Seq(Model):
         """
         vocab_size = self.generator.vocab_size
         batch_size = predictions.size(0)
-        oov_index = self.vocab.get_token_index(DEFAULT_OOV_TOKEN, 'decoder_token_idx')
-        batch_unknown = torch.full_like(predictions, oov_index)
 
         batch_index = torch.arange(0, batch_size).type_as(predictions)
-        step_index = torch.full_like(predictions, step)
+        step_index = torch.full_like(predictions, step + 1)
 
         gen_mask = predictions.lt(vocab_size)
         copy_mask = predictions.ge(vocab_size).mul(predictions.lt(vocab_size + copy_vocab_size))
@@ -465,9 +464,11 @@ class Seq2Seq(Model):
         coref_index = (predictions - vocab_size - copy_vocab_size)
         # Fill the place where copy didn't happen with the current step,
         # which means that the node doesn't refer to any precedent, it refers to itself.
-        coref_index.masked_fill_(1 - coref_mask, step)
+        coref_index.masked_fill_(1 - coref_mask, step + 1)
 
         coref_attention_maps[batch_index, step_index, coref_index] = 1
+
+        coref_index.masked_fill_(1 - coref_mask, 0)
 
         # 2. Compute the next input.
         # coref_predictions have the dynamic vocabulary index, and OOVs are set to zero.
@@ -580,6 +581,7 @@ class Seq2Seq(Model):
         decoder = InputFeedRNNDecoder(
             rnn_cell=StackedLstm.from_params(params['decoder']),
             copy_unknown=torch.nn.Parameter(torch.randn([1, 1, params['encoder']['hidden_size'] * 2])),
+            coref_na=torch.nn.Parameter(torch.randn([1, 1, params['decoder']['hidden_size']])),
             attention_layer=attention_layer,
             coref_attention_layer=self_copy_attention,
             # TODO: modify the dropout so that the dropout mask is unchanged across the steps.

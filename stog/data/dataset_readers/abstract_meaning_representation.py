@@ -73,7 +73,6 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             sequence_field=fields["tgt_tokens"],
             label_namespace="coref_tags",
         )
-        
 
         fields["tgt_copy_map"] = AdjacencyField(
             indices=list_data["tgt_copy_map"],

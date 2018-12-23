@@ -365,11 +365,11 @@ class AMRGraph(penman.Graph):
                         update_info(node, attr[0], parent_node, attr[1])
             visited[node] = 1
 
-
-        copy_offset = 0
+        copy_offset = 1  # start from 1, because 0 is reserved for copy not available.
+        tgt_tokens = ['@@COREF_NA@@'] + tgt_tokens
         if bos:
             tgt_tokens = [bos] + tgt_tokens
-            copy_offset = 1
+            copy_offset += 1
         if eos:
             tgt_tokens = tgt_tokens + [eos]
 
@@ -385,6 +385,11 @@ class AMRGraph(penman.Graph):
                     tgt_copy_indices[token_idx + copy_offset] = copy_idx
 
         tgt_copy_map = [(token_idx, copy_idx) for token_idx, copy_idx in enumerate(tgt_copy_indices)]
+
+        for i, copy_index in enumerate(tgt_copy_indices):
+            # Set the coreferred target to 0 if no coref is available.
+            if i == copy_index:
+                tgt_copy_indices[i] = 0
 
         # Source Copy
         src_tokens = self.get_src_tokens()
