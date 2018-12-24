@@ -457,7 +457,7 @@ class Seq2Seq(Model):
 
         gen_mask = predictions.lt(vocab_size)
         copy_mask = predictions.ge(vocab_size).mul(predictions.lt(vocab_size + copy_vocab_size))
-        coref_mask = predictions.ge(vocab_size + copy_vocab_size)
+        coref_mask = predictions.gt(vocab_size + copy_vocab_size)
 
         # 1. Update coref_attention_maps
         # Get the coref index.
@@ -468,7 +468,6 @@ class Seq2Seq(Model):
 
         coref_attention_maps[batch_index, step_index, coref_index] = 1
 
-        coref_index.masked_fill_(1 - coref_mask, 0)
 
         # 2. Compute the next input.
         # coref_predictions have the dynamic vocabulary index, and OOVs are set to zero.
@@ -490,9 +489,10 @@ class Seq2Seq(Model):
         # Here we update D_{step} to the index in the standard vocab.
         coref_vocab_maps[batch_index, step_index] = next_input
 
-
         # 4. Get the coref-resolved predictions.
         coref_resolved_preds = coref_predictions * coref_mask.long() + predictions * (1 - coref_mask).long()
+        coref_index = coref_index + 1
+        coref_index.masked_fill_(1 - coref_mask, 0)
 
         return next_input, coref_resolved_preds, coref_index
 
