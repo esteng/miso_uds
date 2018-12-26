@@ -11,6 +11,11 @@ class NodeRestore:
     def restore_instance(self, amr):
         graph = amr.graph
         for node in graph.get_nodes():
+            instance = node.instance
+            new_instance = self.node_utils.get_frames(instance)[0]
+            if instance != new_instance:
+                graph.replace_node_attribute(node, 'instance', instance, new_instance)
+            continue
             if graph.is_name_node(node):
                 # Add quote to wiki and op attributes.
                 for attr, value in node.attributes:
@@ -55,7 +60,7 @@ if __name__ == '__main__':
     parser.add_argument('--amr_train_files', nargs='+')
     parser.add_argument('--amr_dev_files', nargs='+', required=True)
     parser.add_argument('--json_dir', default='./temp')
-    parser.add_argument('--threshold', type=int, default=5)
+    parser.add_argument('--threshold', type=int, default=50)
 
     args = parser.parse_args()
 
