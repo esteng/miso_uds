@@ -365,8 +365,7 @@ class AMRGraph(penman.Graph):
                         update_info(node, attr[0], parent_node, attr[1])
             visited[node] = 1
 
-        copy_offset = 1  # start from 1, because 0 is reserved for copy not available.
-        tgt_tokens = ['@@COREF_NA@@'] + tgt_tokens
+        copy_offset = 0
         if bos:
             tgt_tokens = [bos] + tgt_tokens
             copy_offset += 1

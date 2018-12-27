@@ -61,8 +61,10 @@ class Seq2SeqPredictor(Predictor):
 
     @overrides
     def dump_line(self, output):
+        return ' '.join(output['tokens']) + '\n'
+        # return ' '.join('{}_{}_{}'.format(x, y, z) for x, y, z in zip(output['tokens'], output['coref_indexes'], output['copy_indicators'])) + '\n'
         dict_to_print = {
             "tokens": " ".join(output["tokens"]),
-            "corefs": output["corefs_indexes"],
+            "corefs": output["coref_indexes"],
         }
         return json.dumps(dict_to_print) + '\n'

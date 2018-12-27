@@ -141,24 +141,28 @@ class Seq2Seq(Model):
         try:
             has_decoder_inputs = True
             # [batch, num_tokens]
-            decoder_token_inputs = batch['tgt_tokens']['decoder_tokens'][:, 1:-1].contiguous()
+            decoder_token_inputs = batch['tgt_tokens']['decoder_tokens'][:, :-1].contiguous()
             # [batch, num_tokens, num_chars]
-            decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, 1:-1].contiguous()
+            decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, :-1].contiguous()
             # [batch, num_tokens]
-            targets = batch['tgt_tokens']['decoder_tokens'][:, 2:].contiguous()
+            targets = batch['tgt_tokens']['decoder_tokens'][:, 1:].contiguous()
 
             vocab_targets = targets
 
-            decoder_coref_inputs = batch["tgt_copy_indices"][:, 1:-1].contiguous()
-            coref_targets = batch["tgt_copy_indices"][:, 2:]
+            raw_coref_inputs = batch["tgt_copy_indices"][:, :-1].contiguous()
+            coref_happen_mask = raw_coref_inputs.ne(0)
+            decoder_coref_inputs = torch.ones_like(raw_coref_inputs) * torch.arange(
+                0, targets.size(1)).type_as(raw_coref_inputs).unsqueeze(0)
+            decoder_coref_inputs.masked_fill_(coref_happen_mask, 0)
+            decoder_coref_inputs = decoder_coref_inputs + raw_coref_inputs
+            # decoder_coref_inputs = batch["tgt_copy_indices"][:, :-1].contiguous().ne(0).long()
+            coref_targets = batch["tgt_copy_indices"][:, 1:]
             # Skip BOS.
-            coref_attention_maps = torch.cat(
-                [batch['tgt_copy_map'][:, :1], batch['tgt_copy_map'][:, 2:]], 1)
+            coref_attention_maps = batch['tgt_copy_map']
 
             # TODO: use these two tensors for source side copy
-            copy_targets = batch["src_copy_indices"][:, 2:]
+            copy_targets = batch["src_copy_indices"][:, 1:]
             copy_attention_maps = batch['src_copy_map'][:, :-1]
-
         except:
             has_decoder_inputs = False
 
@@ -457,7 +461,7 @@ class Seq2Seq(Model):
 
         gen_mask = predictions.lt(vocab_size)
         copy_mask = predictions.ge(vocab_size).mul(predictions.lt(vocab_size + copy_vocab_size))
-        coref_mask = predictions.gt(vocab_size + copy_vocab_size)
+        coref_mask = predictions.ge(vocab_size + copy_vocab_size)
 
         # 1. Update coref_attention_maps
         # Get the coref index.
@@ -491,8 +495,8 @@ class Seq2Seq(Model):
 
         # 4. Get the coref-resolved predictions.
         coref_resolved_preds = coref_predictions * coref_mask.long() + predictions * (1 - coref_mask).long()
-        coref_index = coref_index + 1
-        coref_index.masked_fill_(1 - coref_mask, 0)
+        # coref_index = coref_index + 1
+        # coref_index.masked_fill_(1 - coref_mask, 0)
 
         return next_input, coref_resolved_preds, coref_index
 
