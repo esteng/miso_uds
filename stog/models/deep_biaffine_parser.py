@@ -32,6 +32,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
     def __init__(
             self,
+            vocab,
             token_embedding,
             char_embedding,
             embedding_dropout,
@@ -47,6 +48,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
     ):
         super(DeepBiaffineParser, self).__init__()
+        self.vocab = vocab
         self.decode_type = decode_type
 
         self.token_embedding = token_embedding
@@ -89,19 +91,19 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
     def get_regularization_penalty(self):
         return 0.0
-    
+
     def extract_batch(self, batch):
         # remove bos and eos
-        input_char = batch["amr_tokens"]["decoder_characters"][:, 1:-1, :].contiguous()
-        input_token = batch["amr_tokens"]["decoder_tokens"][:, 1:-1].contiguous()
-        # NOTE: A liite bit hacky here. Bacically just replace eos idx (4) to pad idx (0)
+        input_char = batch["tgt_tokens"]["decoder_characters"][:, 1:-1, :].contiguous()
+        input_token = batch["tgt_tokens"]["decoder_tokens"][:, 1:-1].contiguous()
+        # NOTE: A little bit hacky here. Basically just replace eos idx (4) to pad idx (0)
         input_token[
-            input_token==3
-        ] = 0 
+            input_token == self.vocab.get_token_index(END_SYMBOL, 'decoder_token_ids')
+        ] = 0
         # Batch automatically pad all the instance to the same lengths, so remove the last two.
         headers = batch.get("head_indices", None)
         labels = batch.get("head_tags", None)
-        coreference = batch.get('coref_index', None)
+        coreference = batch.get('tgt_copy_indices', None)
 
         if headers is not None:
             headers = headers[:, :-2]
@@ -110,9 +112,14 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             labels = labels[:, :-2]
 
         if coreference is not None:
-            coreference = coreference[:, :-2]
-        
-        mask = ( input_token !=0 ).float()
+            coref_happen_mask = coreference.ne(0)
+            default_coreference = torch.ones_like(coreference) * torch.arange(
+            0, coreference.size(1)).type_as(coreference).unsqueeze(0)
+            default_coreference.masked_fill_(coref_happen_mask, 0)
+            coreference = default_coreference + coreference
+            coreference = coreference[:, 1:-1]
+
+        mask = (input_token != 0).float()
 
         return input_char, input_token, headers, labels, coreference, mask
 
@@ -181,7 +188,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             head_indices = torch_dict['headers'][i][:current_len].tolist()
             head_indices = [x for x in head_indices]
             tokens = [ self.vocab.get_token_from_index(x,"decoder_token_ids") for x in torch_dict['amr_tokens'][i][:current_len].tolist() ]
-            
+
             coref = torch_dict['coref_index'][i][:current_len].tolist()
 
             t = AMRTree()
@@ -390,7 +397,6 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             head_labels.append(instance_head_labels)
         return torch.from_numpy(np.stack(heads)), torch.from_numpy(np.stack(head_labels))
 
-
     def encode(self, input_token, input_char, mask):
         """
         Encode input sentence into a list of hidden states by a stacked BiLSTM.
@@ -534,6 +540,7 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
 
         model = DeepBiaffineParser(
+            vocab=vocab,
             token_embedding=token_embedding,
             char_embedding=character_embedding,
             embedding_dropout=embedding_dropout,
