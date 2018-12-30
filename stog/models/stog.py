@@ -196,8 +196,8 @@ class STOG(Model):
         edge_labels = batch['head_tags'][:, :-2]
         # TODO: The following computation can be done in amr.py.
         # Get the parser mask.
-        parser_token_inputs = torch.zeros_like(decoder_token_inputs[:, 1:])
-        parser_token_inputs.copy_(decoder_token_inputs[:, 1:])
+        parser_token_inputs = torch.zeros_like(decoder_token_inputs)
+        parser_token_inputs.copy_(decoder_token_inputs)
         parser_token_inputs[
             parser_token_inputs == self.vocab.get_token_index(END_SYMBOL, 'decoder_token_ids')
         ] = 0
@@ -318,8 +318,9 @@ class STOG(Model):
 
     def graph_decode(self, memory_bank, edge_heads, edge_labels, corefs, mask):
         # Exclude the BOS symbol.
-        memory_bank = memory_bank[:, 1:].detach()
+        memory_bank = memory_bank[:, 1:]
         corefs = corefs[:, 1:]
+        mask = mask[:, 1:]
         return self.graph_decoder(memory_bank, edge_heads, edge_labels, corefs, mask)
 
     def _get_encoder_char_cnn_output(self, chars):
@@ -348,12 +349,12 @@ class STOG(Model):
         copy_vocabs = input_dict['copy_vocabs']
 
         if self.beam_size == 1:
-            return self.greedy_decode_with_copy(
+            return self.decode_with_pointer_generator(
                 memory_bank, mask, states, copy_attention_maps, copy_vocabs)
         else:
             raise NotImplementedError
 
-    def greedy_decode_with_copy(self, memory_bank, mask, states, copy_attention_maps, copy_vocabs):
+    def decode_with_pointer_generator(self, memory_bank, mask, states, copy_attention_maps, copy_vocabs):
         # [batch_size, 1]
         batch_size = memory_bank.size(0)
         tokens = torch.ones(batch_size, 1) * self.vocab.get_token_index(START_SYMBOL, "decoder_token_ids")
@@ -361,6 +362,7 @@ class STOG(Model):
         corefs = torch.zeros(batch_size, 1).type_as(mask).long()
 
         input_feed = None
+        decoder_outputs = []
         source_attentions = []
         copy_attentions = []
         coref_attentions = []
@@ -377,7 +379,7 @@ class STOG(Model):
         coref_vocab_maps = torch.zeros(batch_size, self.max_decode_length + 1).type_as(mask).long()
 
         for step_i in range(self.max_decode_length):
-            # Get embeddings.
+            # 1. Get the decoder inputs.
             token_embeddings = self.decoder_token_embedding(tokens)
             coref_embeddings = self.decoder_coref_embedding(corefs)
             if self.use_char_cnn:
@@ -395,24 +397,20 @@ class STOG(Model):
                 decoder_inputs = token_embeddings
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
-            # Decode one step.
+            # 2. Decode one step.
             (_decoder_outputs, coref_inputs,
              _coref_attentions, _copy_attentions, _source_attentions,
              states, input_feed) = self.decoder(
                 decoder_inputs, memory_bank, mask, states, input_feed, coref_inputs)
 
+            # 3. Run pointer/generator.
             _coref_attention_maps = coref_attention_maps[:, :step_i + 1]
 
-            # Generate.
             generator_output = self.generator(
                 _decoder_outputs, _copy_attentions, copy_attention_maps, _coref_attentions, _coref_attention_maps)
             _predictions = generator_output['predictions']
 
-            # Update decoder outputs.
-            source_attentions += _source_attentions
-            copy_attentions += [_copy_attentions]
-            coref_attentions += [_coref_attentions]
-
+            # 4. Update maps and get the next token input.
             tokens, _predictions, _coref_indexes = self._update_maps_and_get_next_input(
                 step_i,
                 generator_output['predictions'].squeeze(1),
@@ -422,22 +420,30 @@ class STOG(Model):
                 copy_vocabs
             )
 
-            tokens = tokens.unsqueeze(1)
-            _predictions = _predictions.unsqueeze(1)
-            corefs = _coref_indexes.unsqueeze(1)
+            # 5. Update variables.
+            decoder_outputs += [_decoder_outputs]
 
-            predictions += [_predictions]
+            source_attentions += _source_attentions
+            copy_attentions += [_copy_attentions]
+            coref_attentions += [_coref_attentions]
+
+            tokens = tokens.unsqueeze(1)
+            corefs = _coref_indexes.unsqueeze(1)
             coref_indexes += [corefs]
+
+            _predictions = _predictions.unsqueeze(1)
+            predictions += [_predictions]
 
         predictions = torch.cat(predictions, dim=1)
         coref_indexes = torch.cat(coref_indexes, dim=1)
         source_attentions = torch.cat(source_attentions, dim=1)
-        # copy_attentions = torch.cat(copy_attentions, dim=1)
 
         return dict(
             # [batch_size, max_decode_length]
             predictions=predictions,
             coref_indexes=coref_indexes,
+            # [batch_size, max_decode_length, hidden_size]
+            decoder_memory_bank=decoder_outputs,
             # [batch_size, max_decode_length, encoder_length]
             source_attentions=source_attentions,
             copy_attentions=copy_attentions,

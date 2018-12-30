@@ -88,8 +88,8 @@ model:
   graph_decoder:
     decode_algorithm: 'greedy'
     input_size: 512
-    edge_node_hidden_size: 512
-    edge_label_hidden_size: 512
+    edge_node_hidden_size: 200
+    edge_label_hidden_size: 100
     dropout: 0
 
 
