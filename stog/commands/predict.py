@@ -51,7 +51,7 @@ from stog.utils.checks import check_for_gpu, ConfigurationError
 from stog.utils import lazy_groups_of
 from stog.utils.archival import load_archive
 from stog.predictors.predictor import Predictor, JsonDict
-from stog.predictors import BiaffineDependencyParserPredictor, Seq2SeqPredictor
+from stog.predictors import BiaffineDependencyParserPredictor, Seq2SeqPredictor, STOGPredictor
 from stog.data import Instance
 
 class Predict(Subcommand):
@@ -125,7 +125,7 @@ class _PredictManager:
             self._dataset_reader = None
 
         # TODO: there should be better ways to do this
-        if type(predictor) == Seq2SeqPredictor:
+        if type(predictor) in (Seq2SeqPredictor, STOGPredictor):
             self.beam_size = beam_size
             self._predictor._model.set_beam_size(self.beam_size)
             self._predictor._model.set_decoder_token_indexers(self._dataset_reader._token_indexers)

@@ -349,8 +349,19 @@ class STOG(Model):
         copy_vocabs = input_dict['copy_vocabs']
 
         if self.beam_size == 1:
-            return self.decode_with_pointer_generator(
+            generator_outputs = self.decode_with_pointer_generator(
                 memory_bank, mask, states, copy_attention_maps, copy_vocabs)
+            parser_outputs = self.decode_with_graph_parser(
+                generator_outputs['decoder_memory_bank'],
+                generator_outputs['coref_indexes'],
+                generator_outputs['decoder_mask']
+            )
+            return dict(
+                nodes=generator_outputs['predictions'],
+                heads=parser_outputs['edge_heads'],
+                head_labels=parser_outputs['edge_labels'],
+                corefs=generator_outputs['coref_indexes'],
+            )
         else:
             raise NotImplementedError
 
@@ -361,13 +372,15 @@ class STOG(Model):
         tokens = tokens.type_as(mask).long()
         corefs = torch.zeros(batch_size, 1).type_as(mask).long()
 
-        input_feed = None
         decoder_outputs = []
         source_attentions = []
         copy_attentions = []
         coref_attentions = []
         predictions = []
         coref_indexes = []
+        decoder_mask = []
+
+        input_feed = None
         coref_inputs = None
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
@@ -411,13 +424,14 @@ class STOG(Model):
             _predictions = generator_output['predictions']
 
             # 4. Update maps and get the next token input.
-            tokens, _predictions, _coref_indexes = self._update_maps_and_get_next_input(
+            tokens, _predictions, _coref_indexes, _mask = self._update_maps_and_get_next_input(
                 step_i,
                 generator_output['predictions'].squeeze(1),
                 generator_output['source_dynamic_vocab_size'],
                 coref_attention_maps,
                 coref_vocab_maps,
-                copy_vocabs
+                copy_vocabs,
+                decoder_mask
             )
 
             # 5. Update variables.
@@ -427,21 +441,27 @@ class STOG(Model):
             copy_attentions += [_copy_attentions]
             coref_attentions += [_coref_attentions]
 
-            tokens = tokens.unsqueeze(1)
-            corefs = _coref_indexes.unsqueeze(1)
-            coref_indexes += [corefs]
-
-            _predictions = _predictions.unsqueeze(1)
             predictions += [_predictions]
+            # Add the coref info for the next input.
+            coref_indexes += [_coref_indexes]
+            # Add the mask for the next input.
+            decoder_mask += [_mask]
 
-        predictions = torch.cat(predictions, dim=1)
-        coref_indexes = torch.cat(coref_indexes, dim=1)
+        # 6. Do the following chunking for the graph decoding input.
+        # Exclude the hidden state for BOS.
+        decoder_outputs = torch.cat(decoder_outputs[1:], dim=1)
         source_attentions = torch.cat(source_attentions, dim=1)
+        # Exclude coref/mask for EOS.
+        # TODO: Answer "What if the last one is not EOS?"
+        predictions = torch.cat(predictions[:-1], dim=1)
+        coref_indexes = torch.cat(coref_indexes[:-1], dim=1)
+        decoder_mask = 1 - torch.cat(decoder_mask[:-1], dim=1)
 
         return dict(
             # [batch_size, max_decode_length]
             predictions=predictions,
             coref_indexes=coref_indexes,
+            decoder_mask=decoder_mask,
             # [batch_size, max_decode_length, hidden_size]
             decoder_memory_bank=decoder_outputs,
             # [batch_size, max_decode_length, encoder_length]
@@ -451,7 +471,7 @@ class STOG(Model):
         )
 
     def _update_maps_and_get_next_input(
-            self, step, predictions, copy_vocab_size, coref_attention_maps, coref_vocab_maps, copy_vocabs):
+            self, step, predictions, copy_vocab_size, coref_attention_maps, coref_vocab_maps, copy_vocabs, masks):
         """Dynamically update/build the maps needed for copying.
 
         :param step: the decoding step, int.
@@ -460,6 +480,8 @@ class STOG(Model):
         :param coref_attention_maps: [batch_size, max_decode_length, max_decode_length]
         :param coref_vocab_maps:  [batch_size, max_decode_length]
         :param copy_vocabs: a list of dynamic vocabs.
+        :param masks: a list of [batch_size] tensors indicating whether EOS has been generated.
+            if EOS has has been generated, then the mask is `1`.
         :return:
         """
         vocab_size = self.generator.vocab_size
@@ -503,14 +525,41 @@ class STOG(Model):
 
         # 4. Get the coref-resolved predictions.
         coref_resolved_preds = coref_predictions * coref_mask.long() + predictions * (1 - coref_mask).long()
-        # coref_index = coref_index + 1
-        # coref_index.masked_fill_(1 - coref_mask, 0)
 
-        return next_input, coref_resolved_preds, coref_index
+        # 5. Get the mask for the current generation.
+        has_eos = torch.zeros_like(gen_mask)
+        if len(masks) != 0:
+            has_eos = torch.cat(masks, 1).long().sum(1).gt(0)
+        mask = next_input.eq(self.vocab.get_token_index(END_SYMBOL, 'decoder_token_ids')) | has_eos
+
+        return (next_input.unsqueeze(1),
+                coref_resolved_preds.unsqueeze(1),
+                coref_index.unsqueeze(1),
+                mask.unsqueeze(1))
+
+    def decode_with_graph_parser(self, memory_bank, corefs, mask):
+        """Predict edges and edge labels between nodes.
+        :param memory_bank: [batch_size, node_length, hidden_size]
+        :param corefs: [batch_size, node_length]
+        :param mask:  [batch_size, node_length]
+        :return a dict of edge_heads and edge_labels.
+            edge_heads: [batch_size, node_length]
+            edge_labels: [batch_size, node_length]
+        """
+        memory_bank, _, _, corefs, mask = self.graph_decoder._add_head_sentinel(
+            memory_bank, None, None, corefs, mask)
+        (edge_node_h, edge_node_m), (edge_label_h, edge_label_m) = self.graph_decoder.encode(memory_bank)
+        edge_node_scores = self.graph_decoder._get_edge_node_scores(edge_node_h, edge_node_m, mask.float())
+        edge_heads, edge_labels = self.graph_decoder.mst_decode(
+            edge_label_h, edge_label_m, edge_node_scores, corefs, mask)
+        return dict(
+            edge_heads=edge_heads,
+            edge_labels=edge_labels
+        )
 
     @classmethod
     def from_params(cls, vocab, params):
-        logger.info('Building the Seq2Seq Model...')
+        logger.info('Building the STOG Model...')
 
         # Encoder
         encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])

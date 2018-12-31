@@ -6,6 +6,7 @@ from stog.utils.nn import masked_log_softmax
 from stog.modules.attention import BiaffineAttention
 from stog.modules.linear import BiLinear
 from stog.metrics import AttachmentScores
+from stog.algorithms.maximum_spanning_tree import decode_mst_with_coreference, decode_mst
 
 
 class DeepBiaffineGraphDecoder(torch.nn.Module):
@@ -131,8 +132,7 @@ class DeepBiaffineGraphDecoder(torch.nn.Module):
 
     def decode(self, edge_label_h, edge_label_m, edge_node_scores, corefs, mask):
         if self.decode_algorithm == 'mst':
-            pass
-            # return self.mst_decode(edge_label_h, edge_label_m, edge_node_scores, corefs, mask)
+            return self.mst_decode(edge_label_h, edge_label_m, edge_node_scores, corefs, mask)
         else:
             return self.greedy_decode(edge_label_h, edge_label_m, edge_node_scores, mask)
 
@@ -158,6 +158,66 @@ class DeepBiaffineGraphDecoder(torch.nn.Module):
         _, edge_labels = edge_label_scores.max(dim=2)
 
         return edge_heads[:, 1:], edge_labels[:, 1:]
+
+    def mst_decode(self, edge_label_h, edge_label_m, edge_node_scores, corefs, mask):
+        batch_size, max_length, edge_label_hidden_size = edge_label_h.size()
+        lengths = mask.data.sum(dim=1).long().cpu().numpy()
+
+        expanded_shape = [batch_size, max_length, max_length, edge_label_hidden_size]
+        edge_label_h = edge_label_h.unsqueeze(2).expand(*expanded_shape).contiguous()
+        edge_label_m = edge_label_m.unsqueeze(1).expand(*expanded_shape).contiguous()
+        # [batch, max_head_length, max_modifier_length, num_labels]
+        edge_label_scores = self.edge_label_bilinear(edge_label_h, edge_label_m)
+        edge_label_scores = torch.nn.functional.log_softmax(edge_label_scores, dim=3).permute(0, 3, 1, 2)
+
+        # Set invalid positions to -inf
+        minus_mask = (1 - mask.float()) * self.minus_inf
+        edge_node_scores = edge_node_scores + minus_mask.unsqueeze(2) + minus_mask.unsqueeze(1)
+        # [batch, max_head_length, max_modifier_length]
+        edge_node_scores = torch.nn.functional.log_softmax(edge_node_scores, dim=1)
+
+        # [batch, num_labels, max_head_length, max_modifier_length]
+        batch_energy = torch.exp(edge_node_scores.unsqueeze(1) + edge_label_scores)
+
+        edge_heads, edge_labels = self._run_mst_decoding(batch_energy, lengths, corefs)
+        return edge_heads[:, 1:], edge_labels[:, 1:]
+
+    @staticmethod
+    def _run_mst_decoding(batch_energy, lengths, corefs=None):
+        edge_heads = []
+        edge_labels = []
+        for i, (energy, length) in enumerate(zip(batch_energy.detach().cpu(), lengths)):
+            # energy: [num_labels, max_head_length, max_modifier_length]
+            # scores | label_ids : [max_head_length, max_modifier_length]
+            scores, label_ids = energy.max(dim=0)
+            # Although we need to include the root node so that the MST includes it,
+            # we do not want the dummy root node to be the head of more than one nodes,
+            # since there should be only one root in a sentence.
+            # Here, we enforce this by setting the scores for all word -> ROOT edges
+            # edges to be 0.
+            # TODO: set it to -1 seems better?
+            scores[0, :] = 0
+            # Decode the heads. Because we modify the scores to prevent
+            # adding in word -> ROOT edges, we need to find the labels ourselves.
+            if corefs is not None:
+                coref = corefs[i].detach().cpu().tolist()[:length]
+                instance_heads, _ = decode_mst_with_coreference(
+                    scores.numpy(), coref, length, has_labels=False)
+            else:
+                instance_heads, _ = decode_mst(scores.numpy(), length, has_labels=False)
+
+            # Find the labels which correspond to the edges in the max spanning tree.
+            instance_head_labels = []
+            for child, parent in enumerate(instance_heads):
+                instance_head_labels.append(label_ids[parent, child].item())
+            # We don't care what the head or tag is for the root token, but by default it's
+            # not necessarily the same in the batched vs unbatched case, which is annoying.
+            # Here we'll just set them to zero.
+            instance_heads[0] = 0
+            instance_head_labels[0] = 0
+            edge_heads.append(instance_heads)
+            edge_labels.append(instance_head_labels)
+        return torch.from_numpy(np.stack(edge_heads)), torch.from_numpy(np.stack(edge_labels))
 
     @classmethod
     def from_params(cls, vocab, params):
@@ -200,17 +260,20 @@ class DeepBiaffineGraphDecoder(torch.nn.Module):
         """
         Add a dummy ROOT at the beginning of each node sequence.
         :param memory_bank: [batch, length, hidden_size]
-        :param edge_head: [batch, length]
-        :param edge_labels: [batch, length]
-        :param corefs: [batch, length]
+        :param edge_head: None or [batch, length]
+        :param edge_labels: None or [batch, length]
+        :param corefs: None or [batch, length]
         :param mask: [batch, length]
         """
         batch_size, _, hidden_size = memory_bank.size()
         head_sentinel = self.head_sentinel.expand([batch_size, 1, hidden_size])
         memory_bank = torch.cat([head_sentinel, memory_bank], 1)
-        edge_heads = torch.cat([edge_heads.new_zeros(batch_size, 1), edge_heads], 1)
-        edge_labels = torch.cat([edge_labels.new_zeros(batch_size, 1), edge_labels], 1)
-        corefs = torch.cat([corefs.new_zeros(batch_size, 1), corefs], 1)
+        if edge_heads is not None:
+            edge_heads = torch.cat([edge_heads.new_zeros(batch_size, 1), edge_heads], 1)
+        if edge_labels is not None:
+            edge_labels = torch.cat([edge_labels.new_zeros(batch_size, 1), edge_labels], 1)
+        if corefs is not None:
+            corefs = torch.cat([corefs.new_zeros(batch_size, 1), corefs], 1)
         mask = torch.cat([mask.new_ones(batch_size, 1), mask], 1)
         return memory_bank, edge_heads, edge_labels, corefs, mask
 
