@@ -79,7 +79,11 @@ class PointerGenerator(torch.nn.Module):
             scaled_copy_target_probs.contiguous()
         ], dim=2)
 
-        _, predictions = probs.max(2)
+        # Set the probability of coref NA to 0.
+        _probs = probs.clone()
+        _probs[:, :, self.vocab_size + source_dynamic_vocab_size] = 0
+
+        _, predictions = _probs.max(2)
 
         return dict(
             probs=probs,
@@ -107,16 +111,12 @@ class PointerGenerator(torch.nn.Module):
         :param target_dynamic_vocab_size: int
         """
 
-        batch_size, num_target_nodes = target_copy_targets.size()
         non_pad_mask = generate_targets.ne(self.vocab_pad_idx)
 
         source_copy_mask = source_copy_targets.ne(1)  # 1 is the index for unknown words
         non_source_copy_mask = 1 - source_copy_mask
 
-        # If target copy does not happen, then the copy target points to the node itself.
-        # Start from 1 because we exclude the 'BOS' symbol.
-        target_self_pointer = torch.arange(1, num_target_nodes + 1).long().unsqueeze(0).type_as(target_copy_targets)
-        target_copy_mask = target_copy_targets.ne(target_self_pointer)
+        target_copy_mask = target_copy_targets.ne(0)  # 0 is the index for coref NA
         non_target_copy_mask = 1 - target_copy_mask
 
         # [batch_size, num_target_nodes, 1]

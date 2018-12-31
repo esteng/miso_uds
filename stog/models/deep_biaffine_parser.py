@@ -112,6 +112,11 @@ class DeepBiaffineParser(Model, torch.nn.Module):
             labels = labels[:, :-2]
 
         if coreference is not None:
+            coref_happen_mask = coreference.ne(0)
+            default_coreference = torch.ones_like(coreference) * torch.arange(
+                0, coreference.size(1)).type_as(coreference).unsqueeze(0)
+            default_coreference.masked_fill_(coref_happen_mask, 0)
+            coreference = default_coreference + coreference
             coreference = coreference[:, 1:-1]
 
         mask = (input_token != 0).float()

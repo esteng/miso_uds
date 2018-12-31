@@ -189,6 +189,9 @@ class AMRGraph(penman.Graph):
         self._build_extras()
         self._src_tokens = []
 
+    def __str__(self):
+        return amr_codec.encode(self)
+
     def _build_extras(self):
         G = nx.DiGraph()
 
@@ -365,11 +368,10 @@ class AMRGraph(penman.Graph):
                         update_info(node, attr[0], parent_node, attr[1])
             visited[node] = 1
 
-
         copy_offset = 0
         if bos:
             tgt_tokens = [bos] + tgt_tokens
-            copy_offset = 1
+            copy_offset += 1
         if eos:
             tgt_tokens = tgt_tokens + [eos]
 
@@ -385,6 +387,11 @@ class AMRGraph(penman.Graph):
                     tgt_copy_indices[token_idx + copy_offset] = copy_idx
 
         tgt_copy_map = [(token_idx, copy_idx) for token_idx, copy_idx in enumerate(tgt_copy_indices)]
+
+        for i, copy_index in enumerate(tgt_copy_indices):
+            # Set the coreferred target to 0 if no coref is available.
+            if i == copy_index:
+                tgt_copy_indices[i] = 0
 
         # Source Copy
         src_tokens = self.get_src_tokens()
@@ -439,6 +446,65 @@ class AMRGraph(penman.Graph):
                     variable
                 )
             )
+
+    @classmethod
+    def from_prediction(cls, prediction):
+
+        def is_attribute_value(value):
+            return re.search(r'(^".*"$|^[^a-zA-Z]+$)', value) is not None
+
+        nodes = prediction['nodes']
+        heads = prediction['heads']
+        corefs = prediction['corefs']
+        head_labels = prediction['head_labels']
+
+        triples = []
+        top = None
+        # Build the variable map from variable to instance.
+        variable_map = {}
+        for coref_index in corefs:
+            node = nodes[coref_index - 1]
+            if is_attribute_value(node):
+                continue
+            variable_map['vv{}'.format(coref_index)] = node
+        for head_index in heads:
+            if head_index == 0:
+                continue
+            node = nodes[head_index - 1]
+            coref_index = corefs[head_index - 1]
+            variable_map['vv{}'.format(coref_index)] = node
+        # Build edge triples and other attribute triples.
+        for i, head_index in enumerate(heads):
+            if head_index == 0:
+                top_variable = 'vv{}'.format(corefs[i])
+                if top_variable not in variable_map:
+                    variable_map[top_variable] = nodes[i]
+                top = top_variable
+                continue
+            head_variable = 'vv{}'.format(corefs[head_index - 1])
+            modifier = nodes[i]
+            modifier_variable = 'vv{}'.format(corefs[i])
+            label = head_labels[i]
+            assert head_variable in variable_map
+            if modifier_variable in variable_map:
+                triples.append((head_variable, label, modifier_variable))
+            else:
+                # Add quotes if there's a backslash.
+                if '/' in modifier and not re.search(r'^".*"$', modifier):
+                    modifier = '"{}"'.format(modifier)
+                triples.append((head_variable, label, modifier))
+
+        for var, node in variable_map.items():
+            if '/' in node and not re.search(r'^".*"$', node):
+                node = '"{}"'.format(node)
+            triples.append((var, 'instance', node))
+
+        triples.sort()
+        graph = penman.Graph()
+        graph._top = top
+        graph._triples = [penman.Triple(*t) for t in triples]
+        # import pdb; pdb.set_trace()
+        return cls(graph)
 
 
 class SourceCopyVocabulary:

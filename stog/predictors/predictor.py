@@ -12,8 +12,10 @@ from stog.utils.archival import Archive, load_archive
 # a mapping from model `type` to the default Predictor for that type
 DEFAULT_PREDICTORS = {
     'Seq2Seq': 'Seq2Seq',
-    'DeepBiaffineParser': 'BiaffineParser'
+    'DeepBiaffineParser': 'BiaffineParser',
+    'STOG': 'STOG'
 }
+
 
 class Predictor(Registrable):
     """
