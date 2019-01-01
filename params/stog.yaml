@@ -93,6 +93,16 @@ model:
     dropout: 0.33
 
 
+# Vocabulary
+vocab:
+  min_count:
+      encoder_token_ids: 1
+      decoder_token_ids: 2
+  max_vocab_size:
+      decoder_token_ids: 8000
+      encoder_token_ids: 14000
+
+
 # Data parameters
 data:
   data_dir: *amr_data_dir
