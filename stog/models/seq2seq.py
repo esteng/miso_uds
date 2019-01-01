@@ -399,7 +399,6 @@ class Seq2Seq(Model):
 
             _coref_attention_maps = coref_attention_maps[:, :step_i + 1]
 
-
             # Generate.
             generator_output = self.generator(
                 _decoder_outputs, _copy_attentions, copy_attention_maps, _coref_attentions, _coref_attention_maps)
@@ -471,7 +470,6 @@ class Seq2Seq(Model):
         coref_index.masked_fill_(1 - coref_mask, step + 1)
 
         coref_attention_maps[batch_index, step_index, coref_index] = 1
-
 
         # 2. Compute the next input.
         # coref_predictions have the dynamic vocabulary index, and OOVs are set to zero.
