@@ -424,7 +424,7 @@ class STOG(Model):
             _predictions = generator_output['predictions']
 
             # 4. Update maps and get the next token input.
-            tokens, _predictions, _coref_indexes, _mask = self._update_maps_and_get_next_input(
+            tokens, _predictions, corefs, _mask = self._update_maps_and_get_next_input(
                 step_i,
                 generator_output['predictions'].squeeze(1),
                 generator_output['source_dynamic_vocab_size'],
@@ -443,7 +443,7 @@ class STOG(Model):
 
             predictions += [_predictions]
             # Add the coref info for the next input.
-            coref_indexes += [_coref_indexes]
+            coref_indexes += [corefs]
             # Add the mask for the next input.
             decoder_mask += [_mask]
 
