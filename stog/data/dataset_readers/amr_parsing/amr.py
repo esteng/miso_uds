@@ -260,6 +260,8 @@ class AMRGraph(penman.Graph):
             if self._G[source][target].get('label', None) == 'name':
                 for attr, value in source.attributes:
                     if attr == 'wiki':
+                        if value != '-':
+                            value = value[1:-1]  # remove quotes
                         return value
         return None
 
