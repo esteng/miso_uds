@@ -265,6 +265,19 @@ class AMRGraph(penman.Graph):
                         return value
         return None
 
+    def set_name_node_wiki(self, node, wiki):
+        edges = list(self._G.in_edges(node))
+        parent = None
+        for source, target in edges:
+            if self._G[source][target].get('label', None) == 'name':
+                parent = source
+                break
+        if parent:
+            assert all(attr != 'wiki' for attr, _ in parent.attributes)
+            if wiki != '-':
+                wiki = '"{}"'.format(wiki)
+            self.add_node_attribute(parent, 'wiki', wiki)
+
     def is_date_node(self, node):
         return node.instance == 'date-entity'
 

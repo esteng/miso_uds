@@ -76,9 +76,10 @@ class Recategorizer:
         self.removed_wiki_count = 0
 
         self.name_type_cooccur_counter = defaultdict(lambda: defaultdict(int))
+        self.name_op_cooccur_counter = defaultdict(lambda: defaultdict(int))
         self.wiki_span_cooccur_counter = defaultdict(lambda: defaultdict(int))
         self.build_entity_map = False
-        self.entity_map = {}
+        self.entity_type_cooccur_counter = defaultdict(lambda: defaultdict(int))
         if build_utils:
             self._build_utils()
             self._dump_utils(util_dir)
@@ -109,7 +110,7 @@ class Recategorizer:
             pass
         self.build_entity_map = True
         logger.info('Done.\n')
-        logger.info('Building entity_map...')
+        logger.info('Building entity_type_cooccur_counter...')
         self.reset_statistics()
         for _ in self.recategorize_file(self.train_data):
             pass
@@ -118,18 +119,22 @@ class Recategorizer:
     def _dump_utils(self, directory):
         with open(os.path.join(directory, 'name_type_cooccur_counter.json'), 'w', encoding='utf-8') as f:
             json.dump(self.name_type_cooccur_counter, f, indent=4)
+        with open(os.path.join(directory, 'name_op_cooccur_counter.json'), 'w', encoding='utf-8') as f:
+            json.dump(self.name_op_cooccur_counter, f, indent=4)
         with open(os.path.join(directory, 'wiki_span_cooccur_counter.json'), 'w', encoding='utf-8') as f:
             json.dump(self.wiki_span_cooccur_counter, f, indent=4)
-        with open(os.path.join(directory, 'entity_map.json'), 'w', encoding='utf-8') as f:
-            json.dump(self.entity_map, f, indent=4)
+        with open(os.path.join(directory, 'entity_type_cooccur_counter.json'), 'w', encoding='utf-8') as f:
+            json.dump(self.entity_type_cooccur_counter, f, indent=4)
 
     def _load_utils(self, directory):
         with open(os.path.join(directory, 'name_type_cooccur_counter.json'), encoding='utf-8') as f:
             self.name_type_cooccur_counter = json.load(f)
+        with open(os.path.join(directory, 'name_op_cooccur_counter.json'), encoding='utf-8') as f:
+            self.name_op_cooccur_counter = json.load(f)
         with open(os.path.join(directory, 'wiki_span_cooccur_counter.json'), encoding='utf-8') as f:
             self.wiki_span_cooccur_counter = json.load(f)
-        with open(os.path.join(directory, 'entity_map.json'), encoding='utf-8') as f:
-            self.entity_map = json.load(f)
+        with open(os.path.join(directory, 'entity_type_cooccur_counter.json'), encoding='utf-8') as f:
+            self.entity_type_cooccur_counter = json.load(f)
 
     def _map_name_node_type(self, name_node_type):
         if not self.build_utils and name_node_type in self.name_type_cooccur_counter:
@@ -155,7 +160,7 @@ class Recategorizer:
         self.recategorize_name_nodes(amr)
         if self.build_utils:
             return
-        # self.remove_wiki(amr)
+        self.remove_wiki(amr)
         self.recategorize_date_nodes(amr)
 
     def resolve_name_node_reentrancy(self, amr):
@@ -200,17 +205,29 @@ class Recategorizer:
                 self.named_entity_count += 1
                 amr_type = amr.graph.get_name_node_type(node)
                 backup_ner_type = self._map_name_node_type(amr_type)
-                entity = Entity.get_aligned_entity(node, amr, backup_ner_type)
+                entity = Entity.get_aligned_entity(
+                    node, amr, backup_ner_type, self.entity_type_cooccur_counter)
                 if len(entity.span):
                     self.recat_named_entity_count += 1
                 entities.append(entity)
+        if False: # amr.id.startswith('PROXY_XIN_ENG_20030624_0298.6'):
+            for entity in entities:
+                print(' '.join(amr.tokens[i] for i in entity.span))
+                print(entity.span)
+                print(entity.confidence)
+                print(entity.amr_type)
+                print(entity.ner_type)
+                print(entity)
+                print('')
+            import pdb; pdb.set_trace()
         entities, removed_entities = resolve_conflict_entities(entities)
         if not self.build_utils:
             type_counter = Entity.collapse_name_nodes(entities, amr)
             for entity in removed_entities:
                 amr_type = amr.graph.get_name_node_type(entity.node)
                 backup_ner_type = self._map_name_node_type(amr_type)
-                entity = Entity.get_aligned_entity(entity.node, amr, backup_ner_type)
+                entity = Entity.get_aligned_entity(
+                    entity.node, amr, backup_ner_type, self.entity_type_cooccur_counter)
                 Entity.collapse_name_nodes([entity], amr, type_counter)
         else:
             self._update_utils(entities, amr)
@@ -250,11 +267,15 @@ class Recategorizer:
                 if wiki_title is None:
                     wiki_title = '-'
                 for text_span in entity.get_text_spans(amr):
+                    text_span = text_span.lower()
                     self.wiki_span_cooccur_counter[text_span][wiki_title] += 1
+                    self.name_op_cooccur_counter[text_span][' '.join(entity.get_ops())] += 1
+
                 if len(entity.span) == 0:
                     continue
-                entity_text = ' '.join(amr.tokens[index] for index in entity.span)
-                self.entity_map[entity_text] = entity.ner_type
+                entity_text = ' '.join(amr.tokens[index] for index in entity.span).lower()
+                self.entity_type_cooccur_counter[entity_text][entity.ner_type] += 1
+
         else:
             for entity in entities:
                 if len(entity.span) == 0:
