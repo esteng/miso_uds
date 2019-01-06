@@ -18,19 +18,19 @@ def strip_lemma(lemma):
 
 
 def rephrase_ops(ops):
-       ret = []
-       joined_ops = ' '.join(map(str, ops))
-       if joined_ops == '"United" "States"':
-           ret.append('"America"')
-       elif joined_ops == '"World" "War" "II"':
-           ret.append('"WWII"')
-       elif joined_ops == '"Republican" "National" "Convention"':
-           ret.append('"RNC"')
-       elif joined_ops == '"Grand" "Old" "Party"':
-           ret.append('"GOP"')
-       elif joined_ops == '"United" "Nations"':
-           ret.append('"U.N."')
-       return ret
+    ret = []
+    joined_ops = ' '.join(map(str, ops))
+    if joined_ops == '"United" "States"':
+        ret.append('"America"')
+    elif joined_ops == '"World" "War" "II"':
+        ret.append('"WWII"')
+    elif joined_ops == '"Republican" "National" "Convention"':
+        ret.append('"RNC"')
+    elif joined_ops == '"Grand" "Old" "Party"':
+        ret.append('"GOP"')
+    elif joined_ops == '"United" "Nations"':
+        ret.append('"U.N."')
+    return ret
 
 
 def tokenize_ops(ops):
@@ -97,6 +97,27 @@ class Entity:
         self.confidence = confidence
         self.alignment = alignment
         self.debug = False
+
+    def get_text_spans(self, amr):
+        spans = []
+        span = []
+        for index in self.span:
+            span.append(amr.tokens[index])
+        spans.append(' '.join(span))
+        span = []
+        for op in self.node.ops:
+            op = str(op)
+            if re.search(r'^".*"$', op):
+                op = op[1:-1]
+            span.append(op)
+        spans.append(' '.join(span))
+        span = []
+        for op in rephrase_ops(self.node.ops):
+            if re.search(r'^".*"$', op):
+                op = op[1:-1]
+            span.append(op)
+        spans.append(' '.join(span))
+        return [span for span in spans if len(span) > 0]
 
     @classmethod
     def get_aligned_entity(cls, node, amr, backup_ner_type):
@@ -187,7 +208,8 @@ class Entity:
                 abstract = '{}_{}'.format(
                     entity.ner_type, type_counter[entity.ner_type])
                 span_with_offset = [index - offset for index in entity.span]
-                amr.abstract_map[abstract] = ' '.join(map(amr.tokens.__getitem__, span_with_offset))
+                amr.abstract_map[abstract] = Entity.save_collapsed_name_node(
+                    entity, span_with_offset, amr)
                 amr.replace_span(span_with_offset, [abstract], ['NNP'], [entity.ner_type])
                 amr.graph.remove_node_ops(entity.node)
                 amr.graph.replace_node_attribute(
@@ -196,6 +218,14 @@ class Entity:
             else:
                 amr.graph.remove_node(entity.node)
         return type_counter
+
+    @staticmethod
+    def save_collapsed_name_node(entity, span, amr):
+        return dict(
+            type='named-entity',
+            span=' '.join(map(amr.tokens.__getitem__, span)),
+            ops=' '.join(map(str, entity.node.ops))
+        )
 
     def _get_aligned_info(self, amr, backup_ner_type):
         spans = group_indexes_to_spans(self.alignment.keys(), amr)

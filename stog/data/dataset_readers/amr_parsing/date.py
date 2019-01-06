@@ -32,7 +32,7 @@ class DATE:
                            if attr in self.attribute_list}
         self.span = None
         self.confidence = 0
-        self.ner_type = '_DATE'
+        self.ner_type = 'DATE_ATTRS'
 
     @staticmethod
     def collapse_date_nodes(dates, amr):
@@ -46,17 +46,26 @@ class DATE:
                 align_count += 1
                 abstract = '{}_{}'.format(date.ner_type, align_count)
                 span_with_offset = [index - offset for index in date.span]
-                amr.abstract_map[abstract] = ' '.join(map(amr.lemmas.__getitem__, span_with_offset))
+                amr.abstract_map[abstract] = DATE.save_collapsed_date_node(
+                    date, span_with_offset, amr)
                 amr.replace_span(span_with_offset, [abstract], ['NNP'], [date.ner_type])
                 for attr, value in date.attributes.items():
                     amr.graph.remove_node_attribute(date.node, attr, value)
-                amr.graph.replace_node_attribute(
-                    date.node, 'instance', date.node.instance, abstract
+                amr.graph.add_node_attribute(
+                    date.node, 'date_attrs', abstract
                 )
                 offset += len(date.span) - 1
             else:
                 for attr, value in date.attributes.items():
                     amr.graph.remove_node_attribute(date.node, attr, value)
+
+    @staticmethod
+    def save_collapsed_date_node(date, span, amr):
+        return dict(
+            type='date-entity',
+            span=' '.join(map(amr.lemmas.__getitem__, span)),
+            attrs=date.attributes
+        )
 
     def _is_covered(self, alignment):
         attributes = self.attributes.copy()

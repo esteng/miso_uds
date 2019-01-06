@@ -10,7 +10,6 @@ from word2number import w2n
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
 from stog.data.dataset_readers.amr_parsing.entity import Entity
 from stog.data.dataset_readers.amr_parsing.date import DATE
-from stog.data.dataset_readers.amr_parsing.preprocess import input_cleaner
 from stog.utils import logging
 
 
@@ -53,32 +52,38 @@ class Recategorizer:
     # TODO:
     #   1. Recategorize date-entity and other '*-entity'.
     #   2. Check the mismatch between aligned entities and ops.
+    """
+    We do the following steps in Recategorizer.
+        1. Build three utilities from the training data. The first one counts the co-occurrence
+        between AMR name node type and NER type. The second one maps the named entity span
+        to a NER type. The third counts the co-occurrence between wiki title and text span.
+        2. Remove the wiki edges.
+        3. Replace AMR subgraphs rooted with a name node with a new abstract node, and
+        replace the corresponding named entity spans with the abstract node.
+        4. Replace AMR date-entity attributes with a single abstract edge, and replace the
+        corresponding text spans with the abstract expressions.
+    """
 
-    def __init__(self, train_data=None, build_map=False, map_dir=None, debug=False):
+    def __init__(self, train_data=None, build_utils=False, util_dir=None, debug=False):
         self.stemmer = nltk.stem.SnowballStemmer('english').stem
         self.train_data = train_data
-        self.build_map = build_map
+        self.build_utils = build_utils
         self.debug = debug
         self.named_entity_count = 0
         self.recat_named_entity_count = 0
         self.date_entity_count = 0
         self.recat_date_entity_count = 0
         self.removed_wiki_count = 0
-        if build_map:
-            # Build two maps from the training data.
-            #   name_node_type_map counts the number of times that a type of AMR name node
-            #       (e.g., "country", "person") is aligned to a named entity span in the
-            #       input sentence that has been tagged with a NER type, i.e.,
-            #           count = self.name_node_type_map[name_node_type][ner_type]
-            #
-            #   entity_map maps a named entity span to a NER type.
-            self.name_node_type_map_done = False
-            self.name_node_type_map = defaultdict(lambda: defaultdict(int))
-            self.entity_map = {}
-            self._build_map()
-            self._dump_map(map_dir)
+
+        self.name_type_cooccur_counter = defaultdict(lambda: defaultdict(int))
+        self.wiki_span_cooccur_counter = defaultdict(lambda: defaultdict(int))
+        self.build_entity_map = False
+        self.entity_map = {}
+        if build_utils:
+            self._build_utils()
+            self._dump_utils(util_dir)
         else:
-            self._load_map(map_dir)
+            self._load_utils(util_dir)
 
     def _print_statistics(self):
         if self.named_entity_count != 0:
@@ -91,33 +96,45 @@ class Recategorizer:
                 self.recat_date_entity_count, self.date_entity_count))
         logger.info('Removed {} wikis.'.format(self.removed_wiki_count))
 
-    def _build_map(self):
-        logger.info('Building name_node_type_map...')
-        for _ in self.recategorize_file(self.train_data):
-            pass
-        self.name_node_type_map_done = True
-        logger.info('Done.')
-        logger.info('Building entity_map...')
-        for _ in self.recategorize_file(self.train_data):
-            pass
-        logger.info('Done.')
+    def reset_statistics(self):
+        self.named_entity_count = 0
+        self.recat_named_entity_count = 0
+        self.date_entity_count = 0
+        self.recat_date_entity_count = 0
+        self.removed_wiki_count = 0
 
-    def _dump_map(self, directory):
-        with open(os.path.join(directory, 'name_node_type_map.json'), 'w', encoding='utf-8') as f:
-            json.dump(self.name_node_type_map, f, indent=4)
+    def _build_utils(self):
+        logger.info('Building name_type_cooccur_counter and wiki_span_cooccur_counter...')
+        for _ in self.recategorize_file(self.train_data):
+            pass
+        self.build_entity_map = True
+        logger.info('Done.\n')
+        logger.info('Building entity_map...')
+        self.reset_statistics()
+        for _ in self.recategorize_file(self.train_data):
+            pass
+        logger.info('Done.\n')
+
+    def _dump_utils(self, directory):
+        with open(os.path.join(directory, 'name_type_cooccur_counter.json'), 'w', encoding='utf-8') as f:
+            json.dump(self.name_type_cooccur_counter, f, indent=4)
+        with open(os.path.join(directory, 'wiki_span_cooccur_counter.json'), 'w', encoding='utf-8') as f:
+            json.dump(self.wiki_span_cooccur_counter, f, indent=4)
         with open(os.path.join(directory, 'entity_map.json'), 'w', encoding='utf-8') as f:
             json.dump(self.entity_map, f, indent=4)
 
-    def _load_map(self, directory):
-        with open(os.path.join(directory, 'name_node_type_map.json'), encoding='utf-8') as f:
-            self.name_node_type_map = json.load(f)
+    def _load_utils(self, directory):
+        with open(os.path.join(directory, 'name_type_cooccur_counter.json'), encoding='utf-8') as f:
+            self.name_type_cooccur_counter = json.load(f)
+        with open(os.path.join(directory, 'wiki_span_cooccur_counter.json'), encoding='utf-8') as f:
+            self.wiki_span_cooccur_counter = json.load(f)
         with open(os.path.join(directory, 'entity_map.json'), encoding='utf-8') as f:
             self.entity_map = json.load(f)
 
     def _map_name_node_type(self, name_node_type):
-        if not self.build_map and name_node_type in self.name_node_type_map:
-            return max(self.name_node_type_map[name_node_type].keys(),
-                       key=lambda ner_type: self.name_node_type_map[name_node_type][ner_type])
+        if not self.build_utils and name_node_type in self.name_type_cooccur_counter:
+            return max(self.name_type_cooccur_counter[name_node_type].keys(),
+                       key=lambda ner_type: self.name_type_cooccur_counter[name_node_type][ner_type])
         else:
             return Entity.unknown_entity_type
 
@@ -128,17 +145,42 @@ class Recategorizer:
             if i % 1000 == 0:
                 logger.info('Processed {} examples.'.format(i))
                 self._print_statistics()
-        logger.info('Done.')
         self._print_statistics()
+        self.reset_statistics()
+        logger.info('Done.\n')
 
     def recategorize_graph(self, amr):
-        input_cleaner.clean(amr)
         amr.stems = [self.stemmer(l) for l in amr.lemmas]
+        self.resolve_name_node_reentrancy(amr)
         self.recategorize_name_nodes(amr)
-        if self.build_map:
+        if self.build_utils:
             return
-        self.remove_wiki(amr)
+        # self.remove_wiki(amr)
         self.recategorize_date_nodes(amr)
+
+    def resolve_name_node_reentrancy(self, amr):
+        """
+        If a name node has an incoming edge not labeled `:name`, we remove this edge from
+        the name node, and add this edge to the node which is the head of the name node via
+        a `:name` edge.
+        We do so because we want the incoming edges to name nodes to be deterministic. While
+        this might be wrong for very few cases, for most case introducing this inductive bias
+        (I think) will help improve the edge label prediction.
+        """
+        graph = amr.graph
+        for node in graph.get_nodes():
+            if graph.is_name_node(node):
+                edges = list(graph._G.in_edges(node))
+                name_head = None
+                for source, target in edges:
+                    if graph._G[source][target]['label'] == 'name':
+                        name_head = source
+                        break
+                for source, target in edges:
+                    label = graph._G[source][target]['label']
+                    if label != 'name':
+                        graph.remove_edge(source, target)
+                        graph.add_edge(source, name_head, label)
 
     def remove_wiki(self, amr):
         graph = amr.graph
@@ -153,6 +195,8 @@ class Recategorizer:
         entities = []
         for node in graph.get_nodes():
             if graph.is_name_node(node):
+                edges = list(graph._G.in_edges(node))
+                assert all(graph._G[s][t]['label'] == 'name' for s, t in edges)
                 self.named_entity_count += 1
                 amr_type = amr.graph.get_name_node_type(node)
                 backup_ner_type = self._map_name_node_type(amr_type)
@@ -161,7 +205,7 @@ class Recategorizer:
                     self.recat_named_entity_count += 1
                 entities.append(entity)
         entities, removed_entities = resolve_conflict_entities(entities)
-        if not self.build_map:
+        if not self.build_utils:
             type_counter = Entity.collapse_name_nodes(entities, amr)
             for entity in removed_entities:
                 amr_type = amr.graph.get_name_node_type(entity.node)
@@ -169,7 +213,7 @@ class Recategorizer:
                 entity = Entity.get_aligned_entity(entity.node, amr, backup_ner_type)
                 Entity.collapse_name_nodes([entity], amr, type_counter)
         else:
-            self._update_map(entities, amr)
+            self._update_utils(entities, amr)
 
     def recategorize_date_nodes(self, amr):
         graph = amr.graph
@@ -199,9 +243,14 @@ class Recategorizer:
                 print(' --> ' + str(node) + '\n')
         return date
 
-    def _update_map(self, entities, amr):
-        if self.name_node_type_map_done:
+    def _update_utils(self, entities, amr):
+        if not self.build_entity_map:
             for entity in entities:
+                wiki_title = amr.graph.get_name_node_wiki(entity.node)
+                if wiki_title is None:
+                    wiki_title = '-'
+                for text_span in entity.get_text_spans(amr):
+                    self.wiki_span_cooccur_counter[text_span][wiki_title] += 1
                 if len(entity.span) == 0:
                     continue
                 entity_text = ' '.join(amr.tokens[index] for index in entity.span)
@@ -211,7 +260,7 @@ class Recategorizer:
                 if len(entity.span) == 0:
                     continue
                 if entity.ner_type != Entity.unknown_entity_type:
-                    self.name_node_type_map[entity.amr_type][entity.ner_type] += 1
+                    self.name_type_cooccur_counter[entity.amr_type][entity.ner_type] += 1
 
 
 if __name__ == '__main__':
@@ -221,11 +270,11 @@ if __name__ == '__main__':
     parser.add_argument('--amr_train_file', default='data/all_amr/train_amr.txt.features.align')
     parser.add_argument('--amr_files', nargs='+', default=[])
     parser.add_argument('--dump_dir', default='./temp')
-    parser.add_argument('--build_map', action='store_true')
+    parser.add_argument('--build_utils', action='store_true')
 
     args = parser.parse_args()
 
-    recategorizer = Recategorizer(train_data=args.amr_train_file, build_map=args.build_map, map_dir=args.dump_dir)
+    recategorizer = Recategorizer(train_data=args.amr_train_file, build_utils=args.build_utils, util_dir=args.dump_dir)
 
     for file_path in args.amr_files:
         with open(file_path + '.recategorize', 'w', encoding='utf-8') as f:

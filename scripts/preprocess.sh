@@ -20,31 +20,36 @@ verbalization_file=data/misc/verbalization-list-v1.06.txt
 # ========== Set the above variables correctly ==========
 
 
-printf "Creating utils...`date`\n"
-mkdir -p ${utils_dir}
-python -u -m stog.data.dataset_readers.amr_parsing.node_utils \
-    --amr_train_files ${train_data} \
-    --propbank_dir ${propbank_dir} \
-    --verbalization_file ${verbalization_file} \
-    --dump_dir ${utils_dir} || exit
-printf "Done.`date`\n\n"
-
+# printf "Creating utils...`date`\n"
+# mkdir -p ${utils_dir}
+# python -u -m stog.data.dataset_readers.amr_parsing.node_utils \
+#     --amr_train_files ${train_data} \
+#     --propbank_dir ${propbank_dir} \
+#     --verbalization_file ${verbalization_file} \
+#     --dump_dir ${utils_dir} || exit
+# printf "Done.`date`\n\n"
+#
+# printf "Cleaning inputs...`date`\n"
+# python -u -m stog.data.dataset_readers.amr_parsing.preprocess.input_cleaner \
+#     --amr_files ${train_data} ${dev_data} ${test_data} || exit
+# printf "Done.`date`\n\n"
 
 printf "Recategorizing subgraphs...`date`\n"
+# python -u -m stog.data.dataset_readers.amr_parsing.preprocess.recategorizer \
+#     --build_utils \
+#     --amr_train_file ${train_data}.input_clean \
+#     --dump_dir ${utils_dir} || exit
 python -u -m stog.data.dataset_readers.amr_parsing.preprocess.recategorizer \
-    --build_map \
-    --amr_train_file ${train_data} \
-    --dump_dir ${utils_dir} || exit
-python -u -m stog.data.dataset_readers.amr_parsing.preprocess.recategorizer \
-    --amr_files ${train_data} ${dev_data} ${test_data} \
+    --amr_files ${test_data}.input_clean \
     --dump_dir ${utils_dir} || exit
 printf "Done.`date`\n\n"
-
+exit
+    --amr_files ${train_data}.input_clean ${dev_data}.input_clean ${test_data}.input_clean \
 
 
 printf "Creating alignment...`date`\n"
 python -u -m stog.data.dataset_readers.amr_parsing.preprocess.aligner \
     --json_dir ${utils_dir} \
-    --amr_train_files ${train_data}.recategorize \
-    --amr_dev_files ${dev_data}.recategorize ${test_data}.recategorize || exit
+    --amr_train_files ${train_data}.input_clean.recategorize \
+    --amr_dev_files ${dev_data}.input_clean.recategorize ${test_data}.input_clean.recategorize || exit
 printf "Done.`date`\n\n"

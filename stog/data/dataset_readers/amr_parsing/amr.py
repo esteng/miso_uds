@@ -97,7 +97,7 @@ class AMR:
             if k == 'misc':
                 fields += v
             elif k == 'graph':
-                fields.append(amr_codec.encode(v))
+                fields.append(str(v))
             else:
                 if not isinstance(v, str):
                     v = json.dumps(v)
@@ -190,6 +190,7 @@ class AMRGraph(penman.Graph):
         self._src_tokens = []
 
     def __str__(self):
+        self._triples = penman.alphanum_order(self._triples)
         return amr_codec.encode(self)
 
     def _build_extras(self):
@@ -253,8 +254,24 @@ class AMRGraph(penman.Graph):
                 return source.instance
         raise KeyError
 
+    def get_name_node_wiki(self, node):
+        edges = list(self._G.in_edges(node))
+        for source, target in edges:
+            if self._G[source][target].get('label', None) == 'name':
+                for attr, value in source.attributes:
+                    if attr == 'wiki':
+                        return value
+        return None
+
     def is_date_node(self, node):
         return node.instance == 'date-entity'
+
+    def add_edge(self, source, target, label):
+        self._G.add_edge(source, target, label=label)
+        t = penman.Triple(source=source.identifier, relation=label, target=target.identifier)
+        triples = self._triples + [t]
+        triples = penman.alphanum_order(triples)
+        self._update_penman_graph(triples)
 
     def remove_edge(self, x, y):
         if isinstance(x, AMRNode) and isinstance(y, AMRNode):
@@ -263,7 +280,7 @@ class AMRGraph(penman.Graph):
             x = x.identifier
         if isinstance(y, AMRNode):
             y = y.identifier
-        triples = [t for t in self._triples if t.source != x and t.target != y]
+        triples = [t for t in self._triples if not (t.source == x and t.target == y)]
         self._update_penman_graph(triples)
 
     def remove_node(self, node):
@@ -282,7 +299,7 @@ class AMRGraph(penman.Graph):
             triples.append(t)
         if not found:
             raise KeyError
-        self._triples = triples
+        self._triples = penman.alphanum_order(triples)
 
     def remove_node_attribute(self, node, attr, value):
         node.remove_attribute(attr, value)
