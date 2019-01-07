@@ -3,14 +3,16 @@ import re
 import nltk
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
+from stog.utils import logging
+
+
+logger = logging.init_logger()
 
 
 class Aligner:
     """
     This aligner **only** aligns instances of AMR nodes to lemmas of the input sentence.
-    Other attributes' alignment will be done in the recategorization stage because some
-    attributes will be collapsed into a simpler one, and some attributes are numerical, will
-    be handled differently.
+    Other attributes' alignment will be done in the recategorization stage.
     """
 
     def __init__(self, node_utils):
@@ -23,9 +25,13 @@ class Aligner:
         self.no_aligned_instances = set()
 
     def align_file(self, file_path):
-        for amr in AMRIO.read(file_path):
+        for i, amr in enumerate(AMRIO.read(file_path), 1):
+            if i % 1000 == 0:
+                logger.info('Processed {} examples.'.format(i))
+                self.print_statistics()
             self.align_graph(amr)
             yield amr
+        self.print_statistics()
 
     def align_graph(self, amr):
         graph = amr.graph
@@ -51,25 +57,27 @@ class Aligner:
         # TODO: Add more align rules.
         # amr_lemma is case-sensitive, so try casing it in different ways: Aaa, AAA, aaa.
         self.amr_instance_count += 1
-        aligned_index = None
         aligned_lemma = None
         stems = [self.stemmer(l) for l in amr.lemmas]
         for lemma in lemmas:
             if lemma in amr.lemmas:
-                aligned_index = amr.lemmas.index(lemma)
                 aligned_lemma = lemma
                 break
             lemma_stem = self.stemmer(lemma)
             if lemma_stem in stems:
                 amr.lemmas[stems.index(lemma_stem)] = lemma
-                aligned_index = stems.index(lemma_stem)
                 aligned_lemma = lemma
                 break
+
+        # Make sure it can be correctly restored.
+        if aligned_lemma is not None:
+            restored_frame = self.node_utils.get_frames(aligned_lemma)[0]
+            if restored_frame != instance:
+                aligned_lemma = None
 
         if aligned_lemma is None:
             self.no_aligned_instances.add(instance)
         else:
-            # aligned_lemma = '{}~e.{}'.format(aligned_lemma, aligned_index)
             self.aligned_instance_count += 1
 
         return aligned_lemma
@@ -78,6 +86,8 @@ class Aligner:
         if new is not None:
             graph.replace_node_attribute(node, 'instance', old, new)
             self.try_restore(old, new)
+        else:
+            self.try_restore(old, old)
 
     def try_restore(self, old, new):
         new = re.sub(r'~e.\d+$', '', new)
@@ -91,11 +101,13 @@ class Aligner:
         self.no_aligned_instances = set()
 
     def print_statistics(self):
-        print('align rate: {}% ({}/{})'.format(
-            self.aligned_instance_count / self.amr_instance_count, self.aligned_instance_count, self.amr_instance_count))
-        print('restore rate: {}% ({}/{})'.format(
-            self.restore_count / self.aligned_instance_count, self.restore_count, self.aligned_instance_count))
-        print('size of no align lemma set: {}'.format(len(self.no_aligned_instances)))
+        logger.info('align rate: {}% ({}/{})'.format(
+            self.aligned_instance_count / self.amr_instance_count,
+            self.aligned_instance_count, self.amr_instance_count))
+        logger.info('restore rate: {}% ({}/{})'.format(
+            self.restore_count / self.amr_instance_count,
+            self.restore_count, self.amr_instance_count))
+        logger.info('size of no align lemma set: {}'.format(len(self.no_aligned_instances)))
 
 
 if __name__ == '__main__':
@@ -104,28 +116,17 @@ if __name__ == '__main__':
     from stog.data.dataset_readers.amr_parsing.node_utils import NodeUtilities as NU
 
     parser = argparse.ArgumentParser('aligner.py')
-    parser.add_argument('--amr_train_files', nargs='+', default=[])
-    parser.add_argument('--amr_dev_files', nargs='+', required=True)
-    parser.add_argument('--json_dir', default='./temp')
+    parser.add_argument('--amr_files', nargs='+', required=True)
+    parser.add_argument('--util_dir', default='./temp')
 
     args = parser.parse_args()
 
-    node_utils = NU.from_json(args.json_dir)
+    node_utils = NU.from_json(args.util_dir, 5)
 
     aligner = Aligner(node_utils)
 
-    if len(args.amr_train_files) != 0:
-        for file_path in args.amr_train_files:
-            with open(file_path + '.align', 'w', encoding='utf-8') as f:
-                for amr in aligner.align_file(file_path):
-                    f.write(str(amr) + '\n\n')
-
-        aligner.print_statistics()
-        aligner.reset_statistics()
-
-    for file_path in args.amr_dev_files:
+    for file_path in args.amr_files:
         with open(file_path + '.align', 'w', encoding='utf-8') as f:
             for amr in aligner.align_file(file_path):
                 f.write(str(amr) + '\n\n')
-
-    aligner.print_statistics()
+        aligner.reset_statistics()

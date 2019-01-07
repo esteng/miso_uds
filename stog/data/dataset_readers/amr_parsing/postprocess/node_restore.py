@@ -16,34 +16,6 @@ class NodeRestore:
             if instance != new_instance:
                 graph.replace_node_attribute(node, 'instance', instance, new_instance)
             continue
-            if graph.is_name_node(node):
-                # Add quote to wiki and op attributes.
-                for attr, value in node.attributes:
-                    if str(value) == '-':
-                        new = value
-                    elif re.search(r'^(wiki|op\d+|time)$', attr) and not re.search(r'^".*"$', str(value)):
-                        new = '"' + str(value) + '"'
-                    elif re.search(r'^".*"$', str(value)):
-                        new = str(value)
-                    elif not isinstance(value, str):
-                        new = value
-                    else:
-                        new = self.node_utils.get_frame(value)
-                    graph.replace_node_attribute(node, attr, value, new)
-            else:
-                for attr, value in node.attributes:
-                    if isinstance(value, str):
-                        if str(value) == '-':
-                            new = value
-                        elif re.search(r'^".*"$', value):
-                            new = value
-                        elif re.search(r'^(wiki|time)$', attr) and not re.search(r'^".*"$', value):
-                            new = '"' + value + '"'
-                        else:
-                            new = self.node_utils.get_frame(value)
-                    else:
-                        new = value
-                    graph.replace_node_attribute(node, attr, value, new)
 
     def restore_file(self, file_path):
         for amr in AMRIO.read(file_path):
@@ -57,18 +29,16 @@ if __name__ == '__main__':
     from stog.data.dataset_readers.amr_parsing.node_utils import NodeUtilities as NU
 
     parser = argparse.ArgumentParser('node_restore.py')
-    parser.add_argument('--amr_train_files', nargs='+')
-    parser.add_argument('--amr_dev_files', nargs='+', required=True)
-    parser.add_argument('--json_dir', default='./temp')
-    parser.add_argument('--threshold', type=int, default=50)
+    parser.add_argument('--amr_files', nargs='+', required=True)
+    parser.add_argument('--util_dir', default='./temp')
 
     args = parser.parse_args()
 
-    node_utils = NU.from_json(args.json_dir, args.threshold)
+    node_utils = NU.from_json(args.util_dir, 5)
 
     nr = NodeRestore(node_utils)
 
-    for file_path in args.amr_dev_files:
-        with open(file_path + '.restore', 'w', encoding='utf-8') as f:
+    for file_path in args.amr_files:
+        with open(file_path + '.frame', 'w', encoding='utf-8') as f:
             for amr in nr.restore_file(file_path):
                 f.write(str(amr) + '\n\n')
