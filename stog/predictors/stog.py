@@ -35,6 +35,7 @@ class STOGPredictor(Predictor):
         gen_vocab_size = self._model.vocab.get_vocab_size('decoder_token_ids')
         _outputs = super(STOGPredictor, self).predict_batch_instance(instances)
         for instance, output in zip(instances, _outputs):
+            gold_amr = instance.fields['amr'].metadata
             copy_vocab = instance.fields['src_copy_vocab'].metadata
             node_indexes = output['nodes']
             head_indexes = output['heads']
@@ -69,28 +70,15 @@ class STOGPredictor(Predictor):
                 heads=head_indexes,
                 corefs=corefs,
                 head_labels=head_labels,
-                copy_indicators=copy_indicators
+                copy_indicators=copy_indicators,
+                gold_amr=gold_amr
             ))
         return outputs
 
     @overrides
     def dump_line(self, output):
-        sent = '# snt:: ' + ' '.join(output['nodes'])
+        # return ' '.join(output['nodes']) + '\n'
         amr_graph = AMRGraph.from_prediction(output)
-        return '\n'.join([sent, str(amr_graph)]) + '\n\n'
-        triples = []
-        nodes = output['nodes']
-        head_labels = output['head_labels']
-        for i, head_index in enumerate(output['heads']):
-            # 0 is reserved for the dummy root.
-            if head_index == 0:
-                continue
-            modifier = nodes[i]
-            head = nodes[head_index - 1]
-            label = head_labels[i]
-            triples.append((head, label, modifier))
-        predictions = dict(
-            nodes=['{}/{}'.format(node, coref) for node, coref in zip(nodes, output['corefs'])],
-            triples=triples
-        )
-        return json.dumps(predictions, indent=4)
+        amr = output['gold_amr']
+        amr.graph = amr_graph
+        return str(amr) + '\n\n'
