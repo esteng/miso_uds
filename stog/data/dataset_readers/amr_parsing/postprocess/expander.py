@@ -3,6 +3,7 @@ import re
 import json
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
+from stog.data.dataset_readers.amr_parsing.amr import AMRNode
 from stog.utils import logging
 
 
@@ -61,18 +62,16 @@ class Expander:
         for abstract, saved_dict in abstract_map.items():
             abstract_type = saved_dict['type']
             for node in graph.get_nodes():
+                if node.instance == abstract:
+                    if abstract_type == 'named-entity':
+                        self.expand_name_node(node, saved_dict, amr)
+                        self.name_node_expand_count += 1
+                        break
 
-                if abstract_type == 'named-entity' and node.instance == abstract:
-                    self.expand_name_node(node, saved_dict, amr)
-                    self.name_node_expand_count += 1
-                    break
-
-                if abstract_type == 'date-entity':
-                    for attr, value in node.attributes:
-                        if value == abstract:
-                            self.expand_date_node(node, attr, value, saved_dict, amr)
-                            self.date_node_expand_count += 1
-                            break
+                    if abstract_type == 'date-entity':
+                        self.expand_date_node(node, saved_dict, amr)
+                        self.date_node_expand_count += 1
+                        break
 
     def get_ops(self, saved_dict):
         span = saved_dict['span']
@@ -94,13 +93,14 @@ class Expander:
             else:
                 op = '"{}"'.format(op)
             ops.append(op)
-        # if span != saved_dict['ops']:
-        #     print(saved_dict['span'] + '  /  ' + span)
-        #     print(saved_dict['ops'])
-        #     print('')
-        #     # import pdb; pdb.set_trace()
-        # else:
-        #     self.correctly_restored_count += 1
+        if span == saved_dict['ops']:
+            self.correctly_restored_count += 1
+        else:
+            pass
+            # print(saved_dict['span'] + '  /  ' + span)
+            # print(saved_dict['ops'])
+            # print('')
+            # import pdb; pdb.set_trace()
         return ops
 
     def expand_name_node(self, node, saved_dict, amr):
@@ -111,12 +111,16 @@ class Expander:
         for i, op in enumerate(ops, 1):
             graph.add_node_attribute(node, 'op{}'.format(i), op)
 
-    def expand_date_node(self, node, attr, value, saved_dict, amr):
+    def expand_date_node(self, node, saved_dict, amr):
         graph = amr.graph
         attrs = saved_dict['attrs']
-        graph.remove_node_attribute(node, attr, value)
+        graph.replace_node_attribute(node, 'instance', node.instance, 'date-entity')
         for key, value in attrs.items():
             graph.add_node_attribute(node, key, value)
+        edges = saved_dict['edges']
+        for label, instance in edges.items():
+            target = graph.add_node(instance)
+            graph.add_edge(node, target, label)
 
     def _load_utils(self):
         with open(os.path.join(self.util_dir, 'name_op_cooccur_counter.json'), encoding='utf-8') as f:

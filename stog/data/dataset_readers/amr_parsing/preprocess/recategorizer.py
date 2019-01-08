@@ -236,7 +236,7 @@ class Recategorizer:
         graph = amr.graph
         dates = []
         for node in graph.get_nodes():
-            if graph.is_date_node(node) and len(node.attributes) > 1:
+            if graph.is_date_node(node) and DATE.collapsable(node, graph):
                 self.date_entity_count += 1
                 date = self._get_aligned_date(node, amr)
                 if date.span is not None:
@@ -246,8 +246,8 @@ class Recategorizer:
         DATE.collapse_date_nodes(dates, amr)
 
     def _get_aligned_date(self, node, amr):
-        date = DATE(node)
-        if len(date.attributes) == 0:
+        date = DATE(node, amr.graph)
+        if len(date.attributes) + len(date.edges) == 0:
             return date
         alignment = date._get_alignment(amr)
         date._get_span(alignment, amr)

@@ -6,6 +6,9 @@ class DATE:
 
     attribute_list = ['year', 'month', 'day', 'decade', 'time', 'century', 'era', 'timezone',
                       'quant', 'value', 'quarter', 'year2']
+
+    edge_list = ['dayperiod', 'weekday']
+
     month_map = [
         ('January', 'Jan.', 'Jan'),
         ('February', 'Feb.', 'Feb', 'Febuary'),
@@ -26,13 +29,21 @@ class DATE:
         'AD': ['CE', 'ce']
     }
 
-    def __init__(self, node):
+    def __init__(self, node, graph):
         self.node = node
-        self.attributes = {attr: value for attr, value in node.attributes
-                           if attr in self.attribute_list}
+        self.attributes, self.edges = self._get_attributes_and_edges(node, graph)
         self.span = None
         self.confidence = 0
         self.ner_type = 'DATE_ATTRS'
+
+    @staticmethod
+    def collapsable(node, graph):
+        if any(attr in DATE.attribute_list for attr, _ in node.attributes):
+            return True
+        edges = list(graph._G.edges(node))
+        for source, target in edges:
+            if graph._G[source][target]['label'] in DATE.edge_list:
+                return True
 
     @staticmethod
     def collapse_date_nodes(dates, amr):
@@ -49,11 +60,17 @@ class DATE:
                 amr.abstract_map[abstract] = DATE.save_collapsed_date_node(
                     date, span_with_offset, amr)
                 amr.replace_span(span_with_offset, [abstract], ['NNP'], [date.ner_type])
+                # Remove edges
+                for source, target in list(amr.graph._G.edges(date.node)):
+                    edge_label = amr.graph._G[source][target]['label']
+                    if edge_label in DATE.edge_list:
+                        amr.graph.remove_edge(source, target)
+                        amr.graph.remove_node(target)
+                # Update instance
+                amr.graph.replace_node_attribute(date.node, 'instance', 'date-entity', abstract)
+                # Remove attributes
                 for attr, value in date.attributes.items():
                     amr.graph.remove_node_attribute(date.node, attr, value)
-                amr.graph.add_node_attribute(
-                    date.node, 'date_attrs', abstract
-                )
                 offset += len(date.span) - 1
             else:
                 for attr, value in date.attributes.items():
@@ -64,8 +81,18 @@ class DATE:
         return dict(
             type='date-entity',
             span=' '.join(map(amr.lemmas.__getitem__, span)),
-            attrs=date.attributes
+            attrs=date.attributes,
+            edges=date.edges
         )
+
+    def _get_attributes_and_edges(self, node, graph):
+        attributes = {attr: value for attr, value in node.attributes if attr in self.attribute_list}
+        edges = {}
+        for source, target in graph._G.edges(node):
+            label = graph._G[source][target]['label']
+            if label in self.edge_list:
+                edges[label] = target.instance
+        return attributes, edges
 
     def _is_covered(self, alignment):
         attributes = self.attributes.copy()
@@ -78,7 +105,7 @@ class DATE:
 
     def _get_alignment(self, amr):
         alignment = defaultdict(list)
-        for item in self.attributes.items():
+        for item in list(self.attributes.items()) + list(self.edges.items()):
             attr, value = item
             for i in range(len(amr.tokens)):
                 confidence = self._maybe_align(attr, value, i, amr)
