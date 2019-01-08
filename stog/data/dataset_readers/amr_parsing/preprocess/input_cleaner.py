@@ -169,6 +169,12 @@ def correct_errors(amr):
                 pos = ['CD']
                 ner = ['DATE']
                 break
+            if token.lower() == 'tonight':
+                index = i
+                tokens = ['today', 'night']
+                pos = ['NN', 'NN']
+                ner = ['DATE', 'DATE']
+                break
         else:
             break
         amr.replace_span([index], tokens, pos, ner)

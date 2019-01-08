@@ -39,7 +39,9 @@ class Aligner:
             instance = node.instance
             lemmas = self.map_instance_to_lemmas(instance)
             lemma = self.find_corresponding_lemma(instance, lemmas, amr)
-            self.update_graph(graph, node, instance, lemma)
+            if lemma is None:
+                lemma = self.remove_sense(instance)
+            update_graph(graph, node, instance, lemma)
 
     def map_instance_to_lemmas(self, instance):
         """
@@ -58,16 +60,16 @@ class Aligner:
         # amr_lemma is case-sensitive, so try casing it in different ways: Aaa, AAA, aaa.
         self.amr_instance_count += 1
         aligned_lemma = None
-        stems = [self.stemmer(l) for l in amr.lemmas]
+        # stems = [self.stemmer(l) for l in amr.lemmas]
         for lemma in lemmas:
             if lemma in amr.lemmas:
                 aligned_lemma = lemma
                 break
-            lemma_stem = self.stemmer(lemma)
-            if lemma_stem in stems:
-                amr.lemmas[stems.index(lemma_stem)] = lemma
-                aligned_lemma = lemma
-                break
+            # lemma_stem = self.stemmer(lemma)
+            # if lemma_stem in stems:
+            #     amr.lemmas[stems.index(lemma_stem)] = lemma
+            #     aligned_lemma = lemma
+            #     break
 
         # Make sure it can be correctly restored.
         if aligned_lemma is not None:
@@ -82,6 +84,13 @@ class Aligner:
 
         return aligned_lemma
 
+    def remove_sense(self, instance):
+        instance_lemma = re.sub(r'-\d\d$', '', instance)
+        restored = self.node_utils.get_frames(instance_lemma)[0]
+        if restored == instance:
+            return instance_lemma
+        return instance
+
     def update_graph(self, graph, node, old, new):
         if new is not None:
             graph.replace_node_attribute(node, 'instance', old, new)
@@ -90,7 +99,6 @@ class Aligner:
             self.try_restore(old, old)
 
     def try_restore(self, old, new):
-        new = re.sub(r'~e.\d+$', '', new)
         _old = self.node_utils.get_frames(new)[0]
         self.restore_count += int(old == _old)
 
@@ -121,7 +129,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    node_utils = NU.from_json(args.util_dir, 5)
+    node_utils = NU.from_json(args.util_dir, 0)
 
     aligner = Aligner(node_utils)
 

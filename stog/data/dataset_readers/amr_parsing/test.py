@@ -10,15 +10,12 @@ def main(file_path):
         graph = amr.graph
         for node in graph.get_nodes():
             if node.instance == 'date-entity':
-                # for source, target in list(graph._G.edges(node)):
-                #     attributes.append(graph._G[source][target]['label'])
-                # continue
-                continue
-            else:
-                for attr, value in node.attributes:
-                    if attr not in ('quant',):
-                        continue
-                    attributes.append(value)
+                s = ''
+                for source, target in list(graph._G.edges(node)):
+                    s += ':{} {}\n'.format(graph._G[source][target]['label'], str(target))
+                    attributes.append(graph._G[source][target]['label'])
+                if s != '':
+                    print(s)
             continue
             if graph.is_name_node(node):
                 attributes += [attr for attr, _ in node.attributes]

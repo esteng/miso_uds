@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    node_utils = NU.from_json(args.util_dir, 5)
+    node_utils = NU.from_json(args.util_dir, 0)
 
     nr = NodeRestore(node_utils)
 
