@@ -61,7 +61,7 @@ class Wikification:
             if instance in abstract_map:
                 saved_dict = abstract_map[instance]
                 instance_type = saved_dict['type']
-                amr_type = graph.get_name_node_type(node)
+                # amr_type = graph.get_name_node_type(node)
                 cached_wiki = self._spotlight_wiki[amr.sentence]
                 if instance_type == 'named-entity':
                     self.name_node_count += 1
