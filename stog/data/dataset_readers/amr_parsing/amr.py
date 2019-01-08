@@ -1,13 +1,15 @@
 import re
 import json
+from collections import defaultdict
 
 import penman
 import networkx as nx
-
 from penman import Triple
-from collections import defaultdict
 
-import json
+from stog.utils import logging
+
+
+logger = logging.init_logger()
 
 
 # Disable inverting ':mod' relation.
@@ -207,7 +209,7 @@ class AMRGraph(penman.Graph):
 
         for edge in self.edges():
             if type(edge.source) is not str:
-                print("A source is not string : {} (type : {})".format(edge, type(edge.source)))
+                logger.warn("A source is not string : {} (type : {})".format(edge, type(edge.source)))
                 continue
             source = self.variable_to_node[edge.source]
             target = self.variable_to_node[edge.target]
@@ -273,7 +275,8 @@ class AMRGraph(penman.Graph):
                 parent = source
                 break
         if parent:
-            assert all(attr != 'wiki' for attr, _ in parent.attributes)
+            if not all(attr != 'wiki' for attr, _ in parent.attributes):
+                logger.warn('Multiple wikis are been set.')
             if wiki != '-':
                 wiki = '"{}"'.format(wiki)
             self.add_node_attribute(parent, 'wiki', wiki)
@@ -297,6 +300,21 @@ class AMRGraph(penman.Graph):
             y = y.identifier
         triples = [t for t in self._triples if not (t.source == x and t.target == y)]
         self._update_penman_graph(triples)
+
+    def add_node(self, instance):
+        identifier = instance[0]
+        assert identifier.isalpha()
+        if identifier in self.variables():
+            i = 2
+            while identifier + str(i) in self.variables():
+                i += 1
+            identifier += str(i)
+        triples = self._triples + [Triple(identifier, 'instance', instance)]
+        self._triples = penman.alphanum_order(triples)
+
+        node = AMRNode(identifier, [('instance', instance)])
+        self._G.add_node(node)
+        return node
 
     def remove_node(self, node):
         self._G.remove_node(node)
@@ -333,6 +351,16 @@ class AMRGraph(penman.Graph):
                 ops.append((attr, value))
         for attr, value in ops:
             self.remove_node_attribute(node, attr, value)
+
+    def remove_subtree(self, root):
+        children = []
+        for _, child in list(self._G.edges(root)):
+            self.remove_edge(root, child)
+            children.append(child)
+        for child in children:
+            self.remove_subtree(child)
+        if len(list(self._G.in_edges(root))) == 0:
+            self.remove_node(root)
 
     def get_nodes(self):
         return self._G.nodes
@@ -485,7 +513,15 @@ class AMRGraph(penman.Graph):
         def is_attribute_value(value):
             return re.search(r'(^".*"$|^[^a-zA-Z]+$)', value) is not None
 
-        nodes = prediction['nodes']
+        def is_edge_label(label):
+            return label.startswith('ARG')
+
+        def normalize_number(text):
+            if re.search(r'^\d+,\d+$', text):
+                text = text.replace(',', '')
+            return text
+
+        nodes = [normalize_number(n) for n in prediction['nodes']]
         heads = prediction['heads']
         corefs = prediction['corefs']
         head_labels = prediction['head_labels']
@@ -496,7 +532,8 @@ class AMRGraph(penman.Graph):
         variable_map = {}
         for coref_index in corefs:
             node = nodes[coref_index - 1]
-            if is_attribute_value(node):
+            head_label = head_labels[coref_index - 1]
+            if is_attribute_value(node) and not is_edge_label(head_label):
                 continue
             variable_map['vv{}'.format(coref_index)] = node
         for head_index in heads:
@@ -536,7 +573,84 @@ class AMRGraph(penman.Graph):
         graph._top = top
         graph._triples = [penman.Triple(*t) for t in triples]
         # import pdb; pdb.set_trace()
-        return cls(graph)
+        graph = cls(graph)
+        # str_graph = str(graph)
+        # fixed_items = fix_graph(graph, nodes)
+        # if 'reorder-ops' in fixed_items:
+        #     print(fixed_items)
+        #     print('--------------')
+        #     print(str_graph)
+        #     print('--------------')
+        #     print(graph)
+        #     print('')
+        return graph
+
+
+def fix_graph(graph, tokens):
+    fixed_items = set()
+    date_attr_edges = []
+    date_entity_nodes = []
+    for node in graph.get_nodes():
+        edges = list(graph._G.in_edges(node))
+        for source, target in edges:
+            if graph._G[source][target]['label'] == 'date_attrs' and source.instance != 'date-entity':
+                date_attr_edges.append((source, target))
+        if node.instance == 'date-entity':
+            date_entity_nodes.append(node)
+
+    if len(date_entity_nodes):
+        for node in date_entity_nodes:
+            edges = list(graph._G.edges(node))
+            for source, target in edges:
+                if graph._G[source][target]['label'] == 'date_attrs':
+                    # remove this edge and add an attr
+                    graph.remove_edge(source, target)
+                    graph.remove_node(target)
+                    graph.add_node_attribute(source, 'date_attrs', target.instance)
+                    break
+            else:
+                if len(date_attr_edges):
+                    source, target = date_attr_edges.pop(0)
+                    # remove this edge and add an attr
+                    graph.remove_edge(source, target)
+                    graph.remove_node(target)
+                    graph.add_node_attribute(node, 'date_attrs', target.instance)
+                    fixed_items.add('date-entity')
+
+    nodes = [node for node in graph.get_nodes()]
+    removed_nodes = set()
+    for node in nodes:
+        if node in removed_nodes:
+            continue
+        edges = list(graph._G.edges(node))
+        edge_counter = defaultdict(list)
+        for source, target in edges:
+            label = graph._G[source][target]['label']
+            if label == 'name' or label.startswith('ARG'):
+                edge_counter[label].append((source, target))
+            elif label.startswith('op'):
+                edge_counter[str(target.instance)].append((source, target))
+            else:
+                edge_counter[label + str(target.instance)].append((source, target))
+        for label, list_of_edges in edge_counter.items():
+            if len(list_of_edges) > 1:
+                for source, target in list_of_edges[1:]:
+                    if len(list(graph._G.in_edges(target))) == 1 and len(list(graph._G.edges(target))) == 0:
+                        graph.remove_edge(source, target)
+                        graph.remove_node(target)
+                        removed_nodes.add(target)
+                        fixed_items.add('remove-redundant')
+
+    # for node in graph.get_nodes():
+    #     edges = [(source, target) for source, target in list(graph._G.edges(node))
+    #              if graph._G[source][target]['label'].startswith('op')]
+    #     edges.sort(key=lambda x: tokens.index(x[1].instance))
+    #     for i, (source, target) in enumerate(edges, 1):
+    #         if graph._G[source][target]['label'] != 'op' + str(i):
+    #             graph.remove_edge(source, target)
+    #             graph.add_edge(source, target, 'op' + str(i))
+    #             fixed_items.add('reorder-ops')
+    return fixed_items
 
 
 class SourceCopyVocabulary:
