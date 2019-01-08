@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Directory where intermediate utils will be saved to speed up processing.
-util_dir=preproc_utils
+util_dir=data/amr_utils
 
 # AMR data with **features**
 data_dir=data/exp
@@ -47,11 +47,12 @@ printf "Creating alignment...`date`\n"
 python -u -m stog.data.dataset_readers.amr_parsing.preprocess.aligner \
     --util_dir ${util_dir} \
     --amr_files ${train_data}.input_clean.recategorize \
-     ${dev_data}.input_clean.recategorize \
-     ${test_data}.input_clean.recategorize || exit
+    ${dev_data}.input_clean.recategorize \
+    ${test_data}.input_clean.recategorize || exit
 printf "Done.`date`\n\n"
 
 printf "Rename preprocessed files...`date`\n"
 mv ${train_data}.input_clean.recategorize.align ${train_data}.preproc
 mv ${dev_data}.input_clean.recategorize.align ${dev_data}.preproc
 mv ${test_data}.input_clean.recategorize.align ${test_data}.preproc
+rm ${data_dir}/*.recate*
