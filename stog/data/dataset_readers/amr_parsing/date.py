@@ -65,7 +65,7 @@ class DATE:
                     edge_label = amr.graph._G[source][target]['label']
                     if edge_label in DATE.edge_list:
                         amr.graph.remove_edge(source, target)
-                        amr.graph.remove_node(target)
+                        amr.graph.remove_subtree(target)
                 # Update instance
                 amr.graph.replace_node_attribute(date.node, 'instance', 'date-entity', abstract)
                 # Remove attributes
@@ -171,14 +171,16 @@ class DATE:
             return self._maybe_align_quant(value, index, amr)
         elif attr == 'quarter':
             return self._maybe_align_quarter(value, index, amr)
+        elif attr == 'weekday':
+            return self._maybe_align_weekday(value, index, amr)
         else:
             return self._maybe_align_basic(value, index, amr)
 
     def _maybe_align_basic(self, value, index, amr):
-        value = str(value)
+        value = str(value).lower()
         if re.search(r'^".*"$', value):
             value = value[1:-1]
-        if amr.tokens[index] == value or amr.lemmas[index] == value:
+        if amr.tokens[index].lower() == value or amr.lemmas[index].lower() == value:
             return 10
         stripped_lemma = self._strip_date_lemma(amr.lemmas[index])
         if stripped_lemma == value:
@@ -344,6 +346,16 @@ class DATE:
             return 8
         return 0
 
+    def _maybe_align_weekday(self, value, index, amr):
+        value = str(value).lower()
+        basic_confidence = self._maybe_align_basic(value, index, amr)
+        if basic_confidence != 0:
+            return basic_confidence
+        lemma = amr.lemmas[index].lower()
+        if value.startswith(lemma) or lemma.startswith(value) or lemma.endswith(value):
+            return 10
+        return 0
+
     def group_indexes_to_spans(self, indexes, amr):
         indexes = list(indexes)
         indexes.sort()
@@ -354,7 +366,7 @@ class DATE:
                 spans.append([])
             elif idx - last_index <= 3:
                 for i in range(last_index + 1, idx):
-                    if re.search(r"(,|'s|of|'|-|in|at|on|about|\(|\))", amr.tokens[idx - 1]):
+                    if re.search(r"(,|'s|of|'|-|in|at|on|about|the|every|\(|\))", amr.tokens[idx - 1]):
                         continue
                     else:
                         spans.append([])
