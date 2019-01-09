@@ -92,6 +92,13 @@ model:
     edge_label_hidden_size: 128
     dropout: 0.33
 
+  mimick_test:
+    data: data/all_amr/dev_amr.txt.features.preproc
+    prediction: prediction-in-train.txt
+    batch_size: 32
+    eval_script: scripts/eval_test.sh
+    smatch_dir: tools/amr-evaluation-tool-enhanced
+
 
 # Vocabulary
 vocab:
@@ -120,7 +127,7 @@ data:
 
 # Training parameters
 environment:
-  recover: False
+  recover: True
   seed: 1
   numpy_seed: 1
   torch_seed: 1
@@ -139,7 +146,7 @@ trainer:
   batch_size: *train_batch_size
   shuffle: True
   epochs: 50
-  dev_metric: ppl
+  dev_metric: +F1
   serialization_dir: *serialization_dir
   model_save_interval:
 
