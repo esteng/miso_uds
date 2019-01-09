@@ -7,7 +7,6 @@ from stog.utils.registrable import Registrable
 from stog.utils.checks import ConfigurationError
 from stog.utils.string import JsonDict, sanitize
 from stog.data import DatasetReader, Instance
-from stog.models import Model
 from stog.utils.archival import Archive, load_archive
 from stog.utils.string import START_SYMBOL, END_SYMBOL
 from stog.predictors.predictor import Predictor
@@ -22,7 +21,7 @@ class BiaffineDependencyParserPredictor(Predictor):
     """
     Predictor for the :class:`~allennlp.models.BiaffineDependencyParser` model.
     """
-    def __init__(self, model: Model, dataset_reader: DatasetReader) -> None:
+    def __init__(self, model, dataset_reader: DatasetReader) -> None:
         super().__init__(model, dataset_reader)
         # TODO(Mark) Make the language configurable and based on a model attribute.
         self._token_indexers = dict(
@@ -61,7 +60,7 @@ class BiaffineDependencyParserPredictor(Predictor):
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
         fields["amr_tokens"] = tokens
-        coref_int = json_dict['coref'] 
+        coref_int = json_dict['coref']
         fields["coref_index"] = SequenceLabelField(
             labels=[0] + [x + 1 for x in coref_int] + [len(coref_int)],
             sequence_field=fields["amr_tokens"],

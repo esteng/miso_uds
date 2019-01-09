@@ -4,7 +4,6 @@ from stog.utils.registrable import Registrable
 from stog.utils.checks import ConfigurationError
 from stog.utils.string import JsonDict, sanitize
 from stog.data import DatasetReader, Instance
-from stog.models import Model
 from stog.utils.archival import Archive, load_archive
 from stog.predictors.predictor import Predictor
 from stog.utils.string import START_SYMBOL, END_SYMBOL

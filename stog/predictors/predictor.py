@@ -6,7 +6,6 @@ from stog.utils.checks import ConfigurationError
 from stog.utils.string import JsonDict, sanitize
 from stog.data import DatasetReader, Instance
 from stog.data.dataset_builder import load_dataset_reader
-from stog.models import Model
 from stog.utils.archival import Archive, load_archive
 
 # a mapping from model `type` to the default Predictor for that type
@@ -22,7 +21,7 @@ class Predictor(Registrable):
     a ``Predictor`` is a thin wrapper around an AllenNLP model that handles JSON -> JSON predictions
     that can be used for serving models through the web API or making predictions in bulk.
     """
-    def __init__(self, model: Model, dataset_reader: DatasetReader) -> None:
+    def __init__(self, model, dataset_reader: DatasetReader) -> None:
         self._model = model
         self._dataset_reader = dataset_reader
 
