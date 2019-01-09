@@ -2,7 +2,7 @@
 
 # Device-sensitive parameters
 amr_data_dir: &amr_data_dir data/all_amr
-glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
+glove: &glove /export/ssd/sheng/data/glove/glove.840B.300d.zip
 
 
 # Model parameters
@@ -99,8 +99,8 @@ vocab:
       encoder_token_ids: 1
       decoder_token_ids: 1
   max_vocab_size:
-      encoder_token_ids: 17000
-      decoder_token_ids: 14500
+      encoder_token_ids: 18000
+      decoder_token_ids: 12200
 
 
 # Data parameters
