@@ -6,7 +6,6 @@ from stog.utils.checks import ConfigurationError
 from stog.utils.string import JsonDict, sanitize
 from stog.data import DatasetReader, Instance
 from stog.data.dataset_builder import load_dataset_reader
-from stog.utils.archival import Archive, load_archive
 
 # a mapping from model `type` to the default Predictor for that type
 DEFAULT_PREDICTORS = {
@@ -93,10 +92,12 @@ class Predictor(Registrable):
         -------
         A Predictor instance.
         """
-        return Predictor.from_archive(load_archive(archive_path), predictor_name)
+        # Comment it out for cyclic imports
+        # return Predictor.from_archive(load_archive(archive_path), predictor_name)
+        raise NotImplementedError
 
     @classmethod
-    def from_archive(cls, archive: Archive, predictor_name: str = None) -> 'Predictor':
+    def from_archive(cls, archive, predictor_name: str = None) -> 'Predictor':
         """
         Instantiate a :class:`Predictor` from an :class:`~allennlp.models.archival.Archive`;
         that is, from the result of training a model. Optionally specify which `Predictor`

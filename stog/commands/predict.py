@@ -49,7 +49,6 @@ import torch
 from stog.commands.subcommand import Subcommand
 from stog.utils.checks import check_for_gpu, ConfigurationError
 from stog.utils import lazy_groups_of
-from stog.utils.archival import load_archive
 from stog.predictors.predictor import Predictor, JsonDict
 from stog.predictors import BiaffineDependencyParserPredictor, Seq2SeqPredictor, STOGPredictor
 from stog.data import Instance
@@ -92,6 +91,7 @@ class Predict(Subcommand):
 
 
 def _get_predictor(args: argparse.Namespace) -> Predictor:
+    from stog.utils.archival import load_archive
     # check_for_gpu(args.cuda_device)
     archive = load_archive(args.archive_file,
                            device=args.cuda_device,
