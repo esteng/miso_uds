@@ -18,6 +18,12 @@ from stog.utils.nn import get_text_field_mask
 from stog.utils.string import START_SYMBOL, END_SYMBOL
 from stog.data.vocabulary import DEFAULT_OOV_TOKEN
 from stog.data.tokenizers.character_tokenizer import CharacterTokenizer
+# The following imports are added for mimick testing.
+from stog.data.dataset_builder import load_dataset_reader
+from stog.predictors.predictor import Predictor
+from stog.commands.predict import _PredictManager
+import subprocess
+
 
 logger = init_logger()
 
@@ -64,7 +70,8 @@ class STOG(Model):
                  # Generator
                  generator,
                  # Graph decoder
-                 graph_decoder
+                 graph_decoder,
+                 test_config
                  ):
         super(STOG, self).__init__()
 
@@ -92,6 +99,8 @@ class STOG(Model):
 
         self.beam_size = 1
 
+        self.test_config = test_config
+
     def set_beam_size(self, beam_size):
         self.beam_size = beam_size
 
@@ -99,13 +108,49 @@ class STOG(Model):
         self.decoder_token_indexers = token_indexers
         self.character_tokenizer = CharacterTokenizer()
 
-    def get_metrics(self, reset: bool = False):
-        metrics = {}
+    def get_metrics(self, reset: bool = False, mimick_test: bool = False):
+        metrics = dict()
+        if mimick_test and self.test_config:
+            metrics = self.mimick_test()
         generator_metrics = self.generator.metrics.get_metric(reset)
         graph_decoder_metrics = self.graph_decoder.metrics.get_metric(reset)
         metrics.update(generator_metrics)
         metrics.update(graph_decoder_metrics)
+        if 'F1' not in metrics:
+            metrics['F1'] = metrics['all_acc']
         return metrics
+
+    def mimick_test(self):
+        dataset_reader = load_dataset_reader('AMR')
+        predictor = Predictor.by_name('STOG')(self, dataset_reader)
+        manager = _PredictManager(
+            predictor,
+            self.test_config['data'],
+            self.test_config['prediction'],
+            self.test_config['batch_size'],
+            False,
+            True,
+            1
+        )
+        try:
+            logger.info('Mimicking test...')
+            manager.run()
+        except:
+            logger.info('Exception threw out when running the manager.')
+            return {}
+        try:
+            logger.info('Computing the Smatch score...')
+            result = subprocess.check_output([
+                self.test_config['eval_script'],
+                self.test_config['smatch_dir'],
+                self.test_config['data'],
+                self.test_config['prediction']
+            ]).decode().split()
+            result = list(map(float, result))
+        except:
+            logger.info('Exception threw out when computing smatch.')
+            return {}
+        return dict(PREC=result[0]*100, REC=result[1]*100, F1=result[2]*100)
 
     def print_batch_details(self, batch, batch_idx):
         print(batch["amr"][batch_idx])
@@ -667,5 +712,6 @@ class STOG(Model):
             decoder=decoder,
             generator=generator,
             graph_decoder=graph_decoder,
+            test_config=params.get('mimick_test', None)
         )
 

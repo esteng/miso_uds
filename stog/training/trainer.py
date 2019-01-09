@@ -36,7 +36,7 @@ class Trainer:
             training_dataset,
             dev_dataset = None,
             dev_iterator = None,
-            dev_metric = 'loss',
+            dev_metric = '-loss',
             device = None,
             patience = None,
             grad_clipping = None,
@@ -101,7 +101,8 @@ class Trainer:
         self._training_dataset = training_dataset
         self._dev_dataset = dev_dataset
         self._dev_iterator = dev_iterator
-        self._dev_metric = dev_metric
+        self._dev_metric = dev_metric[1:]
+        self._dev_metric_decreases = dev_metric[0] == "-"
         self._device = device
         self._patience = patience
         self._grad_clipping = grad_clipping
@@ -253,7 +254,7 @@ class Trainer:
             elif train_metric is not None:
                 logger.info(no_dev_message_template, name.ljust(name_length), train_metric, "N/A")
 
-    def _validate_dev(self):
+    def _validate_dev(self, epoch):
         """
         Computes the dev loss. Returns it and the number of batches.
         """
@@ -295,7 +296,7 @@ class Trainer:
             description = self._description_from_metrics(dev_metrics)
             dev_generator_tqdm.set_description(description, refresh=False)
 
-        return self._model.get_metrics(reset=True)
+        return self._model.get_metrics(reset=True, mimick_test=epoch > 40)
 
     def train(self):
         """Trains the supplied model with the supplied parameters.
@@ -327,7 +328,7 @@ class Trainer:
             # Validate on the dev set.
             if self._dev_dataset is not None:
                 with torch.no_grad():
-                    dev_metrics = self._validate_dev()
+                    dev_metrics = self._validate_dev(epoch)
 
                     # Check dev metric for early stopping
                     this_epoch_dev_metric = dev_metrics[self._dev_metric]
@@ -405,7 +406,10 @@ class Trainer:
         if not dev_metric_per_epoch:
             return True
         else:
-            return this_epoch_dev_metric < min(dev_metric_per_epoch)
+            if self._dev_metric_decreases:
+                return this_epoch_dev_metric < min(dev_metric_per_epoch)
+            else:
+                return this_epoch_dev_metric < max(dev_metric_per_epoch)
 
     def _description_from_metrics(self, metrics: Dict[str, float]) -> str:
         return ', '.join(["%s: %.4f" % (name, value) for name, value in
