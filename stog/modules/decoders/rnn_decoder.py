@@ -17,11 +17,8 @@ class RNNDecoderBase(torch.nn.Module):
 
 class InputFeedRNNDecoder(RNNDecoderBase):
 
-    def __init__(self, rnn_cell, copy_unknown, coref_na, attention_layer, coref_attention_layer, dropout):
+    def __init__(self, rnn_cell, attention_layer, coref_attention_layer, dropout):
         super(InputFeedRNNDecoder, self).__init__(rnn_cell, dropout)
-        # [1, 1, encoder_hidden_size]
-        self.copy_unknown = copy_unknown
-        self.coref_na = coref_na
         self.attention_layer = attention_layer
         self.copy_attention_layer = copy.deepcopy(attention_layer)
         self.coref_attention_layer = coref_attention_layer
@@ -42,11 +39,6 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         copy_attentions = []
         coref_attentions = []
         output_sequences = []
-
-        encoder_hidden_size = memory_bank.size(2)
-        copy_mask = torch.cat([torch.ones(batch_size, 1).type_as(mask), mask], 1)
-        copy_unknown = self.copy_unknown.expand(batch_size, 1, encoder_hidden_size)
-        memory_bank_with_unknown = torch.cat([copy_unknown, memory_bank], 1)
 
         if coref_inputs is None:
             coref_inputs = []
@@ -73,22 +65,25 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
             if self.copy_attention_layer is not None:
                 _, copy_attention = self.copy_attention_layer(
-                    output, memory_bank_with_unknown, copy_mask)
+                    output, memory_bank, mask)
                 copy_attentions.append(copy_attention)
 
             if self.coref_attention_layer is not None:
-                coref_na = self.coref_na.expand(batch_size, 1, coref_input.size(-1))
-                coref_inputs_with_na = torch.cat([coref_na] + coref_inputs, 1)
+                if len(coref_inputs) == 0:
+                    coref_attention = inputs.new_zeros(batch_size, 1, sequence_length)
 
-                if sequence_length == 1:
-                    _, coref_attention = self.coref_attention_layer(
-                        coref_input, coref_inputs_with_na)
                 else:
-                    _, coref_attention = self.coref_attention_layer(
-                        coref_input, coref_inputs_with_na)
-                    coref_attention = torch.nn.functional.pad(
-                        coref_attention, (0, sequence_length - step_i), 'constant', 0
-                    )
+                    coref_mem_bank = torch.cat(coref_inputs, 1)
+
+                    if sequence_length == 1:
+                        _, coref_attention = self.coref_attention_layer(
+                            coref_input, coref_mem_bank)
+                    else:
+                        _, coref_attention = self.coref_attention_layer(
+                            coref_input, coref_mem_bank)
+                        coref_attention = torch.nn.functional.pad(
+                            coref_attention, (0, sequence_length - step_i), 'constant', 0
+                        )
 
                 coref_attentions.append(coref_attention)
 

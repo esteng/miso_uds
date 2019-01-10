@@ -221,12 +221,12 @@ class STOG(Model):
         # [batch, num_tokens]
         coref_targets = batch["tgt_copy_indices"][:, 1:]
         # [batch, num_tokens, num_tokens + coref_na]
-        coref_attention_maps = batch['tgt_copy_map']
+        coref_attention_maps = batch['tgt_copy_map'][:, 1:]  # exclude BOS
         # [batch, num_tgt_tokens, num_src_tokens + unk]
         copy_targets = batch["src_copy_indices"][:, 1:]
         # [batch, num_src_tokens + unk, src_dynamic_vocab_size]
         # Exclude the last pad.
-        copy_attention_maps = batch['src_copy_map'][:, :-1]
+        copy_attention_maps = batch['src_copy_map'][:, 1:-1]
 
         generator_inputs = dict(
             vocab_targets=vocab_targets,
@@ -254,6 +254,7 @@ class STOG(Model):
             corefs=decoder_coref_inputs,
             mask=parser_mask
         )
+        # import pdb; pdb.set_trace()
 
         return encoder_inputs, decoder_inputs, generator_inputs, parser_inputs
 
@@ -430,8 +431,8 @@ class STOG(Model):
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
         # Here the maximum size of the dynamic vocab is just max_decode_length.
-        coref_attention_maps = torch.zeros(batch_size, self.max_decode_length + 1, self.max_decode_length + 1).type_as(memory_bank)
-        coref_attention_maps[:, 0, 0] = 1
+        coref_attention_maps = torch.zeros(
+            batch_size, self.max_decode_length, self.max_decode_length + 1).type_as(memory_bank)
         # A matrix D where the element D_{ij} is for instance i the real vocab index of
         # the generated node at the decoding step `i'.
         coref_vocab_maps = torch.zeros(batch_size, self.max_decode_length + 1).type_as(mask).long()
@@ -462,7 +463,10 @@ class STOG(Model):
                 decoder_inputs, memory_bank, mask, states, input_feed, coref_inputs)
 
             # 3. Run pointer/generator.
-            _coref_attention_maps = coref_attention_maps[:, :step_i + 1]
+            if step_i == 0:
+                _coref_attention_maps = coref_attention_maps[:, :step_i + 1]
+            else:
+                _coref_attention_maps = coref_attention_maps[:, :step_i]
 
             generator_output = self.generator(
                 _decoder_outputs, _copy_attentions, copy_attention_maps, _coref_attentions, _coref_attention_maps)
@@ -533,7 +537,7 @@ class STOG(Model):
         batch_size = predictions.size(0)
 
         batch_index = torch.arange(0, batch_size).type_as(predictions)
-        step_index = torch.full_like(predictions, step + 1)
+        step_index = torch.full_like(predictions, step)
 
         gen_mask = predictions.lt(vocab_size)
         copy_mask = predictions.ge(vocab_size).mul(predictions.lt(vocab_size + copy_vocab_size))
@@ -566,7 +570,7 @@ class STOG(Model):
 
         # 3. Update dynamic_vocab_maps
         # Here we update D_{step} to the index in the standard vocab.
-        coref_vocab_maps[batch_index, step_index] = next_input
+        coref_vocab_maps[batch_index, step_index + 1] = next_input
 
         # 4. Get the coref-resolved predictions.
         coref_resolved_preds = coref_predictions * coref_mask.long() + predictions * (1 - coref_mask).long()
@@ -669,8 +673,6 @@ class STOG(Model):
 
         decoder = InputFeedRNNDecoder(
             rnn_cell=StackedLstm.from_params(params['decoder']),
-            copy_unknown=torch.nn.Parameter(torch.randn([1, 1, params['encoder']['hidden_size'] * 2])),
-            coref_na=torch.nn.Parameter(torch.randn([1, 1, params['decoder']['hidden_size']])),
             attention_layer=source_attention_layer,
             coref_attention_layer=coref_attention_layer,
             # TODO: modify the dropout so that the dropout mask is unchanged across the steps.
