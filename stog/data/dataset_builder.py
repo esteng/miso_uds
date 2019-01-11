@@ -1,10 +1,9 @@
 import os
 import argparse
 
-from allennlp.data.dataset_readers.language_modeling import LanguageModelingReader # only for debug
 from stog.utils.params import Params
 from stog.utils import logging
-from stog.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader, Seq2SeqDatasetReader
+from stog.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader, Seq2SeqDatasetReader, LanguageModelingDatasetReader
 from stog.data.iterators import BucketIterator, BasicIterator
 from stog.data.token_indexers import SingleIdTokenIndexer,TokenCharactersIndexer
 
@@ -41,7 +40,7 @@ def load_dataset_reader(dataset_type):
             )
         )
     elif dataset_type == "LM":
-        dataset_reader = LanguageModelingReader() # all defaults
+        dataset_reader = LanguageModelingDatasetReader() # all defaults
 
     return dataset_reader
 
