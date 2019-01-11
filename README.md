@@ -11,7 +11,9 @@ This project is based on python 3.6 and the newest version of PyTorch.
 
 Example of training (on clsp grid):
 
-`CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m stog.commands.train params/lm.yaml`
+```
+CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m stog.commands.train params/lm.yaml
+```
 
 
 ## Stage-1 AMR Parsing Timeline
