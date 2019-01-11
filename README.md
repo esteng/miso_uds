@@ -7,6 +7,13 @@ This project is based on python 3.6 and the newest version of PyTorch.
 - RNN Seq2Seq Model (see [this](https://gitlab.hltcoe.jhu.edu/research/mt-ie/tree/copy) for details) 
 - (Optional) Transition-based Semantic Parser
 
+## Running
+
+Example of training (on clsp grid):
+
+`CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m stog.commands.train params/lm.yaml`
+
+
 ## Stage-1 AMR Parsing Timeline
 
 - [x] Build a UD parser using the deep biaffine network.
