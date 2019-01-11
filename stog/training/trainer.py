@@ -296,7 +296,7 @@ class Trainer:
             description = self._description_from_metrics(dev_metrics)
             dev_generator_tqdm.set_description(description, refresh=False)
 
-        return self._model.get_metrics(reset=True, mimick_test=epoch > 40)
+        return self._model.get_metrics(reset=True, mimick_test=epoch > 20)
 
     def train(self):
         """Trains the supplied model with the supplied parameters.

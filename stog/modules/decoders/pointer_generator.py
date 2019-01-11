@@ -134,13 +134,16 @@ class PointerGenerator(torch.nn.Module):
         # [batch_size, num_target_nodes]
         generate_target_probs = probs.gather(dim=2, index=generate_targets.unsqueeze(2)).squeeze(2)
 
-        if self.force_copy:
-            # Except copy-oov nodes, all other nodes should be copied.
-            likelihood = target_copy_target_probs + source_copy_target_probs + \
-                         generate_target_probs.mul(non_target_copy_mask.float()).mul(non_source_copy_mask.float())
-        else:
-            likelihood = target_copy_target_probs + source_copy_target_probs + \
-                         generate_target_probs
+        # Except copy-oov nodes, all other nodes should be copied.
+        likelihood = target_copy_target_probs + source_copy_target_probs + \
+                     generate_target_probs.mul(non_target_copy_mask.float()).mul(non_source_copy_mask.float())
+        num_tokens = non_pad_mask.sum().item()
+
+        if not self.force_copy:
+            non_generate_oov_mask = generate_targets.ne(1)
+            additional_generate_mask = (non_target_copy_mask & source_copy_mask & non_generate_oov_mask)
+            likelihood = likelihood + generate_target_probs.mul(additional_generate_mask.float())
+            num_tokens += additional_generate_mask.sum().item()
 
         # Add eps for numerical stability.
         likelihood = likelihood + self.eps
@@ -173,12 +176,6 @@ class PointerGenerator(torch.nn.Module):
                      num_source_copy, num_correct_source_copy, num_correct_source_point,
                      num_target_copy, num_correct_target_copy, num_correct_target_point
                      )
-
-        if self.force_copy:
-            num_tokens = num_non_pad
-        else:
-            num_tokens = num_non_pad + source_copy_mask.mul(non_pad_mask).sum().item() + \
-                         target_copy_mask.mul(non_target_copy_mask).mul(non_pad_mask).sum().item()
 
         return dict(
             loss=loss.sum().div(float(num_tokens)),
