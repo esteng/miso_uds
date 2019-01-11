@@ -296,7 +296,7 @@ class STOG(Model):
             )
 
             graph_decoder_outputs = self.graph_decode(
-                decoder_outputs['memory_bank'],
+                decoder_outputs['rnn_memory_bank'],
                 parser_inputs['edge_heads'],
                 parser_inputs['edge_labels'],
                 parser_inputs['corefs'],
@@ -352,14 +352,15 @@ class STOG(Model):
 
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
-        decoder_outputs, _, coref_attentions, copy_attentions, attentions, _, _ = \
-            self.decoder(decoder_inputs, memory_bank, mask, states)
+        decoder_outputs = self.decoder(decoder_inputs, memory_bank, mask, states)
 
         return dict(
-            memory_bank=decoder_outputs,
-            coref_attentions=coref_attentions,
-            copy_attentions=copy_attentions,
-            source_attentions=attentions
+            memory_bank=decoder_outputs['output_sequences'],
+            rnn_memory_bank=decoder_outputs['rnn_output_sequences'],
+            coref_inputs=decoder_outputs['coref_inputs'],
+            coref_attentions=decoder_outputs['coref_attentions'],
+            copy_attentions=decoder_outputs['copy_attentions'],
+            source_attentions=decoder_outputs['std_attentions']
         )
 
     def graph_decode(self, memory_bank, edge_heads, edge_labels, corefs, mask):
@@ -398,7 +399,7 @@ class STOG(Model):
             generator_outputs = self.decode_with_pointer_generator(
                 memory_bank, mask, states, copy_attention_maps, copy_vocabs)
             parser_outputs = self.decode_with_graph_parser(
-                generator_outputs['decoder_memory_bank'],
+                generator_outputs['decoder_rnn_memory_bank'],
                 generator_outputs['coref_indexes'],
                 generator_outputs['decoder_mask']
             )
@@ -419,6 +420,7 @@ class STOG(Model):
         corefs = torch.zeros(batch_size, 1).type_as(mask).long()
 
         decoder_outputs = []
+        rnn_outputs = []
         source_attentions = []
         copy_attentions = []
         coref_attentions = []
@@ -457,10 +459,16 @@ class STOG(Model):
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
             # 2. Decode one step.
-            (_decoder_outputs, coref_inputs,
-             _coref_attentions, _copy_attentions, _source_attentions,
-             states, input_feed) = self.decoder(
+            decoder_output_dict = self.decoder(
                 decoder_inputs, memory_bank, mask, states, input_feed, coref_inputs)
+            _decoder_outputs = decoder_output_dict['output_sequences']
+            _rnn_outputs = decoder_output_dict['rnn_output_sequences']
+            coref_inputs = decoder_output_dict['coref_inputs']
+            _source_attentions = decoder_output_dict['std_attentions']
+            _copy_attentions = decoder_output_dict['copy_attentions']
+            _coref_attentions = decoder_output_dict['coref_attentions']
+            states = decoder_output_dict['hidden_state']
+            input_feed = decoder_output_dict['input_feed']
 
             # 3. Run pointer/generator.
             if step_i == 0:
@@ -485,6 +493,7 @@ class STOG(Model):
 
             # 5. Update variables.
             decoder_outputs += [_decoder_outputs]
+            rnn_outputs += [_rnn_outputs]
 
             source_attentions += _source_attentions
             copy_attentions += [_copy_attentions]
@@ -499,6 +508,7 @@ class STOG(Model):
         # 6. Do the following chunking for the graph decoding input.
         # Exclude the hidden state for BOS.
         decoder_outputs = torch.cat(decoder_outputs[1:], dim=1)
+        rnn_outputs = torch.cat(rnn_outputs[1:], dim=1)
         source_attentions = torch.cat(source_attentions, dim=1)
         # Exclude coref/mask for EOS.
         # TODO: Answer "What if the last one is not EOS?"
@@ -513,6 +523,7 @@ class STOG(Model):
             decoder_mask=decoder_mask,
             # [batch_size, max_decode_length, hidden_size]
             decoder_memory_bank=decoder_outputs,
+            decoder_rnn_memory_bank=rnn_outputs,
             # [batch_size, max_decode_length, encoder_length]
             source_attentions=source_attentions,
             copy_attentions=copy_attentions,

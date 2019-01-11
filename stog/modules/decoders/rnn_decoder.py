@@ -20,10 +20,11 @@ class InputFeedRNNDecoder(RNNDecoderBase):
     def __init__(self, rnn_cell, attention_layer, coref_attention_layer, dropout):
         super(InputFeedRNNDecoder, self).__init__(rnn_cell, dropout)
         self.attention_layer = attention_layer
-        self.copy_attention_layer = copy.deepcopy(attention_layer)
+        self.copy_attention_layer = None  # copy.deepcopy(attention_layer)
         self.coref_attention_layer = coref_attention_layer
 
-    def forward(self, inputs, memory_bank, mask, hidden_state, input_feed=None, coref_inputs=None):
+    def forward(self, inputs, memory_bank, mask, hidden_state,
+                input_feed=None, coref_inputs=None):
         """
 
         :param inputs: [batch_size, decoder_seq_length, embedding_size]
@@ -39,6 +40,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         copy_attentions = []
         coref_attentions = []
         output_sequences = []
+        rnn_output_sequences = []
 
         if coref_inputs is None:
             coref_inputs = []
@@ -57,6 +59,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             packed_output, hidden_state = self.rnn_cell(packed_input, hidden_state)
             # output: [batch_size, 1, hidden_size]
             output, _ = pad_packed_sequence(packed_output, batch_first=True)
+            rnn_output_sequences.append(output)
             coref_input = output.clone()
             output, std_attention = self.attention_layer(
                 output, memory_bank, mask)
@@ -67,6 +70,8 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                 _, copy_attention = self.copy_attention_layer(
                     output, memory_bank, mask)
                 copy_attentions.append(copy_attention)
+            else:
+                copy_attentions.append(std_attention)
 
             if self.coref_attention_layer is not None:
                 if len(coref_inputs) == 0:
@@ -91,11 +96,20 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             output_sequences.append(output)
             std_attentions.append(std_attention)
 
-        coref_inputs = torch.cat(coref_inputs, 1)
         output_sequences = torch.cat(output_sequences, 1)
+        rnn_output_sequences = torch.cat(rnn_output_sequences, 1)
+        coref_inputs = torch.cat(coref_inputs, 1)
         if len(copy_attentions):
             copy_attentions = torch.cat(copy_attentions, 1)
         if len(coref_attentions):
             coref_attentions = torch.cat(coref_attentions, 1)
-        return (output_sequences, coref_inputs, coref_attentions, copy_attentions,
-                std_attentions, hidden_state, input_feed)
+        return dict(
+            output_sequences=output_sequences,
+            rnn_output_sequences=rnn_output_sequences,
+            coref_inputs=coref_inputs,
+            std_attentions=std_attentions,
+            copy_attentions=copy_attentions,
+            coref_attentions=coref_attentions,
+            hidden_state=hidden_state,
+            input_feed=input_feed
+        )
