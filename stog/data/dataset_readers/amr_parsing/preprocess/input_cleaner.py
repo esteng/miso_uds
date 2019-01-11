@@ -169,6 +169,12 @@ def correct_errors(amr):
                 pos = ['CD']
                 ner = ['DATE']
                 break
+            if amr.id.startswith('DF-183-195681-794_9333.1') and token == '73' and amr.tokens[i - 1] == 'of':
+                index = i
+                tokens = ['vote', '73']
+                pos = ['NNS', 'CD']
+                ner = ['O', 'NUMBER']
+                break
             if token.lower() == 'tonight':
                 index = i
                 tokens = ['today', 'night']

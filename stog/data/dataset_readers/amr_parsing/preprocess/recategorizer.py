@@ -8,8 +8,7 @@ from nltk.tokenize import word_tokenize
 from word2number import w2n
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
-from stog.data.dataset_readers.amr_parsing.entity import Entity
-from stog.data.dataset_readers.amr_parsing.date import DATE
+from stog.data.dataset_readers.amr_parsing.amr_concepts import Entity, DATE, SCORE
 from stog.utils import logging
 
 
@@ -74,6 +73,8 @@ class Recategorizer:
         self.date_entity_count = 0
         self.recat_date_entity_count = 0
         self.removed_wiki_count = 0
+        self.score_entity_count = 0
+        self.recat_score_entity_count = 0
 
         self.name_type_cooccur_counter = defaultdict(lambda: defaultdict(int))
         self.name_op_cooccur_counter = defaultdict(lambda: defaultdict(int))
@@ -95,6 +96,10 @@ class Recategorizer:
             logger.info('Dated entity collapse rate: {} ({}/{})'.format(
                 self.recat_date_entity_count / self.date_entity_count,
                 self.recat_date_entity_count, self.date_entity_count))
+        if self.score_entity_count != 0:
+            logger.info('Score entity collapse rate: {} ({}/{})'.format(
+                self.recat_score_entity_count / self.score_entity_count,
+                self.recat_score_entity_count, self.score_entity_count))
         logger.info('Removed {} wikis.'.format(self.removed_wiki_count))
 
     def reset_statistics(self):
@@ -102,6 +107,8 @@ class Recategorizer:
         self.recat_named_entity_count = 0
         self.date_entity_count = 0
         self.recat_date_entity_count = 0
+        self.score_entity_count = 0
+        self.recat_score_entity_count = 0
         self.removed_wiki_count = 0
 
     def _build_utils(self):
@@ -162,6 +169,7 @@ class Recategorizer:
             return
         self.remove_wiki(amr)
         self.recategorize_date_nodes(amr)
+        self.recategorize_score_nodes(amr)
 
     def resolve_name_node_reentrancy(self, amr):
         """
@@ -244,6 +252,18 @@ class Recategorizer:
                 dates.append(date)
         dates, removed_dates = resolve_conflict_entities(dates)
         DATE.collapse_date_nodes(dates, amr)
+
+    def recategorize_score_nodes(self, amr):
+        graph = amr.graph
+        scores = []
+        for node in graph.get_nodes():
+            if node.instance == 'score-entity':
+                self.score_entity_count += 1
+                score = SCORE(node, amr)
+                if score.span is not None:
+                    self.recat_score_entity_count += 1
+                scores.append(score)
+        SCORE.collapse_score_nodes(scores, amr)
 
     def _get_aligned_date(self, node, amr):
         date = DATE(node, amr.graph)
