@@ -31,3 +31,4 @@ from stog.data.dataset_readers.abstract_meaning_representation import AbstractMe
 #from stog.data.dataset_readers.semantic_parsing import (
 #        WikiTablesDatasetReader, AtisDatasetReader, NlvrDatasetReader, TemplateText2SqlDatasetReader)
 #from stog.data.dataset_readers.semantic_parsing.quarel import QuarelDatasetReader
+from stog.data.dataset_readers.language_modeling import LanguageModelingDatasetReader

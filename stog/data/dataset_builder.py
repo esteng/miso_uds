@@ -3,7 +3,7 @@ import argparse
 
 from stog.utils.params import Params
 from stog.utils import logging
-from stog.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader, Seq2SeqDatasetReader
+from stog.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader, Seq2SeqDatasetReader, LanguageModelingDatasetReader
 from stog.data.iterators import BucketIterator, BasicIterator
 from stog.data.token_indexers import SingleIdTokenIndexer,TokenCharactersIndexer
 
@@ -39,6 +39,8 @@ def load_dataset_reader(dataset_type):
                 decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
             )
         )
+    elif dataset_type == "LM":
+        dataset_reader = LanguageModelingDatasetReader() # all defaults
 
     return dataset_reader
 

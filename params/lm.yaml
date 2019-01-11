@@ -1,0 +1,85 @@
+# Parameters of a basic language model, get passed into
+# `from_params()` to initialize model.
+
+# Could put glove and other hard-coded paths here
+lm_data_dir: &lm_data_dir /export/c01/pxia/data/lm
+glove: &glove /export/c01/pxia/data/glove/glove.840B.300d.zip
+
+# Model parameters
+model:
+  model_type: LanguageModel  # Name of class
+  dropout:
+
+  # Needed to use BasicTextFieldEmbedder
+  text_field:
+    token_embedders:
+      tokens:
+        num_embeddings: 
+        vocab_namespace: tokens  # do not change
+        embedding_dim: &word_emb_dim 300
+        padding_index: 0
+        dropout: 0
+        pretrained_file:
+
+  # Encoder parameters
+  encoder:
+    input_size: *word_emb_dim
+    hidden_size: 512
+    num_layers: 3
+    dropout: 0.25
+
+# Data parameters
+data:
+  data_dir: *lm_data_dir
+  train_data: train_lm.txt
+  dev_data: dev_lm.txt
+  test_data: test_lm.txt
+  data_type: LM
+  # Other data-related parameters (pretrain, batching)
+  batch_first: True
+  train_batch_size: &train_batch_size 64
+  test_batch_size: 32
+  iter_type: BasicIterator
+  pretrain_token_emb: *glove
+  pretrain_char_emb:
+  
+# Vocabulary params
+vocab:
+  min_count:
+      encoder_token_ids: 1
+      decoder_token_ids: 1
+  max_vocab_size:
+      encoder_token_ids: 18000
+      decoder_token_ids: 12200
+
+
+
+# Environment and random seed params
+environment:
+  serialization_dir: &serialization_dir lm-checkpoint
+  gpu: True
+  cuda_device: 0 # this should ideally be free-gpu
+  recover: False # will continue from existing run
+  seed: 1
+  numpy_seed: 1
+  torch_seed: 1
+  file_friendly_logging: False
+
+# Experimental parameters
+trainer:
+  device: # No need to be specified, will be updated at runtime
+  # Optimizer
+  no_grad: []
+  optimizer_type: adam
+  learning_rate: 0.001
+  max_grad_norm: 5.0
+  batch_size: *train_batch_size
+  shuffle: True
+  epochs: 20
+  dev_metric: ?loss  # needs a character before "loss"
+  serialization_dir: *serialization_dir
+  model_save_interval:
+
+test:
+  evaluate_on_test: True
+
