@@ -534,7 +534,7 @@ class AMRGraph(penman.Graph):
         for coref_index in corefs:
             node = nodes[coref_index - 1]
             head_label = head_labels[coref_index - 1]
-            if is_attribute_value(node) and not is_edge_label(head_label):
+            if '/' in node or (is_attribute_value(node) and not is_edge_label(head_label)):
                 continue
             variable_map['vv{}'.format(coref_index)] = node
         for head_index in heads:
