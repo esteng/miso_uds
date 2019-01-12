@@ -147,10 +147,10 @@ class STOG(Model):
                 self.test_config['prediction']
             ]).decode().split()
             result = list(map(float, result))
+            return dict(PREC=result[0]*100, REC=result[1]*100, F1=result[2]*100)
         except:
             logger.info('Exception threw out when computing smatch.')
             return {}
-        return dict(PREC=result[0]*100, REC=result[1]*100, F1=result[2]*100)
 
     def print_batch_details(self, batch, batch_idx):
         print(batch["amr"][batch_idx])
