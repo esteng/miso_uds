@@ -18,12 +18,8 @@ class DotProductAttention(torch.nn.Module):
         :param encoder_input:  [batch, encoder_seq_length, encoder_hidden_size]
         :return:  [batch, decoder_seq_length, encoder_seq_length]
         """
-        batch_size, decoder_seq_length, decoder_hidden_size = decoder_input.size()
-
         if self.linear_layer is not None:
-            decoder_input = decoder_input.view(batch_size * decoder_seq_length, decoder_hidden_size)
             decoder_input = self.linear_layer(decoder_input)
-            decoder_input = decoder_input.view(batch_size, decoder_seq_length, self.encoder_hidden_size)
 
         encoder_input = encoder_input.transpose(1, 2)
         return torch.bmm(decoder_input, encoder_input)

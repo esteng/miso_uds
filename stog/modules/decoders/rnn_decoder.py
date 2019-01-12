@@ -60,10 +60,10 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             # output: [batch_size, 1, hidden_size]
             output, _ = pad_packed_sequence(packed_output, batch_first=True)
             rnn_output_sequences.append(output)
-            coref_input = output.clone()
             output, std_attention = self.attention_layer(
                 output, memory_bank, mask)
             output = self.dropout(output)
+            coref_input = output  # clone()
             input_feed = output
 
             if self.copy_attention_layer is not None:

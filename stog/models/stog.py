@@ -663,7 +663,7 @@ class STOG(Model):
         source_attention = DotProductAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
             encoder_hidden_size=params['encoder']['hidden_size'] * 2,
-            add_linear=params['source_attention'].get('add_linear', True)
+            add_linear=params['source_attention']['add_linear']
         )
         source_attention_layer = GlobalAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
@@ -674,7 +674,7 @@ class STOG(Model):
         coref_attention = DotProductAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
             encoder_hidden_size=params['encoder']['hidden_size'] * 2,
-            add_linear=params['pointer_attention'].get('add_linear', True)
+            add_linear=params['pointer_attention']['add_linear']
         )
         coref_attention_layer = GlobalAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
