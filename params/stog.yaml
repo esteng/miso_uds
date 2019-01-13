@@ -73,10 +73,10 @@ model:
     dropout: 0.33
 
   source_attention:
-    add_linear: True
+    share_linear: False
 
   pointer_attention:
-    add_linear: False
+    share_linear: True
 
   generator:
     input_size: *deocder_hidden_size
@@ -131,7 +131,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir rm-dummy-ckpt-1
+  serialization_dir: &serialization_dir stog-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0

@@ -76,7 +76,7 @@ model:
     add_linear: True
 
   pointer_attention:
-    add_linear: True
+    add_linear: False
 
   generator:
     input_size: *deocder_hidden_size
