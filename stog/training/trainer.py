@@ -317,6 +317,7 @@ class Trainer:
         # Init.
         training_start_time = time.time()
         epochs_trained_this_time = 0
+        metrics = {}
         training_metrics = {}
         dev_metrics = {}
         is_best_so_far = True
@@ -348,6 +349,11 @@ class Trainer:
             self._metrics_to_console(training_metrics, dev_metrics=dev_metrics)
             self._tensorboard.add_dev_scalar('learning_rate', self._optimizer.lr, epoch)
 
+            if is_best_so_far:
+                # We may not have had validation data, so we need to hide this behind an if.
+                metrics['best_epoch'] = epoch
+                metrics.update({f"best_dev_{k}": v for k, v in best_epoch_dev_metrics.items()})
+
             # Estimate ETA.
             epoch_elapsed_time = time.time() - epoch_start_time
             logger.info("Epoch duration: %s", time.strftime("%H:%M:%S", time.gmtime(epoch_elapsed_time)))
@@ -363,22 +369,15 @@ class Trainer:
 
         # Finish training, and summarize the status.
         training_elapsed_time = time.time() - training_start_time
-        metrics = dict(
+        metrics.update(dict(
             training_duration=time.strftime("%H:%M:%S", time.gmtime(training_elapsed_time)),
             training_start_epoch=epoch_counter,
             training_epochs=epochs_trained_this_time
-        )
+        ))
         for key, value in training_metrics.items():
             metrics["training_" + key] = value
         for key, value in dev_metrics.items():
             metrics["dev_" + key] = value
-
-        if dev_metric_per_epoch:
-            # We may not have had validation data, so we need to hide this behind an if.
-            best_dev_metric = min(dev_metric_per_epoch)
-            metrics.update({f"best_dev_{k}": v for k, v in best_epoch_dev_metrics.items()})
-            metrics['best_epoch'] = [i for i, value in enumerate(dev_metric_per_epoch)
-                                     if value == best_dev_metric][-1]
         return metrics
 
     def _enable_gradient_clipping(self) -> None:
