@@ -12,7 +12,7 @@ This project is based on python 3.6 and the newest version of PyTorch.
 Via conda
 
 - `conda create -n stog python=3`
-- `python setup.py install`
+- `pip install -e .`
 
 ## Running
 
