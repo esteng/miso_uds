@@ -14,7 +14,7 @@ model:
   text_field:
     token_embedders:
       tokens:
-        num_embeddings: 
+        num_embeddings:
         vocab_namespace: tokens  # do not change
         embedding_dim: &word_emb_dim 300
         padding_index: 0
@@ -43,7 +43,7 @@ data:
     iter_type: BasicIterator
   pretrain_token_emb: *glove
   pretrain_char_emb:
-  
+
 # Vocabulary params
 vocab:
   min_count:
@@ -77,10 +77,9 @@ trainer:
   batch_size: *train_batch_size
   shuffle: True
   epochs: 20
-  dev_metric: ?loss  # needs a character before "loss"
+  dev_metric: -loss  # needs a character before "loss"
   serialization_dir: *serialization_dir
   model_save_interval:
 
 test:
   evaluate_on_test: True
-
