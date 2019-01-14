@@ -6,6 +6,13 @@ This project is based on python 3.6 and the newest version of PyTorch.
 
 - RNN Seq2Seq Model (see [this](https://gitlab.hltcoe.jhu.edu/research/mt-ie/tree/copy) for details) 
 - (Optional) Transition-based Semantic Parser
+ 
+
+## Installation
+Via conda
+
+- `conda create -n stog python=3`
+- `pip install -e .`
 
 ## Running
 
