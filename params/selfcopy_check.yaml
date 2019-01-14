@@ -89,9 +89,12 @@ data:
   test_data: test_amr.txt
   data_type: AMR
   batch_first: True
-  train_batch_size: &train_batch_size 64
-  test_batch_size: 32
-  iter_type: BucketIterator
+  iterator:
+    train_batch_size: &train_batch_size 64
+    test_batch_size: 32
+    iter_type: BucketIterator
+    sorting_keys:  # (field, padding type)
+      - [tgt_tokens, num_tokens]
   pretrain_token_emb: *glove
   pretrain_char_emb:
 
