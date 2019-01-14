@@ -9,7 +9,8 @@ from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.stacked_lstm import StackedLstm
 from stog.modules.decoders.rnn_decoder import InputFeedRNNDecoder
 from stog.modules.attention_layers.global_attention import GlobalAttention
-from stog.modules.attention.dot_production_attention import DotProductAttention
+from stog.modules.attention import DotProductAttention
+from stog.modules.attention import MLPAttention
 from stog.modules.input_variational_dropout import InputVariationalDropout
 from stog.modules.decoders.generator import Generator
 from stog.modules.decoders.pointer_generator import PointerGenerator
@@ -52,6 +53,7 @@ class STOG(Model):
     def __init__(self,
                  vocab,
                  use_char_cnn,
+                 use_coverage,
                  max_decode_length,
                  # Encoder
                  encoder_token_embedding,
@@ -77,6 +79,7 @@ class STOG(Model):
 
         self.vocab = vocab
         self.use_char_cnn = use_char_cnn
+        self.use_coverage = use_coverage
         self.max_decode_length = max_decode_length
 
         self.encoder_token_embedding = encoder_token_embedding
@@ -292,7 +295,9 @@ class STOG(Model):
                 generator_inputs['copy_targets'],
                 generator_output['source_dynamic_vocab_size'],
                 generator_inputs['coref_targets'],
-                generator_output['target_dynamic_vocab_size']
+                generator_output['target_dynamic_vocab_size'],
+                decoder_outputs['coverage_records'],
+                decoder_outputs['copy_attentions']
             )
 
             graph_decoder_outputs = self.graph_decode(
@@ -360,7 +365,8 @@ class STOG(Model):
             coref_inputs=decoder_outputs['coref_inputs'],
             coref_attentions=decoder_outputs['coref_attentions'],
             copy_attentions=decoder_outputs['copy_attentions'],
-            source_attentions=decoder_outputs['std_attentions']
+            source_attentions=decoder_outputs['std_attentions'],
+            coverage_records=decoder_outputs['coverage_records']
         )
 
     def graph_decode(self, memory_bank, edge_heads, edge_labels, corefs, mask):
@@ -439,6 +445,10 @@ class STOG(Model):
         # the generated node at the decoding step `i'.
         coref_vocab_maps = torch.zeros(batch_size, self.max_decode_length + 1).type_as(mask).long()
 
+        coverage = None
+        if self.use_coverage:
+            coverage = memory_bank.new_zeros(batch_size, 1, memory_bank.size(1))
+
         for step_i in range(self.max_decode_length):
             # 1. Get the decoder inputs.
             token_embeddings = self.decoder_token_embedding(tokens)
@@ -460,7 +470,7 @@ class STOG(Model):
 
             # 2. Decode one step.
             decoder_output_dict = self.decoder(
-                decoder_inputs, memory_bank, mask, states, input_feed, coref_inputs)
+                decoder_inputs, memory_bank, mask, states, input_feed, coref_inputs, coverage)
             _decoder_outputs = decoder_output_dict['output_sequences']
             _rnn_outputs = decoder_output_dict['rnn_output_sequences']
             coref_inputs = decoder_output_dict['coref_inputs']
@@ -469,6 +479,7 @@ class STOG(Model):
             _coref_attentions = decoder_output_dict['coref_attentions']
             states = decoder_output_dict['hidden_state']
             input_feed = decoder_output_dict['input_feed']
+            coverage = decoder_output_dict['coverage']
 
             # 3. Run pointer/generator.
             if step_i == 0:
@@ -660,10 +671,11 @@ class STOG(Model):
 
         decoder_embedding_dropout = InputVariationalDropout(p=params['decoder_token_embedding']['dropout'])
 
-        source_attention = DotProductAttention(
+        source_attention = MLPAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
             encoder_hidden_size=params['encoder']['hidden_size'] * 2,
-            share_linear=params['source_attention']['share_linear']
+            attention_hidden_size=params['decoder']['hidden_size'],
+            coverage=params['source_attention']['coverage']
         )
         source_attention_layer = GlobalAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
@@ -710,6 +722,7 @@ class STOG(Model):
         return cls(
             vocab=vocab,
             use_char_cnn=params['use_char_cnn'],
+            use_coverage=params['use_coverage'],
             max_decode_length=params.get('max_decode_length', 50),
             encoder_token_embedding=encoder_token_embedding,
             encoder_char_embedding=encoder_char_embedding,

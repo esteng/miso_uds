@@ -94,7 +94,8 @@ class PointerGenerator(torch.nn.Module):
 
     def compute_loss(self, probs, predictions, generate_targets,
                      source_copy_targets, source_dynamic_vocab_size,
-                     target_copy_targets, target_dynamic_vocab_size):
+                     target_copy_targets, target_dynamic_vocab_size,
+                     coverage_records, copy_attentions):
         """
         Priority: target_copy > source_copy > generate
 
@@ -109,6 +110,9 @@ class PointerGenerator(torch.nn.Module):
         :param target_copy_targets:  target node index in the dynamic vocabulary,
             [batch_size, num_target_nodes]
         :param target_dynamic_vocab_size: int
+        :param coverage_records: None or a tensor recording source-side coverages.
+            [batch_size, num_target_nodes, num_source_nodes]
+        :param copy_attentions: [batch_size, num_target_nodes, num_source_nodes]
         """
 
         non_pad_mask = generate_targets.ne(self.vocab_pad_idx)
@@ -148,8 +152,13 @@ class PointerGenerator(torch.nn.Module):
         # Add eps for numerical stability.
         likelihood = likelihood + self.eps
 
+        coverage_loss = 0
+        if coverage_records is not None:
+            coverage_loss = torch.sum(
+                torch.min(coverage_records, copy_attentions), 2).mul(non_pad_mask.float())
+
         # Drop pads.
-        loss = -likelihood.log().mul(non_pad_mask.float())
+        loss = -likelihood.log().mul(non_pad_mask.float()) + coverage_loss
 
         # Mask out copy targets for which copy does not happen.
         targets = target_copy_targets_with_offset.squeeze(2) * target_copy_mask.long() + \

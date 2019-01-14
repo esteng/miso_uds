@@ -17,14 +17,16 @@ class RNNDecoderBase(torch.nn.Module):
 
 class InputFeedRNNDecoder(RNNDecoderBase):
 
-    def __init__(self, rnn_cell, attention_layer, coref_attention_layer, dropout):
+    def __init__(self, rnn_cell, attention_layer, coref_attention_layer, dropout,
+                 use_coverage=False):
         super(InputFeedRNNDecoder, self).__init__(rnn_cell, dropout)
         self.attention_layer = attention_layer
         self.copy_attention_layer = None  # copy.deepcopy(attention_layer)
         self.coref_attention_layer = coref_attention_layer
+        self.use_coverage = use_coverage
 
     def forward(self, inputs, memory_bank, mask, hidden_state,
-                input_feed=None, coref_inputs=None):
+                input_feed=None, coref_inputs=None, coverage=None):
         """
 
         :param inputs: [batch_size, decoder_seq_length, embedding_size]
@@ -32,6 +34,8 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         :param mask:  None or [batch_size, decoder_seq_length]
         :param hidden_state: a tuple of (state, memory) with shape [num_encoder_layers, batch_size, encoder_hidden_size]
         :param input_feed: None or [batch_size, 1, hidden_size]
+        :param coref_inputs: None or [batch_size, seq_length, hidden_size]
+        :param coverage: None or [batch_size, 1, encode_seq_length]
         :return:
         """
         batch_size, sequence_length, _ = inputs.size()
@@ -39,16 +43,22 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         std_attentions = []
         copy_attentions = []
         coref_attentions = []
+        coverage_records = []
         output_sequences = []
         rnn_output_sequences = []
+
+        if input_feed is None:
+            input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
 
         if coref_inputs is None:
             coref_inputs = []
         else:
             coref_inputs = list(coref_inputs.split(1, dim=1))
 
-        if input_feed is None:
-            input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
+        if self.use_coverage and coverage is None:
+            coverage = inputs.new_zeros(batch_size, 1, memory_bank.size(1))
+        else:
+            coverage = None
 
         for step_i, input in enumerate(inputs.split(1, dim=1)):
             # input: [batch_size, 1, embeddings_size]
@@ -61,8 +71,11 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             output, _ = pad_packed_sequence(packed_output, batch_first=True)
             rnn_output_sequences.append(output)
             coref_input = output  # clone()
-            output, std_attention = self.attention_layer(
-                output, memory_bank, mask)
+
+            coverage_records.append(coverage)
+            output, std_attention, coverage = self.attention_layer(
+                output, memory_bank, mask, coverage)
+
             output = self.dropout(output)
             input_feed = output
 
@@ -81,10 +94,10 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                     coref_mem_bank = torch.cat(coref_inputs, 1)
 
                     if sequence_length == 1:
-                        _, coref_attention = self.coref_attention_layer(
+                        _, coref_attention, _ = self.coref_attention_layer(
                             coref_input, coref_mem_bank)
                     else:
-                        _, coref_attention = self.coref_attention_layer(
+                        _, coref_attention, _ = self.coref_attention_layer(
                             coref_input, coref_mem_bank)
                         coref_attention = torch.nn.functional.pad(
                             coref_attention, (0, sequence_length - step_i), 'constant', 0
@@ -99,6 +112,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         output_sequences = torch.cat(output_sequences, 1)
         rnn_output_sequences = torch.cat(rnn_output_sequences, 1)
         coref_inputs = torch.cat(coref_inputs, 1)
+        coverage_records = torch.cat(coverage_records, 1) if self.use_coverage else None
         if len(copy_attentions):
             copy_attentions = torch.cat(copy_attentions, 1)
         if len(coref_attentions):
@@ -110,6 +124,8 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             std_attentions=std_attentions,
             copy_attentions=copy_attentions,
             coref_attentions=coref_attentions,
+            coverage_records=coverage_records,
             hidden_state=hidden_state,
-            input_feed=input_feed
+            input_feed=input_feed,
+            coverage=coverage
         )

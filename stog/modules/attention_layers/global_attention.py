@@ -2,6 +2,8 @@
 import torch
 import torch.nn.functional as F
 
+from stog.modules.attention import MLPAttention
+
 
 # This class is mainly used by decoder.py for RNNs but also
 # by the CNN / transformer decoder when copy attention is used
@@ -57,9 +59,13 @@ class GlobalAttention(torch.nn.Module):
         self.decoder_hidden_size = decoder_hidden_size
         self.encoder_hidden_size = encoder_hidden_size
         self.attention = attention
-        self.output_layer = torch.nn.Linear(decoder_hidden_size + encoder_hidden_size, decoder_hidden_size)
+        self.output_layer = torch.nn.Linear(
+            decoder_hidden_size + encoder_hidden_size,
+            decoder_hidden_size,
+            bias=isinstance(attention, MLPAttention)
+        )
 
-    def forward(self, source, memory_bank, mask=None):
+    def forward(self, source, memory_bank, mask=None, coverage=None):
         """
         Args:
           source (`FloatTensor`): query vectors `[batch x tgt_len x dim]`
@@ -73,31 +79,27 @@ class GlobalAttention(torch.nn.Module):
         """
 
         batch_, target_l, dim_ = source.size()
-        if memory_bank is None:
-            c = torch.zeros(batch_, target_l, self.encoder_hidden_size).type_as(source)
-            align_vectors = torch.zeros(batch_, target_l, 1).type_as(source)
 
+        one_step = False
+        # one step input
+        if source.dim() == 2:
+            one_step = True
+            source = source.unsqueeze(1)
+
+        if isinstance(self.attention, MLPAttention) and coverage is not None:
+            align = self.attention(source, memory_bank, coverage)
         else:
-            # one step input
-            if source.dim() == 2:
-                one_step = True
-                source = source.unsqueeze(1)
-            else:
-                one_step = False
-
-            batch, source_l, dim = memory_bank.size()
-
             align = self.attention(source, memory_bank)
 
-            if mask is not None:
-                mask = mask.byte().unsqueeze(1)  # Make it broadcastable.
-                align.masked_fill_(1 - mask, -float('inf'))
+        if mask is not None:
+            mask = mask.byte().unsqueeze(1)  # Make it broadcastable.
+            align.masked_fill_(1 - mask, -float('inf'))
 
-            align_vectors = F.softmax(align, 2)
+        align_vectors = F.softmax(align, 2)
 
-            # each context vector c_t is the weighted average
-            # over all the source hidden states
-            c = torch.bmm(align_vectors, memory_bank)
+        # each context vector c_t is the weighted average
+        # over all the source hidden states
+        c = torch.bmm(align_vectors, memory_bank)
 
         # concatenate
         concat_c = torch.cat([c, source], 2).view(batch_*target_l, -1)
@@ -105,8 +107,11 @@ class GlobalAttention(torch.nn.Module):
 
         attn_h = torch.tanh(attn_h)
 
-        if memory_bank is not None and one_step:
+        if coverage is not None:
+            coverage = coverage + align_vectors
+
+        if one_step:
             attn_h = attn_h.squeeze(1)
             align_vectors = align_vectors.squeeze(1)
 
-        return attn_h, align_vectors
+        return attn_h, align_vectors, coverage
