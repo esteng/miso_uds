@@ -73,10 +73,10 @@ model:
     dropout: 0
 
   source_attention:
-    add_linear: True
+    share_linear: False
 
   pointer_attention:
-    add_linear: False
+    share_linear: True
 
   generator:
     input_size: *deocder_hidden_size
