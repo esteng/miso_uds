@@ -104,7 +104,7 @@ def train_model(params: Params):
     # Initializing the model can have side effect of expanding the vocabulary
     vocab.save_to_files(os.path.join(environment_params['serialization_dir'], "vocabulary"))
 
-    train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, data_params)
+    train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, data_params['iterator'])
 
     # Build the model.
     model_params = params['model']

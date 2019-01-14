@@ -2,16 +2,14 @@ import torch
 
 from stog.models.model import Model
 from stog.utils.logging import init_logger
+from stog.modules import StackedBidirectionalLstm, StackedLstm, InputVariationalDropout
 from stog.modules.token_embedders.embedding import Embedding
 from stog.modules.seq2vec_encoders.cnn_encoder import CnnEncoder
 from stog.modules.seq2seq_encoders.pytorch_seq2seq_wrapper import PytorchSeq2SeqWrapper
-from stog.modules.stacked_bilstm import StackedBidirectionalLstm
-from stog.modules.stacked_lstm import StackedLstm
 from stog.modules.decoders.rnn_decoder import InputFeedRNNDecoder
 from stog.modules.attention_layers.global_attention import GlobalAttention
 from stog.modules.attention.dot_production_attention import DotProductAttention
 from stog.modules.attention_layers.self_copy_attention import SelfCopyAttention
-from stog.modules.input_variational_dropout import InputVariationalDropout
 from stog.modules.decoders.generator import Generator
 from stog.modules.decoders.pointer_generator import PointerGenerator
 from stog.utils.nn import get_text_field_mask

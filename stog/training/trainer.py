@@ -7,13 +7,13 @@ import traceback
 import sys
 from typing import Dict, Optional, List, Union
 import torch
-from stog.utils import logging
+from stog.modules import Optimizer
 from stog.training.tensorboard import TensorboardWriter
+from stog.utils import logging
 from stog.utils.environment import device_mapping, peak_memory_mb, gpu_memory_mb, move_to_device
 from stog.utils.checks import  ConfigurationError
 from stog.utils.tqdm import Tqdm
 from stog.utils.time import time_to_str
-from stog.modules.optimizer import Optimizer
 from stog.utils.exception_hook import ExceptionHook
 
 sys.excepthook = ExceptionHook()

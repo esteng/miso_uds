@@ -2,7 +2,7 @@ from typing import Optional, Tuple
 import torch
 from torch.nn.utils.rnn import PackedSequence, pack_padded_sequence, pad_packed_sequence
 
-from stog.modules.augmented_lstm import AugmentedLstm
+from stog.modules import AugmentedLstm
 from stog.utils.checks import ConfigurationError
 
 

@@ -1,4 +1,4 @@
-from stog.modules.encoder_base import _EncoderBase
+from stog.modules import _EncoderBase
 
 
 class Seq2SeqEncoder(_EncoderBase):

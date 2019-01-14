@@ -37,9 +37,10 @@ data:
   data_type: LM
   # Other data-related parameters (pretrain, batching)
   batch_first: True
-  train_batch_size: &train_batch_size 64
-  test_batch_size: 32
-  iter_type: BasicIterator
+  iterator:
+    train_batch_size: &train_batch_size 64
+    test_batch_size: 32
+    iter_type: BasicIterator
   pretrain_token_emb: *glove
   pretrain_char_emb:
   

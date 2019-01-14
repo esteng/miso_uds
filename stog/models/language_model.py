@@ -14,9 +14,9 @@ from stog.utils.checks import ConfigurationError
 from stog.utils.logging import init_logger
 from stog.data.vocabulary import Vocabulary
 from stog.models.model import Model
+from stog.modules import StackedLstm
 from stog.modules.text_field_embedders import BasicTextFieldEmbedder
 from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
-from stog.modules.stacked_lstm import StackedLstm
 from stog.utils.nn import get_text_field_mask
 
 logger = init_logger()
@@ -87,7 +87,7 @@ class LanguageModel(Model):
                  text_field_embedder: BasicTextFieldEmbedder,
                  contextualizer: PytorchSeq2SeqWrapper,
                  dropout: float = None) -> None:
-        super().__init__(vocab)
+        super().__init__()
         self._text_field_embedder = text_field_embedder
 
         self._contextualizer = contextualizer
@@ -103,7 +103,6 @@ class LanguageModel(Model):
             self._dropout = torch.nn.Dropout(dropout)
         else:
             self._dropout = lambda x: x
-        self._regularizer = None
         self.return_dict = {}
             
     def _get_target_token_embeddings(self,
