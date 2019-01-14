@@ -158,6 +158,7 @@ def train_model(params: Params):
         for key, value in test_metrics.items():
             metrics["test_" + key] = value
 
+        metrics = {k : v.item() for k,v in metrics.items() if isinstance(v, torch.Tensor)}
         dump_metrics(os.path.join(serialization_dir, "metrics.json"), metrics, log=True)
 
         # TODO: May not be a good way, but leave it for now
@@ -178,4 +179,3 @@ if __name__ == "__main__":
     logger.info(params)
 
     train_model(params)
-
