@@ -3,9 +3,9 @@ import torch
 import torch.nn.functional as F
 
 from .model import  Model
+from stog.modules import StackedBidirectionalLstm
 from stog.modules.token_embedders import Embedding
 from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
-from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.attention import BiaffineAttention
 from stog.modules.linear import BiLinear
 from stog.metrics import AttachmentScores
