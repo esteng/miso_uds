@@ -8,9 +8,7 @@ from nltk.tokenize import word_tokenize
 from word2number import w2n
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
-from stog.data.dataset_readers.amr_parsing.entity import Entity
-from stog.data.dataset_readers.amr_parsing.date import DATE
-from stog.data.dataset_readers.amr_parsing.amr_concepts import Ordinal
+from stog.data.dataset_readers.amr_parsing.amr_concepts import Entity, Date, Score, Ordinal
 from stog.utils import logging
 
 
@@ -74,6 +72,8 @@ class Recategorizer:
         self.recat_named_entity_count = 0
         self.date_entity_count = 0
         self.recat_date_entity_count = 0
+        self.score_entity_count = 0
+        self.recat_score_entity_count = 0
         self.ordinal_entity_count = 0
         self.recat_ordinal_entity_count = 0
         self.removed_wiki_count = 0
@@ -98,6 +98,10 @@ class Recategorizer:
             logger.info('Dated entity collapse rate: {} ({}/{})'.format(
                 self.recat_date_entity_count / self.date_entity_count,
                 self.recat_date_entity_count, self.date_entity_count))
+        if self.score_entity_count != 0:
+            logger.info('Score entity collapse rate: {} ({}/{})'.format(
+                self.recat_score_entity_count / self.score_entity_count,
+                self.recat_score_entity_count, self.score_entity_count))
         if self.ordinal_entity_count != 0:
             logger.info('Ordinal entity collapse rate: {} ({}/{})'.format(
                 self.recat_ordinal_entity_count / self.ordinal_entity_count,
@@ -109,6 +113,8 @@ class Recategorizer:
         self.recat_named_entity_count = 0
         self.date_entity_count = 0
         self.recat_date_entity_count = 0
+        self.score_entity_count = 0
+        self.recat_score_entity_count = 0
         self.ordinal_entity_count = 0
         self.recat_ordinal_entity_count = 0
         self.removed_wiki_count = 0
@@ -175,6 +181,7 @@ class Recategorizer:
             return
         self.remove_wiki(amr)
         self.recategorize_date_nodes(amr)
+        self.recategorize_score_nodes(amr)
         self.recategorize_ordinal_nodes(amr)
 
     def resolve_name_node_reentrancy(self, amr):
@@ -250,14 +257,26 @@ class Recategorizer:
         graph = amr.graph
         dates = []
         for node in graph.get_nodes():
-            if graph.is_date_node(node) and DATE.collapsable(node, graph):
+            if graph.is_date_node(node) and Date.collapsable(node, graph):
                 self.date_entity_count += 1
                 date = self._get_aligned_date(node, amr)
                 if date.span is not None:
                     self.recat_date_entity_count += 1
                 dates.append(date)
         dates, removed_dates = resolve_conflict_entities(dates)
-        DATE.collapse_date_nodes(dates, amr)
+        Date.collapse_date_nodes(dates, amr)
+
+    def recategorize_score_nodes(self, amr):
+        graph = amr.graph
+        scores = []
+        for node in graph.get_nodes():
+            if node.instance == 'score-entity':
+                self.score_entity_count += 1
+                score = Score(node, amr)
+                if score.span is not None:
+                    self.recat_score_entity_count += 1
+                scores.append(score)
+        Score.collapse_score_nodes(scores, amr)
 
     def recategorize_ordinal_nodes(self, amr):
         graph = amr.graph
@@ -272,7 +291,7 @@ class Recategorizer:
         Ordinal.collapse_ordinal_nodes(ordinals, amr)
 
     def _get_aligned_date(self, node, amr):
-        date = DATE(node, amr.graph)
+        date = Date(node, amr.graph)
         if len(date.attributes) + len(date.edges) == 0:
             return date
         alignment = date._get_alignment(amr)

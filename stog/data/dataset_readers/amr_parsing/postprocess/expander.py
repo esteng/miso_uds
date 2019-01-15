@@ -39,18 +39,21 @@ class Expander:
         self._load_utils()
         self.name_node_expand_count = 0
         self.date_node_expand_count = 0
+        self.score_node_expand_count = 0
         self.ordinal_node_expand_count = 0
         self.correctly_restored_count = 0
 
     def reset_stats(self):
         self.name_node_expand_count = 0
         self.date_node_expand_count = 0
+        self.score_node_expand_count = 0
         self.ordinal_node_expand_count = 0
 
     def print_stats(self):
         logger.info('Restored {} name nodes.'.format(self.correctly_restored_count))
         logger.info('Expanded {} name nodes.'.format(self.name_node_expand_count))
         logger.info('Expanded {} date nodes.'.format(self.date_node_expand_count))
+        logger.info('Expanded {} score nodes.'.format(self.score_node_expand_count))
         logger.info('Expanded {} ordinal nodes.'.format(self.ordinal_node_expand_count))
 
     def expand_file(self, file_path):
@@ -75,6 +78,10 @@ class Expander:
                         self.expand_date_node(node, saved_dict, amr)
                         self.date_node_expand_count += 1
                         break
+
+                    if abstract_type == 'score-entity':
+                        self.expand_score_node(node, saved_dict, amr)
+                        self.score_node_expand_count += 1
 
                     if abstract_type == 'ordinal-entity':
                         self.expand_ordinal_node(node, saved_dict, amr)
@@ -128,6 +135,12 @@ class Expander:
         for label, instance in edges.items():
             target = graph.add_node(instance)
             graph.add_edge(node, target, label)
+
+    def expand_score_node(self, node, saved_dict, amr):
+        graph = amr.graph
+        graph.replace_node_attribute(node, 'instance', node.instance, 'score-entity')
+        for i, op in enumerate(saved_dict['ops'], 1):
+            graph.add_node_attribute(node, 'op{}'.format(i), op)
 
     def expand_ordinal_node(self, node, saved_dict, amr):
         graph = amr.graph

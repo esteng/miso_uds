@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 
 
-class DATE:
+class Date:
 
     attribute_list = ['year', 'month', 'day', 'decade', 'time', 'century', 'era', 'timezone',
                       'quant', 'value', 'quarter', 'year2']
@@ -38,11 +38,11 @@ class DATE:
 
     @staticmethod
     def collapsable(node, graph):
-        if any(attr in DATE.attribute_list for attr, _ in node.attributes):
+        if any(attr in Date.attribute_list for attr, _ in node.attributes):
             return True
         edges = list(graph._G.edges(node))
         for source, target in edges:
-            if graph._G[source][target]['label'] in DATE.edge_list:
+            if graph._G[source][target]['label'] in Date.edge_list:
                 return True
 
     @staticmethod
@@ -57,13 +57,13 @@ class DATE:
                 align_count += 1
                 abstract = '{}_{}'.format(date.ner_type, align_count)
                 span_with_offset = [index - offset for index in date.span]
-                amr.abstract_map[abstract] = DATE.save_collapsed_date_node(
+                amr.abstract_map[abstract] = Date.save_collapsed_date_node(
                     date, span_with_offset, amr)
                 amr.replace_span(span_with_offset, [abstract], ['NNP'], [date.ner_type])
                 # Remove edges
                 for source, target in list(amr.graph._G.edges(date.node)):
                     edge_label = amr.graph._G[source][target]['label']
-                    if edge_label in DATE.edge_list:
+                    if edge_label in Date.edge_list:
                         amr.graph.remove_edge(source, target)
                         amr.graph.remove_subtree(target)
                 # Update instance
