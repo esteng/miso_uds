@@ -82,6 +82,9 @@ class AMR:
             ner = [self.ner_tags[indexes[0]]]
         self.ner_tags = self.ner_tags[:indexes[0]] + ner + self.ner_tags[indexes[-1] + 1:]
 
+    def remove_span(self, indexes):
+        self.replace_span(indexes, [], [], [])
+
     def __repr__(self):
         fields = []
         for k, v in dict(

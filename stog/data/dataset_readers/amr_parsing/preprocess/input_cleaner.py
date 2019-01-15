@@ -169,6 +169,51 @@ def correct_errors(amr):
                 pos = ['CD']
                 ner = ['DATE']
                 break
+            if amr.id.startswith('PROXY_XIN_ENG_20021123_0156.20') and token == 'a-third-party':
+                index = i
+                tokens = ['a', 'third', 'party']
+                pos = ['DT', 'JJ', 'NN']
+                ner = ['O', 'ORDINAL', 'O']
+                break
+            if amr.id.startswith('DF-225-195986-849_0460.9') and token == '2most':
+                index = i
+                tokens = ['2', 'most']
+                pos = ['CD', 'JJS']
+                ner = ['ORDINAL', 'O']
+                break
+            if amr.id.startswith('bolt-eng-DF-170-181103-8882248_0182.50') and token == '31:10-31':
+                index = i
+                tokens = ['31', ':', '10', '-', '31']
+                pos = ['CD', ':', 'CD', ':', 'CD']
+                ner = ['ORDINAL', 'O', 'O', 'O', 'O']
+                break
+            if ((amr.id.startswith('PROXY_AFP_ENG_20071030_0313.5') or
+                 amr.id.startswith('PROXY_AFP_ENG_20071030_0313.10'))
+                    and token == 'approximately'):
+                index = i
+                tokens = []
+                pos = []
+                ner = []
+                break
+            if amr.id.startswith('PROXY_AFP_ENG_20050603_0056.11') and token == 'first' and amr.tokens[i - 1] == "'s":
+                index = i
+                tokens = ['firstly', 'first']
+                pos = ['NN', 'NN']
+                ner = ['ORDINAL', 'O']
+                break
+            if amr.id.startswith('PROXY_AFP_ENG_20070327_0002.14') and token == 'first' and amr.tokens[i + 1] == 'time':
+                index = i
+                tokens = ['first', 'firstly']
+                pos = ['NN', 'JJ']
+                ner = ['O', 'ORDINAL']
+                break
+            if (token == 'second' and i + 2 < len(amr.tokens) and
+                    amr.tokens[i + 1] == 'to' and amr.tokens[i + 2] == 'last'):
+                index = [i, i + 1, i + 2]
+                tokens = ['-2']
+                pos = ['CD']
+                ner = ['ORDINAL']
+                break
             if token.lower() == 'tonight':
                 index = i
                 tokens = ['today', 'night']
@@ -177,7 +222,9 @@ def correct_errors(amr):
                 break
         else:
             break
-        amr.replace_span([index], tokens, pos, ner)
+        if not isinstance(index, list):
+            index = [index]
+        amr.replace_span(index, tokens, pos, ner)
 
 
 def normalize_tokens(amr):
@@ -226,6 +273,8 @@ def join_model_name(amr):
             if x.isalpha() and x.isupper() and re.search(r'^-\d+$', y):
                 span = list(range(i, i + 2))
                 joined_tokens = ''.join([x, y])
+                if joined_tokens in ('K-12'):
+                    continue
                 break
         else:
             break

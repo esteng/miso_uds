@@ -39,16 +39,19 @@ class Expander:
         self._load_utils()
         self.name_node_expand_count = 0
         self.date_node_expand_count = 0
+        self.ordinal_node_expand_count = 0
         self.correctly_restored_count = 0
 
     def reset_stats(self):
         self.name_node_expand_count = 0
         self.date_node_expand_count = 0
+        self.ordinal_node_expand_count = 0
 
     def print_stats(self):
         logger.info('Restored {} name nodes.'.format(self.correctly_restored_count))
         logger.info('Expanded {} name nodes.'.format(self.name_node_expand_count))
         logger.info('Expanded {} date nodes.'.format(self.date_node_expand_count))
+        logger.info('Expanded {} ordinal nodes.'.format(self.ordinal_node_expand_count))
 
     def expand_file(self, file_path):
         for i, amr in enumerate(AMRIO.read(file_path)):
@@ -72,6 +75,10 @@ class Expander:
                         self.expand_date_node(node, saved_dict, amr)
                         self.date_node_expand_count += 1
                         break
+
+                    if abstract_type == 'ordinal-entity':
+                        self.expand_ordinal_node(node, saved_dict, amr)
+                        self.ordinal_node_expand_count += 1
 
     def get_ops(self, saved_dict):
         span = saved_dict['span']
@@ -121,6 +128,11 @@ class Expander:
         for label, instance in edges.items():
             target = graph.add_node(instance)
             graph.add_edge(node, target, label)
+
+    def expand_ordinal_node(self, node, saved_dict, amr):
+        graph = amr.graph
+        graph.replace_node_attribute(node, 'instance', node.instance, 'ordinal-entity')
+        graph.add_node_attribute(node, 'value', int(saved_dict['ops'][0]))
 
     def _load_utils(self):
         with open(os.path.join(self.util_dir, 'name_op_cooccur_counter.json'), encoding='utf-8') as f:

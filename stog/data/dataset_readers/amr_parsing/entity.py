@@ -278,7 +278,7 @@ class Entity:
                 if ner_tag not in ('0', 'O') or token[0].isupper():
                     possible_ner_types.add(ner_tag)
             possible_ner_types = list(possible_ner_types)
-            if len(possible_ner_types) == 1 and possible_ner_types[0] not in ('0', '0'):
+            if len(possible_ner_types) == 1 and possible_ner_types[0] not in ('O', '0'):
                 ner_type = list(possible_ner_types)[0]
 
             # Get the high-frequency ner type from lut.

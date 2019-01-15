@@ -41,7 +41,7 @@ class Aligner:
             lemma = self.find_corresponding_lemma(instance, lemmas, amr)
             if lemma is None:
                 lemma = self.remove_sense(instance)
-            update_graph(graph, node, instance, lemma)
+            self.update_graph(graph, node, instance, lemma)
 
     def map_instance_to_lemmas(self, instance):
         """

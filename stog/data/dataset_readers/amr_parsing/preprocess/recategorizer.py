@@ -10,6 +10,7 @@ from word2number import w2n
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
 from stog.data.dataset_readers.amr_parsing.entity import Entity
 from stog.data.dataset_readers.amr_parsing.date import DATE
+from stog.data.dataset_readers.amr_parsing.amr_concepts import Ordinal
 from stog.utils import logging
 
 
@@ -73,6 +74,8 @@ class Recategorizer:
         self.recat_named_entity_count = 0
         self.date_entity_count = 0
         self.recat_date_entity_count = 0
+        self.ordinal_entity_count = 0
+        self.recat_ordinal_entity_count = 0
         self.removed_wiki_count = 0
 
         self.name_type_cooccur_counter = defaultdict(lambda: defaultdict(int))
@@ -95,6 +98,10 @@ class Recategorizer:
             logger.info('Dated entity collapse rate: {} ({}/{})'.format(
                 self.recat_date_entity_count / self.date_entity_count,
                 self.recat_date_entity_count, self.date_entity_count))
+        if self.ordinal_entity_count != 0:
+            logger.info('Ordinal entity collapse rate: {} ({}/{})'.format(
+                self.recat_ordinal_entity_count / self.ordinal_entity_count,
+                self.recat_ordinal_entity_count, self.ordinal_entity_count))
         logger.info('Removed {} wikis.'.format(self.removed_wiki_count))
 
     def reset_statistics(self):
@@ -102,6 +109,8 @@ class Recategorizer:
         self.recat_named_entity_count = 0
         self.date_entity_count = 0
         self.recat_date_entity_count = 0
+        self.ordinal_entity_count = 0
+        self.recat_ordinal_entity_count = 0
         self.removed_wiki_count = 0
 
     def _build_utils(self):
@@ -138,8 +147,12 @@ class Recategorizer:
 
     def _map_name_node_type(self, name_node_type):
         if not self.build_utils and name_node_type in self.name_type_cooccur_counter:
-            return max(self.name_type_cooccur_counter[name_node_type].keys(),
+            ner_type = max(self.name_type_cooccur_counter[name_node_type].keys(),
                        key=lambda ner_type: self.name_type_cooccur_counter[name_node_type][ner_type])
+            if ner_type in ('0', 'O'):
+                return Entity.unknown_entity_type
+            else:
+                return ner_type
         else:
             return Entity.unknown_entity_type
 
@@ -162,6 +175,7 @@ class Recategorizer:
             return
         self.remove_wiki(amr)
         self.recategorize_date_nodes(amr)
+        self.recategorize_ordinal_nodes(amr)
 
     def resolve_name_node_reentrancy(self, amr):
         """
@@ -244,6 +258,18 @@ class Recategorizer:
                 dates.append(date)
         dates, removed_dates = resolve_conflict_entities(dates)
         DATE.collapse_date_nodes(dates, amr)
+
+    def recategorize_ordinal_nodes(self, amr):
+        graph = amr.graph
+        ordinals = []
+        for node in graph.get_nodes():
+            if node.instance == 'ordinal-entity':
+                self.ordinal_entity_count += 1
+                ordinal = Ordinal(node, amr)
+                if ordinal.span is not None:
+                    self.recat_ordinal_entity_count += 1
+                ordinals.append(ordinal)
+        Ordinal.collapse_ordinal_nodes(ordinals, amr)
 
     def _get_aligned_date(self, node, amr):
         date = DATE(node, amr.graph)
