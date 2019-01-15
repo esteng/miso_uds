@@ -22,6 +22,12 @@ Example of training (on clsp grid):
 CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m stog.commands.train params/lm.yaml
 ```
 
+To recover (reload) and continue training from an existing model; or to override any
+parameters, the yaml files can be chained by comma, e.g.
+
+```
+CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m stog.commands.train params/lm.yaml,params/recover.yaml
+```
 
 ## Stage-1 AMR Parsing Timeline
 
