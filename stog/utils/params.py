@@ -4,6 +4,7 @@ import argparse
 import yaml
 import copy
 
+from stog.algorithms import dict_merge
 from stog.utils import logging
 
 logger = logging.init_logger()
@@ -94,14 +95,17 @@ class Params(object):
             json.dump(self.params, f, indent='\t')
 
     @classmethod
-    def from_file(cls, params_file):
-        with open(params_file, encoding='utf-8') as f:
-            if params_file.endswith('.yaml'):
-                params_dict = yaml.load(f)
-            elif params_file.endswith('.json'):
-                params_dict = json.load(f)
-            else:
-                raise NotImplementedError
+    def from_file(cls, params_file_list):
+        params_file_list = params_file_list.split(",")
+        params_dict = {}
+        for params_file in params_file_list:
+            with open(params_file, encoding='utf-8') as f:
+                if params_file.endswith('.yaml'):
+                    dict_merge.dict_merge(params_dict, yaml.load(f))
+                elif params_file.endswith('.json'):
+                    params_dict = json.load(f)
+                else:
+                    raise NotImplementedError
         return cls(params_dict)
 
     def __repr__(self):
