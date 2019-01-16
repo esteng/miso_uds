@@ -11,8 +11,8 @@ This project is based on python 3.6 and the newest version of PyTorch.
 ## Installation
 Via conda
 
-- `conda create -n stog python=3`
-- `pip install -e .`
+- `conda env create -f stog.env -n stog_env`
+- `pip install -e . -r requirements.txt`
 
 ## Running
 
@@ -22,6 +22,12 @@ Example of training (on clsp grid):
 CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m stog.commands.train params/lm.yaml
 ```
 
+To recover (reload) and continue training from an existing model; or to override any
+parameters, the yaml files can be chained by comma, e.g.
+
+```
+CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m stog.commands.train params/lm.yaml,params/recover.yaml
+```
 
 ## Stage-1 AMR Parsing Timeline
 

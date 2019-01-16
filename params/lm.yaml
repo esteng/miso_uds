@@ -60,7 +60,7 @@ environment:
   serialization_dir: &serialization_dir lm-checkpoint
   gpu: True
   cuda_device: 0 # this should ideally be free-gpu
-  recover: False # will continue from existing run
+  recover: False # Only works with empty checkpoint_dir
   seed: 1
   numpy_seed: 1
   torch_seed: 1
