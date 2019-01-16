@@ -11,8 +11,8 @@ This project is based on python 3.6 and the newest version of PyTorch.
 ## Installation
 Via conda
 
-- `conda create -n stog python=3`
-- `pip install -e .`
+- `conda env create -f stog.env -n stog_env`
+- `pip install -e . -r requirements.txt`
 
 ## Running
 
