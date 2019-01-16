@@ -66,7 +66,7 @@ class LanguageModelingDatasetReader(DatasetReader):
         # if `file_path` is a URL, redirect to the cache
         file_path = cached_path(file_path)
 
-        with open(file_path, "r") as text_file:
+        with open(file_path, "r", encoding="utf-8") as text_file:
             instance_strings = text_file.readlines()
 
         if self._tokens_per_instance is not None:
