@@ -13,8 +13,9 @@ from stog.modules.attention import DotProductAttention
 from stog.modules.attention import MLPAttention
 from stog.modules.input_variational_dropout import InputVariationalDropout
 from stog.modules.decoders.generator import Generator
-from stog.modules.decoders.pointer_generator import PointerGenerator
+from stog.modules.decoders.pointer_generator import SimplePointerGenerator
 from stog.modules.decoders.deep_biaffine_graph_decoder import DeepBiaffineGraphDecoder
+from stog.modules.decoders.coref_scorer import CorefScorer
 from stog.utils.nn import get_text_field_mask
 from stog.utils.string import START_SYMBOL, END_SYMBOL
 from stog.data.vocabulary import DEFAULT_OOV_TOKEN
@@ -71,6 +72,8 @@ class STOG(Model):
                  decoder,
                  # Generator
                  generator,
+                 # Coref
+                 coref_scorer,
                  # Graph decoder
                  graph_decoder,
                  test_config
@@ -98,6 +101,8 @@ class STOG(Model):
 
         self.generator = generator
 
+        self.coref_scorer = coref_scorer
+
         self.graph_decoder = graph_decoder
 
         self.beam_size = 1
@@ -116,9 +121,17 @@ class STOG(Model):
         if mimick_test and self.test_config:
             metrics = self.mimick_test()
         generator_metrics = self.generator.metrics.get_metric(reset)
+        coref_scorer_metrics = self.coref_scorer.metrics.get_metric(reset)
         graph_decoder_metrics = self.graph_decoder.metrics.get_metric(reset)
-        metrics.update(generator_metrics)
-        metrics.update(graph_decoder_metrics)
+        metrics.update(dict(
+            all_acc=generator_metrics['all_acc'],
+            src_acc=generator_metrics['src_acc'],
+            tgt_acc=coref_scorer_metrics['cacc2'],
+            ppl=generator_metrics['ppl'],
+            c1=coref_scorer_metrics['cacc1'],
+            UAS=graph_decoder_metrics['UAS'],
+            LAS=graph_decoder_metrics['LAS'],
+        ))
         if 'F1' not in metrics:
             metrics['F1'] = metrics['all_acc']
         return metrics
@@ -221,10 +234,6 @@ class STOG(Model):
 
         # [batch, num_tokens]
         vocab_targets = batch['tgt_tokens']['decoder_tokens'][:, 1:].contiguous()
-        # [batch, num_tokens]
-        coref_targets = batch["tgt_copy_indices"][:, 1:]
-        # [batch, num_tokens, num_tokens + coref_na]
-        coref_attention_maps = batch['tgt_copy_map'][:, 1:]  # exclude BOS
         # [batch, num_tgt_tokens, num_src_tokens + unk]
         copy_targets = batch["src_copy_indices"][:, 1:]
         # [batch, num_src_tokens + unk, src_dynamic_vocab_size]
@@ -233,10 +242,15 @@ class STOG(Model):
 
         generator_inputs = dict(
             vocab_targets=vocab_targets,
-            coref_targets=coref_targets,
-            coref_attention_maps=coref_attention_maps,
             copy_targets=copy_targets,
             copy_attention_maps=copy_attention_maps
+        )
+
+        # [batch, num_tokens]
+        coref_targets = batch["tgt_copy_indices"][:, 1:]
+        coref_inputs = dict(
+            targets=coref_targets,
+            mask=(decoder_token_inputs != 0)
         )
 
         # Remove the last two pads so that they have the same size of other inputs?
@@ -259,10 +273,10 @@ class STOG(Model):
         )
         # import pdb; pdb.set_trace()
 
-        return encoder_inputs, decoder_inputs, generator_inputs, parser_inputs
+        return encoder_inputs, decoder_inputs, generator_inputs, coref_inputs, parser_inputs
 
     def forward(self, batch, for_training=False):
-        encoder_inputs, decoder_inputs, generator_inputs, parser_inputs = self.prepare_batch_input(batch)
+        encoder_inputs, decoder_inputs, generator_inputs, coref_inputs, parser_inputs = self.prepare_batch_input(batch)
 
         encoder_outputs = self.encode(
             encoder_inputs['token'],
@@ -284,8 +298,6 @@ class STOG(Model):
                 decoder_outputs['memory_bank'],
                 decoder_outputs['copy_attentions'],
                 generator_inputs['copy_attention_maps'],
-                decoder_outputs['coref_attentions'],
-                generator_inputs['coref_attention_maps']
             )
 
             generator_loss_output = self.generator.compute_loss(
@@ -293,11 +305,19 @@ class STOG(Model):
                 generator_output['predictions'],
                 generator_inputs['vocab_targets'],
                 generator_inputs['copy_targets'],
-                generator_output['source_dynamic_vocab_size'],
-                generator_inputs['coref_targets'],
-                generator_output['target_dynamic_vocab_size'],
                 decoder_outputs['coverage_records'],
                 decoder_outputs['copy_attentions']
+            )
+
+            coref_output = self.coref_scorer(
+                decoder_outputs['rnn_memory_bank']
+            )
+
+            coref_loss_output = self.coref_scorer.compute_loss(
+                coref_output['probs'],
+                coref_output['predictions'],
+                coref_inputs['targets'],
+                coref_inputs['mask']
             )
 
             graph_decoder_outputs = self.graph_decode(
@@ -309,7 +329,7 @@ class STOG(Model):
             )
 
             return dict(
-                loss=generator_loss_output['loss'] + graph_decoder_outputs['loss'],
+                loss=generator_loss_output['loss'] + coref_loss_output['loss'] + graph_decoder_outputs['loss'],
             )
 
         else:
@@ -692,38 +712,16 @@ class STOG(Model):
             attention=source_attention
         )
 
-        # Coref attention
-        if params['coref_attention']['attention_function'] == 'mlp':
-            coref_attention = MLPAttention(
-                decoder_hidden_size=params['decoder']['hidden_size'],
-                encoder_hidden_size=params['decoder']['hidden_size'],
-                attention_hidden_size=params['decoder']['hidden_size'],
-                coverage=params['coref_attention'].get('coverage', False)
-            )
-        else:
-            coref_attention = DotProductAttention(
-                decoder_hidden_size=params['decoder']['hidden_size'],
-                encoder_hidden_size=params['decoder']['hidden_size'],
-                share_linear=params['pointer_attention'].get('share_linear', True)
-            )
-
-        coref_attention_layer = GlobalAttention(
-            decoder_hidden_size=params['decoder']['hidden_size'],
-            encoder_hidden_size=params['decoder']['hidden_size'],
-            attention=coref_attention
-        )
-
         decoder = InputFeedRNNDecoder(
             rnn_cell=StackedLstm.from_params(params['decoder']),
             attention_layer=source_attention_layer,
-            coref_attention_layer=coref_attention_layer,
             # TODO: modify the dropout so that the dropout mask is unchanged across the steps.
             dropout=InputVariationalDropout(p=params['decoder']['dropout']),
             use_coverage=params['use_coverage']
         )
 
         switch_input_size = params['encoder']['hidden_size'] * 2
-        generator = PointerGenerator(
+        generator = SimplePointerGenerator(
             input_size=params['decoder']['hidden_size'],
             switch_input_size=switch_input_size,
             vocab_size=vocab.get_vocab_size('decoder_token_ids'),
@@ -731,6 +729,15 @@ class STOG(Model):
             # TODO: Set the following indices.
             vocab_pad_idx=0
         )
+
+        # Coref attention
+        coref_attention = MLPAttention(
+            decoder_hidden_size=params['decoder']['hidden_size'],
+            encoder_hidden_size=params['decoder']['hidden_size'],
+            attention_hidden_size=params['decoder']['hidden_size'],
+        )
+        coref_sentinel = torch.nn.Parameter(torch.randn([1, 1, params['decoder']['hidden_size']]))
+        coref_scorer = CorefScorer(coref_sentinel, coref_attention)
 
         graph_decoder = DeepBiaffineGraphDecoder.from_params(vocab, params['graph_decoder'])
 
@@ -757,6 +764,7 @@ class STOG(Model):
             decoder_embedding_dropout=decoder_embedding_dropout,
             decoder=decoder,
             generator=generator,
+            coref_scorer=coref_scorer,
             graph_decoder=graph_decoder,
             test_config=params.get('mimick_test', None)
         )

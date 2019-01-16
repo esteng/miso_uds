@@ -17,11 +17,16 @@ class RNNDecoderBase(torch.nn.Module):
 
 class InputFeedRNNDecoder(RNNDecoderBase):
 
-    def __init__(self, rnn_cell, attention_layer, coref_attention_layer, dropout,
+    def __init__(self,
+                 rnn_cell,
+                 dropout,
+                 attention_layer,
+                 copy_attention_layer=None,
+                 coref_attention_layer=None,
                  use_coverage=False):
         super(InputFeedRNNDecoder, self).__init__(rnn_cell, dropout)
         self.attention_layer = attention_layer
-        self.copy_attention_layer = None  # copy.deepcopy(attention_layer)
+        self.copy_attention_layer = copy_attention_layer
         self.coref_attention_layer = coref_attention_layer
         self.use_coverage = use_coverage
 
@@ -111,12 +116,11 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
         output_sequences = torch.cat(output_sequences, 1)
         rnn_output_sequences = torch.cat(rnn_output_sequences, 1)
+        std_attentions = torch.cat(std_attentions, 1)
+        copy_attentions = torch.cat(copy_attentions, 1)
+        coref_attentions = torch.cat(coref_attentions, 1) if len(coref_attentions) else None
         coref_inputs = torch.cat(coref_inputs, 1)
         coverage_records = torch.cat(coverage_records, 1) if self.use_coverage else None
-        if len(copy_attentions):
-            copy_attentions = torch.cat(copy_attentions, 1)
-        if len(coref_attentions):
-            coref_attentions = torch.cat(coref_attentions, 1)
         return dict(
             output_sequences=output_sequences,
             rnn_output_sequences=rnn_output_sequences,

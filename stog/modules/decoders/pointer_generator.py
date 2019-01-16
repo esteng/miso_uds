@@ -10,7 +10,7 @@ class PointerGenerator(torch.nn.Module):
         self.linear = torch.nn.Linear(input_size, vocab_size)
         self.softmax = torch.nn.Softmax(dim=-1)
 
-        self.linear_pointer = torch.nn.Linear(switch_input_size , 3)
+        self.linear_pointer = torch.nn.Linear(switch_input_size, 3)
         self.sigmoid = torch.nn.Sigmoid()
 
         self.metrics = Seq2SeqMetrics()
@@ -185,6 +185,142 @@ class PointerGenerator(torch.nn.Module):
                      num_source_copy, num_correct_source_copy, num_correct_source_point,
                      num_target_copy, num_correct_target_copy, num_correct_target_point
                      )
+
+        return dict(
+            loss=loss.sum().div(float(num_tokens)),
+            predictions=predictions
+        )
+
+
+class SimplePointerGenerator(torch.nn.Module):
+
+    def __init__(self, input_size, switch_input_size, vocab_size, vocab_pad_idx, force_copy):
+        super(SimplePointerGenerator, self).__init__()
+        self.linear = torch.nn.Linear(input_size, vocab_size)
+        self.softmax = torch.nn.Softmax(dim=-1)
+
+        self.linear_pointer = torch.nn.Linear(switch_input_size, 1)
+        self.sigmoid = torch.nn.Sigmoid()
+
+        self.metrics = Seq2SeqMetrics()
+
+        self.vocab_size = vocab_size
+        self.vocab_pad_idx = vocab_pad_idx
+
+        self.force_copy = force_copy
+
+        self.eps = 1e-20
+
+    def forward(self, hiddens, source_attentions, source_attention_maps):
+        """
+        Compute a distribution over the target dictionary
+        extended by the dynamic dictionary implied by copying target nodes.
+
+        :param hiddens: decoder outputs, [batch_size, num_target_nodes, hidden_size]
+        :param source_attentions: attention of each source node,
+            [batch_size, num_target_nodes, num_source_nodes]
+        :param source_attention_maps: a sparse indicator matrix
+            mapping each source node to its index in the dynamic vocabulary.
+            [batch_size, num_source_nodes, dynamic_vocab_size]
+        """
+        batch_size, num_target_nodes, _ = hiddens.size()
+
+        # Pointer probability.
+        p_copy = self.sigmoid(self.linear_pointer(hiddens))
+        p_generate = 1 - p_copy
+
+        # Probability distribution over the vocabulary.
+        # [batch_size, num_target_nodes, vocab_size]
+        scores = self.linear(hiddens)
+        scores[:, :, self.vocab_pad_idx] = -float('inf')
+        # [batch_size, num_target_nodes, vocab_size]
+        vocab_probs = self.softmax(scores)
+        scaled_vocab_probs = torch.mul(vocab_probs, p_generate.expand_as(vocab_probs))
+
+        # [batch_size, num_target_nodes, num_source_nodes]
+        scaled_source_attentions = torch.mul(source_attentions, p_copy.expand_as(source_attentions))
+        # [batch_size, num_target_nodes, dynamic_vocab_size]
+        scaled_copy_source_probs = torch.bmm(scaled_source_attentions, source_attention_maps.float())
+
+        # [batch_size, num_target_nodes, vocab_size + dynamic_vocab_size]
+        probs = torch.cat([
+            scaled_vocab_probs.contiguous(),
+            scaled_copy_source_probs.contiguous(),
+        ], dim=2)
+
+        _, predictions = probs.max(2)
+
+        return dict(
+            probs=probs,
+            predictions=predictions,
+        )
+
+    def compute_loss(self, probs, predictions, generate_targets, source_copy_targets, coverage_records, copy_attentions):
+        """
+        Priority: source_copy > generate
+
+        :param probs: probability distribution,
+            [batch_size, num_target_nodes, vocab_size + dynamic_vocab_size]
+        :param predictions: [batch_size, num_target_nodes]
+        :param generate_targets: target node index in the vocabulary,
+            [batch_size, num_target_nodes]
+        :param source_copy_targets:  target node index in the dynamic vocabulary,
+            [batch_size, num_target_nodes]
+        :param coverage_records: None or a tensor recording source-side coverages.
+            [batch_size, num_target_nodes, num_source_nodes]
+        :param copy_attentions: [batch_size, num_target_nodes, num_source_nodes]
+        """
+
+        non_pad_mask = generate_targets.ne(self.vocab_pad_idx)
+        source_copy_mask = source_copy_targets.ne(1) & source_copy_targets.ne(0)  # 1 is the index for unknown
+        non_source_copy_mask = 1 - source_copy_mask
+
+        # [batch_size, num_target_nodes, 1]
+        source_copy_targets_with_offset = source_copy_targets.unsqueeze(2) + self.vocab_size
+        # [batch_size, num_target_nodes]
+        source_copy_target_probs = probs.gather(dim=2, index=source_copy_targets_with_offset).squeeze(2)
+        source_copy_target_probs = source_copy_target_probs.mul(source_copy_mask.float())
+
+        # [batch_size, num_target_nodes]
+        generate_target_probs = probs.gather(dim=2, index=generate_targets.unsqueeze(2)).squeeze(2)
+
+        # Except copy-oov nodes, all other nodes should be copied.
+        likelihood = source_copy_target_probs + generate_target_probs.mul(non_source_copy_mask.float())
+        num_tokens = non_pad_mask.sum().item()
+
+        if not self.force_copy:
+            non_generate_oov_mask = generate_targets.ne(1)
+            additional_generate_mask = (source_copy_mask & non_generate_oov_mask)
+            likelihood = likelihood + generate_target_probs.mul(additional_generate_mask.float())
+            num_tokens += additional_generate_mask.sum().item()
+
+        # Add eps for numerical stability.
+        likelihood = likelihood + self.eps
+
+        coverage_loss = 0
+        if coverage_records is not None:
+            coverage_loss = torch.sum(
+                torch.min(coverage_records, copy_attentions), 2).mul(non_pad_mask.float())
+
+        # Drop pads.
+        loss = -likelihood.log().mul(non_pad_mask.float()) + coverage_loss
+
+        # Mask out copy targets for which copy does not happen.
+        targets = source_copy_targets_with_offset.squeeze(2) * source_copy_mask.long() + \
+                  generate_targets * non_source_copy_mask.long()
+        targets = targets * non_pad_mask.long()
+
+        pred_eq = predictions.eq(targets).mul(non_pad_mask)
+
+        num_non_pad = non_pad_mask.sum().item()
+        num_correct_pred = pred_eq.sum().item()
+
+        num_source_copy = source_copy_mask.mul(non_pad_mask).sum().item()
+        num_correct_source_copy = pred_eq.mul(source_copy_mask).sum().item()
+        num_correct_source_point = predictions.ge(self.vocab_size).mul(source_copy_mask & non_pad_mask).sum().item()
+
+        self.metrics(loss.sum().item(), num_non_pad, num_correct_pred,
+                     num_source_copy, num_correct_source_copy, num_correct_source_point)
 
         return dict(
             loss=loss.sum().div(float(num_tokens)),
