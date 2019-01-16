@@ -93,18 +93,16 @@ class AidaEreDatasetReader(DatasetReader):
 
         packet.update({"metadata": MetadataField({"text": segment_text,  # untokenized; not used but passed through just in case it's needed downstream
                                                   "provenance": provenance,
-                                                  "segment_id": segment_id
-                                                  })
-                      })
+                                                  "segment_id": segment_id})})
 
-        # TODO(sethebner): get entity spans, relation/event triggers from annotation files
-        rel_triggers = [0]*len(segment_tokens)
-        evt_triggers = [0]*len(segment_tokens)
+        # TODO(sethebner): get entity spans, relation/event spans from annotation files
+        rel_spans = [[0,0]]
+        evt_spans = [[0,0]]
         ent_spans = [[0,0]]
 
         packet.update({"entity_spans": ListField([SpanField(i,j,packet["input_tokens"]) for (i,j) in ent_spans]),
-                       "relation_triggers": SequenceLabelField(rel_triggers, packet["input_tokens"]),
-                       "event_triggers": SequenceLabelField(evt_triggers, packet["input_tokens"])})
+                       "relation_spans": ListField([SpanField(i,j,packet["input_tokens"]) for (i,j) in rel_spans]),
+                       "event_spans": ListField([SpanField(i,j,packet["input_tokens"]) for (i,j) in evt_spans])})
 
         # TODO(sethebner): typing information?
 
