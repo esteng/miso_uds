@@ -1,7 +1,6 @@
-# Instructions
+# Stog overview
 
-This contains detailed list of instructions on how to add a new model,
-task, or dataset reader to Stog
+This document gives an overview of Stog as a deep learning framework.
 
 ### Stog components
 Here we describe the three main components/archictecture of the Stog framework:
@@ -27,7 +26,7 @@ etc.
   - [`dataset_builder.py`](https://gitlab.hltcoe.jhu.edu/szhang/stog/blob/master/stog/data/dataset_builder.py) - group of methods for IO of data
     - *after creating your own DatasetReader and DataWriter* 
 
-### Running experiments
+### Running experiments/Configuration Files
 
 Experiments in stog require a configuration file where parameters are specified.
 Stog currently supports configuration files written in JSON or YAML.

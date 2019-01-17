@@ -1,5 +1,10 @@
 #AMR Parsing Project
 
+## Baselines
+
+- RNN Seq2Seq Model (see [this](https://gitlab.hltcoe.jhu.edu/research/mt-ie/tree/copy) for details)
+- (Optional) Transition-based Semantic Parser
+
 ## Stage-1 AMR Parsing Timeline
 
 - [x] Build a UD parser using the deep biaffine network.
