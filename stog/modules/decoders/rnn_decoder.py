@@ -62,8 +62,6 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
         if self.use_coverage and coverage is None:
             coverage = inputs.new_zeros(batch_size, 1, memory_bank.size(1))
-        else:
-            coverage = None
 
         for step_i, input in enumerate(inputs.split(1, dim=1)):
             # input: [batch_size, 1, embeddings_size]

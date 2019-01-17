@@ -43,15 +43,12 @@ class CorefScorer(torch.nn.Module):
         :param targets:  [batch_size, num_tokens]
         :param mask: [batch, num_tokens]
         """
-        coref_mask = targets.ne(0)
-        mask = mask & coref_mask
-
         likelihood = probs.gather(dim=2, index=targets.unsqueeze(2)).squeeze(2)
         likelihood = likelihood + self.eps
         loss = -likelihood.log().mul(mask.float())
         num_tokens = mask.sum().item()
 
-        pred_eq = predictions.eq(targets).mul(mask)
+        pred_eq = predictions.eq(targets).mul(mask.byte())
         num_correct_pred = pred_eq.sum().item()
 
         self.metrics(loss.sum().item(), num_tokens, num_correct_pred)

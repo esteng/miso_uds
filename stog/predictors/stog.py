@@ -71,6 +71,7 @@ class STOGPredictor(Predictor):
                 copy_indicators=copy_indicators,
                 gold_amr=gold_amr
             ))
+
         return outputs
 
     @overrides

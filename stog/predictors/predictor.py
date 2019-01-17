@@ -11,7 +11,8 @@ from stog.data.dataset_builder import load_dataset_reader
 DEFAULT_PREDICTORS = {
     'Seq2Seq': 'Seq2Seq',
     'DeepBiaffineParser': 'BiaffineParser',
-    'STOG': 'STOG'
+    'STOG': 'STOG',
+    'STOGv2': 'STOG'
 }
 
 
