@@ -74,6 +74,12 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             label_namespace="coref_tags",
         )
 
+        fields["tgt_copy_mask"] = SequenceLabelField(
+            labels=list_data["tgt_copy_mask"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="coref_mask_tags",
+        )
+
         fields["tgt_copy_map"] = AdjacencyField(
             indices=list_data["tgt_copy_map"],
             sequence_field=fields["tgt_tokens"],
@@ -97,7 +103,6 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             ),
             padding_value=0
         )
-
 
         # These two fields are used in biaffine parser
         fields["head_tags"] = SequenceLabelField(

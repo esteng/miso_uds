@@ -1,6 +1,6 @@
 import re
 import json
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 import penman
 import networkx as nx
@@ -457,6 +457,12 @@ class AMRGraph(penman.Graph):
             if i == copy_index:
                 tgt_copy_indices[i] = 0
 
+        tgt_token_counter = Counter(tgt_tokens)
+        tgt_copy_mask = [0] * len(tgt_tokens)
+        for i, token in enumerate(tgt_tokens):
+            if tgt_token_counter[token] > 1:
+                tgt_copy_mask[i] = 1
+
         # Source Copy
         src_tokens = self.get_src_tokens()
         src_copy_vocab = SourceCopyVocabulary(src_tokens)
@@ -467,6 +473,7 @@ class AMRGraph(penman.Graph):
             "tgt_tokens" : tgt_tokens,
             "tgt_copy_indices" : tgt_copy_indices,
             "tgt_copy_map" : tgt_copy_map,
+            "tgt_copy_mask" : tgt_copy_mask,
             "src_tokens" : src_tokens,
             "src_copy_vocab" : src_copy_vocab,
             "src_copy_indices" : src_copy_indices,
