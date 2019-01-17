@@ -40,12 +40,6 @@ model:
     dropout: 0
     pretrained_file:
 
-  decoder_coref_embedding:
-    num_embeddings: 1000
-    embedding_dim: 50
-    padding_index: 0
-    dropout: 0
-
   decoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'decoder_token_characters'
@@ -53,6 +47,12 @@ model:
     padding_index: 0
     dropout: 0
     pretrained_file:
+
+  decoder_coref_embedding:
+    num_embeddings: 500
+    embedding_dim: 50
+    padding_index: 0
+    dropout: 0
 
   decoder_char_cnn:
     embedding_dim: *decoder_char_embedding_dim
@@ -76,9 +76,10 @@ model:
   source_attention:
     attention_function: dot
     share_linear: False
+    coverage: False
 
-  pointer_attention:
-    attention_function: mlp
+  coref_attention:
+    attention_function: dot
     share_linear: True
 
   generator:
@@ -120,11 +121,11 @@ data:
 
 # Training parameters
 environment:
-  recover: True
+  recover: False
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir simple-ckpt
+  serialization_dir: &serialization_dir debug-ckpt-1
   file_friendly_logging: False
   gpu: True
   cuda_device: 0
