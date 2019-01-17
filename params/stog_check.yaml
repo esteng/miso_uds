@@ -19,6 +19,13 @@ model:
     dropout: 0
     pretrained_file:
 
+  encoder_pos_embedding:
+    num_embeddings:
+    vocab_namespace: 'pos_tags'
+    embedding_dim: 50
+    padding_index: 0
+    dropout: 0
+
   encoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'encoder_token_characters'
@@ -40,6 +47,13 @@ model:
     dropout: 0
     pretrained_file:
 
+  decoder_pos_embedding:
+    num_embeddings:
+    vocab_namespace: 'pos_tags'
+    embedding_dim: 50
+    padding_index: 0
+    dropout: 0
+
   decoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'decoder_token_characters'
@@ -60,14 +74,14 @@ model:
     ngram_filter_sizes: [3]
 
   encoder:
-    input_size: 350
+    input_size: 400
     hidden_size: 256
     num_layers: 2
     use_highway: False
     dropout: 0
 
   decoder:
-    input_size: 912
+    input_size: 962
     hidden_size: &deocder_hidden_size 512
     num_layers: 2
     use_highway: False
@@ -125,7 +139,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir debug-ckpt-1
+  serialization_dir: &serialization_dir debug-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0

@@ -19,6 +19,13 @@ model:
     dropout: 0.33
     pretrained_file: *glove
 
+  encoder_pos_embedding:
+    num_embeddings:
+    vocab_namespace: 'pos_tags'
+    embedding_dim: 100
+    padding_index: 0
+    dropout: 0
+
   encoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'encoder_token_characters'
@@ -40,6 +47,13 @@ model:
     dropout: 0.33
     pretrained_file: *glove
 
+  decoder_pos_embedding:
+    num_embeddings:
+    vocab_namespace: 'pos_tags'
+    embedding_dim: 100
+    padding_index: 0
+    dropout: 0
+
   decoder_coref_embedding:
     num_embeddings: 500
     embedding_dim: 50
@@ -60,14 +74,14 @@ model:
     ngram_filter_sizes: [3]
 
   encoder:
-    input_size: 400
+    input_size: 500
     hidden_size: 512
     num_layers: 2
     use_highway: False
     dropout: 0.33
 
   decoder:
-    input_size: 1474
+    input_size: 1574
     hidden_size: &deocder_hidden_size 1024
     num_layers: 2
     use_highway: False

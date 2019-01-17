@@ -6,6 +6,7 @@ import penman
 import networkx as nx
 from penman import Triple
 
+from stog.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 from stog.data.dataset_readers.amr_parsing.graph_repair import GraphRepair
 from stog.utils import logging
 
@@ -401,7 +402,7 @@ class AMRGraph(penman.Graph):
 
         return node_list
 
-    def get_list_data(self, bos=None, eos=None):
+    def get_list_data(self, amr, bos=None, eos=None):
         node_list = self.get_list_node()
 
         tgt_tokens = []
@@ -469,15 +470,39 @@ class AMRGraph(penman.Graph):
         src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
         src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
 
+        # Add Source and Target POS tag features
+        assert len(amr.pos_tags) == len(src_tokens)
+        src_pos_tags = amr.pos_tags
+
+        pos_tag_counter = defaultdict(lambda: defaultdict(int))
+        for token, pos_tag in zip(src_tokens, src_pos_tags):
+            pos_tag_counter[token][pos_tag] += 1
+        pos_tag_lut = {DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN}
+        for token in set(src_tokens):
+            tag = max(pos_tag_counter[token].keys(), key=lambda x: pos_tag_counter[token][x])
+            pos_tag_lut[token] = tag
+
+        tgt_pos_tags = []
+        for token in tgt_tokens:
+            if token in src_tokens:
+                index = src_tokens.index(token)
+                pos_tag = src_pos_tags[index]
+            else:
+                pos_tag = DEFAULT_OOV_TOKEN
+            tgt_pos_tags.append(pos_tag)
+
         return {
             "tgt_tokens" : tgt_tokens,
+            "tgt_pos_tags": tgt_pos_tags,
             "tgt_copy_indices" : tgt_copy_indices,
             "tgt_copy_map" : tgt_copy_map,
             "tgt_copy_mask" : tgt_copy_mask,
             "src_tokens" : src_tokens,
+            "src_pos_tags": src_pos_tags,
             "src_copy_vocab" : src_copy_vocab,
             "src_copy_indices" : src_copy_indices,
             "src_copy_map" : src_copy_map,
+            "pos_tag_lut": pos_tag_lut,
             "head_tags" : head_tags,
             "head_indices" : head_indices,
         }
@@ -589,7 +614,7 @@ class AMRGraph(penman.Graph):
 
 
 class SourceCopyVocabulary:
-    def __init__(self, sentence, pad_token="@@PAD@@", unk_token="@@UNKNOWN@@"):
+    def __init__(self, sentence, pad_token=DEFAULT_PADDING_TOKEN, unk_token=DEFAULT_OOV_TOKEN):
         if type(sentence) is not list:
             sentence = sentence.split(" ")
 

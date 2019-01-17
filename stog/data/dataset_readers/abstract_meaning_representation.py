@@ -55,7 +55,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         fields: Dict[str, Field] = {}
 
-        list_data = amr.graph.get_list_data(START_SYMBOL, END_SYMBOL)
+        list_data = amr.graph.get_list_data(amr, START_SYMBOL, END_SYMBOL)
 
         # These four fields are used for seq2seq model and target side self copy
         fields["src_tokens"] = TextField(
@@ -66,6 +66,18 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         fields["tgt_tokens"] = TextField(
             tokens=[Token(x) for x in list_data["tgt_tokens"]],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
+        )
+
+        fields["src_pos_tags"] = SequenceLabelField(
+            labels=list_data["src_pos_tags"],
+            sequence_field=fields["src_tokens"],
+            label_namespace="pos_tags"
+        )
+
+        fields["tgt_pos_tags"] = SequenceLabelField(
+            labels=list_data["tgt_pos_tags"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="pos_tags"
         )
 
         fields["tgt_copy_indices"] = SequenceLabelField(
@@ -130,6 +142,10 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         fields["src_copy_vocab"] = MetadataField(
             list_data["src_copy_vocab"]
+        )
+
+        fields["pos_tag_lut"] = MetadataField(
+            list_data["pos_tag_lut"]
         )
 
         fields["amr"] = MetadataField(
