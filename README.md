@@ -7,7 +7,7 @@ components for deep learning models.
 For a detailed overview of Stog as a deep learning framework,
 see [OVERVIEW.md](https://gitlab.hltcoe.jhu.edu/szhang/stog/tree/master/docs/OVERVIEW.md).
 For a tutorial on how to add a new model, task and dataset in Stog, see
-[TUTORIAL.md]((https://gitlab.hltcoe.jhu.edu/szhang/stog/tree/master/docs/TUTORIAL.md).
+[TUTORIAL.md](https://gitlab.hltcoe.jhu.edu/szhang/stog/tree/master/docs/TUTORIAL.md).
 
 ## Installation
 Via conda
