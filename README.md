@@ -1,12 +1,13 @@
 # Stog: the String-to-Graph project
 
 This project is based on python 3.6 and the newest version of PyTorch.
+Stog is a deep learning framework used in Blab that contains re-usable 
+components for deep learning models.
 
-## Baselines
-
-- RNN Seq2Seq Model (see [this](https://gitlab.hltcoe.jhu.edu/research/mt-ie/tree/copy) for details) 
-- (Optional) Transition-based Semantic Parser
- 
+For a detailed overview of Stog as a deep learning framework,
+see [OVERVIEW.md](https://gitlab.hltcoe.jhu.edu/szhang/stog/tree/master/docs/OVERVIEW.md).
+For a tutorial on how to add a new model, task and dataset in Stog, see
+[TUTORIAL.md]((https://gitlab.hltcoe.jhu.edu/szhang/stog/tree/master/docs/TUTORIAL.md).
 
 ## Installation
 Via conda
@@ -14,10 +15,6 @@ Via conda
 - `conda env create -f stog.env -n stog_env`
 - `pip install -e . -r requirements.txt`
 
-## Instructions
-
-For a detailed list of Instructions on how to add a model
-for a new task and dataset, see [Instructions.md](https://gitlab.hltcoe.jhu.edu/szhang/stog/tree/master/docs/INSTRUCTIONS.md)
 
 ## Running a Simple Language Model Example
 
