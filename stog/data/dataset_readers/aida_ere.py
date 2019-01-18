@@ -143,6 +143,11 @@ class AidaEreDatasetReader(DatasetReader):
         # Get annotation information.
         mentions = self._segment2mentions(segment, provenance)
 
+        # Sort mentions by start of span
+        mentions["ent"].sort(key=lambda x: x.start_token)
+        mentions["rel"].sort(key=lambda x: x.start_token)
+        mentions["evt"].sort(key=lambda x: x.start_token)
+
         ent_spans = [(mention.start_token, mention.end_token) for mention in mentions["ent"]]
         rel_spans = [(mention.start_token, mention.end_token) for mention in mentions["rel"]]
         evt_spans = [(mention.start_token, mention.end_token) for mention in mentions["evt"]]
