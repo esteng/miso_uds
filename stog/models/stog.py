@@ -471,7 +471,7 @@ class STOG(Model):
         for step_i in range(self.max_decode_length):
             # 1. Get the decoder inputs.
             token_embeddings = self.decoder_token_embedding(tokens)
-            pos_tag_embeddings = self.decoder_coref_embedding(pos_tags)
+            pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
             coref_embeddings = self.decoder_coref_embedding(corefs)
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
