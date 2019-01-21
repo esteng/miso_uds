@@ -92,7 +92,7 @@ model:
     coverage: True
 
   coref_attention:
-    attention_function: dot
+    attention_function: mlp
     share_linear: True
 
   generator:
@@ -111,7 +111,7 @@ model:
 
   mimick_test:
     data: data/all_amr/dev_amr.txt.features.preproc
-    prediction: prediction-in-train.txt
+    prediction: dev.pred.txt
     batch_size: 32
     eval_script: scripts/eval_test.sh
     smatch_dir: tools/amr-evaluation-tool-enhanced
@@ -135,7 +135,7 @@ data:
   test_data: test_amr.txt.features.preproc
   data_type: AMR
   batch_first: True
-  train_batch_size: &train_batch_size 64
+  train_batch_size: &train_batch_size 32
   test_batch_size: 32
   iter_type: BucketIterator
   pretrain_token_emb: *glove
@@ -162,7 +162,7 @@ trainer:
   max_grad_norm: 5.0
   batch_size: *train_batch_size
   shuffle: True
-  epochs: 100
+  epochs: 80
   dev_metric: +F1
   serialization_dir: *serialization_dir
   model_save_interval:
