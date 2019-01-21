@@ -142,8 +142,9 @@ class STOG(Model):
         try:
             logger.info('Mimicking test...')
             manager.run()
-        except:
+        except Exception as e:
             logger.info('Exception threw out when running the manager.')
+            logger.error(e, exc_info=True)
             return {}
         try:
             logger.info('Computing the Smatch score...')
@@ -155,8 +156,9 @@ class STOG(Model):
             ]).decode().split()
             result = list(map(float, result))
             return dict(PREC=result[0]*100, REC=result[1]*100, F1=result[2]*100)
-        except:
+        except Exception as e:
             logger.info('Exception threw out when computing smatch.')
+            logger.error(e, exc_info=True)
             return {}
 
     def print_batch_details(self, batch, batch_idx):
