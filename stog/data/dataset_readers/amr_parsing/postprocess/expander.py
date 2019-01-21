@@ -4,6 +4,8 @@ import json
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
 from stog.data.dataset_readers.amr_parsing.amr import AMRNode
+from stog.data.dataset_readers.amr_parsing.amr_concepts import Polarity, Polite
+
 from stog.utils import logging
 
 
@@ -63,6 +65,7 @@ class Expander:
         self.print_stats()
 
     def expand_graph(self, amr):
+        self.restore_polarity(amr)
         graph = amr.graph
         abstract_map = amr.abstract_map
         for abstract, saved_dict in abstract_map.items():
@@ -86,6 +89,14 @@ class Expander:
                     if abstract_type == 'ordinal-entity':
                         self.expand_ordinal_node(node, saved_dict, amr)
                         self.ordinal_node_expand_count += 1
+
+    def restore_polarity(self, amr):
+        polarity = Polarity(amr)
+        polarity.predict_polarity()
+        polarity.restore_polarity()
+        polite = Polite(amr)
+        polite.predict_polite()
+        polite.restore_polite()
 
     def get_ops(self, saved_dict):
         span = saved_dict['span']

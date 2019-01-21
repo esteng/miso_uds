@@ -9,15 +9,24 @@ def main(file_path):
     for amr in AMRIO.read(file_path):
         graph = amr.graph
         for node in graph.get_nodes():
-            if node.instance == 'ordinal-entity':
-                # for source, target in list(graph._G.in_edges(node)):
-                #     attributes.append('-> label: ' + graph._G[source][target]['label'])
-                # for source, target in list(graph._G.edges(node)):
-                #     if graph._G[source][target]['label'] == 'value':
-                #         import pdb; pdb.set_trace()
-                for attr, value in node.attributes:
-                    attributes.append(value)
-            continue
+            # if 'polarity' in node.instance:
+            #     attributes.append(node.instance)
+            # for source, target in graph._G.edges(node):
+            #     label = graph._G[source][target]['label']
+            #     if 'polarity' in label:
+            #         attributes.append(label)
+            # for attr, value in node.attributes:
+            #     if 'polarity' in attr:
+            #         attributes.append(value)
+
+            if re.search(r'(^".*"$|^[^a-zA-Z0-9]+$)', node.instance):
+                attributes.append(node.instance)
+            for attr, value in node.attributes:
+                if not isinstance(value, str):
+                    continue
+                if re.search(r'^[^a-zA-Z0-9]+$', value):
+                    import pdb; pdb.set_trace()
+                    attributes.append((attr, value))
     counter = Counter(attributes)
     print('\n'.join('{}\t{}'.format(k, v) for k, v in counter.most_common(100)))
 

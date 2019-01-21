@@ -181,6 +181,18 @@ def correct_errors(amr):
                 pos = ['CD', 'JJS']
                 ner = ['ORDINAL', 'O']
                 break
+            if amr.id.startswith('DF-200-192400-625_7557.16') and token == 'what':
+                index = i
+                tokens = ['want']
+                pos = ['VBP']
+                ner = ['O']
+                break
+            if amr.id.startswith('DF-200-192392-456_1160.5') and token == 'couting':
+                index = i
+                tokens = ['count']
+                pos = ['VBG']
+                ner = ['O']
+                break
             if amr.id.startswith('bolt-eng-DF-170-181103-8882248_0182.50') and token == '31:10-31':
                 index = i
                 tokens = ['31', ':', '10', '-', '31']

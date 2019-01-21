@@ -367,6 +367,16 @@ class AMRGraph(penman.Graph):
         if len(list(self._G.in_edges(root))) == 0:
             self.remove_node(root)
 
+    def get_subtree(self, root, max_depth):
+        if max_depth == 0:
+            return []
+        nodes = [root]
+        children = [child for _, child in self._G.edges(root)]
+        nodes += children
+        for child in children:
+            nodes = nodes + self.get_subtree(child, max_depth - 1)
+        return nodes
+
     def get_nodes(self):
         return self._G.nodes
 
@@ -604,6 +614,9 @@ class AMRGraph(penman.Graph):
                 node = '"{}"'.format(node)
             triples.append((var, 'instance', node))
 
+        if len(triples) == 0:
+            triples.append(('s', 'instance', 'string-entity'))
+            top = 's'
         triples.sort()
         graph = penman.Graph()
         graph._top = top

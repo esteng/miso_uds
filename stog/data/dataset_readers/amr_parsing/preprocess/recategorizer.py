@@ -8,7 +8,7 @@ from nltk.tokenize import word_tokenize
 from word2number import w2n
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
-from stog.data.dataset_readers.amr_parsing.amr_concepts import Entity, Date, Score, Ordinal
+from stog.data.dataset_readers.amr_parsing.amr_concepts import Entity, Date, Score, Ordinal, Polarity, Polite
 from stog.utils import logging
 
 
@@ -180,6 +180,7 @@ class Recategorizer:
         if self.build_utils:
             return
         self.remove_wiki(amr)
+        self.remove_negation(amr)
         self.recategorize_date_nodes(amr)
         self.recategorize_score_nodes(amr)
         self.recategorize_ordinal_nodes(amr)
@@ -215,6 +216,12 @@ class Recategorizer:
                 if attr == 'wiki':
                     self.removed_wiki_count += 1
                     graph.remove_node_attribute(node, attr, value)
+
+    def remove_negation(self, amr):
+        polarity = Polarity(amr)
+        polarity.remove_polarity()
+        polite = Polite(amr)
+        polite.remove_polite()
 
     def recategorize_name_nodes(self, amr):
         graph = amr.graph
