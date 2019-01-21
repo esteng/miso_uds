@@ -610,8 +610,16 @@ class AMRGraph(penman.Graph):
                 triples.append((head_variable, label, modifier))
 
         for var, node in variable_map.items():
-            if '/' in node and not re.search(r'^".*"$', node):
-                node = '"{}"'.format(node)
+            if re.search(r'^".*"$', node):
+                node = node[1:-1]
+            if '/' in node:
+                parts = node.split('/')
+                for part in parts[::-1]:
+                    if len(part):
+                        node = part
+                        break
+                else:
+                    node = node.replace('/', '_')
             triples.append((var, 'instance', node))
 
         if len(triples) == 0:
