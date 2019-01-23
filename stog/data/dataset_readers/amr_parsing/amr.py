@@ -306,6 +306,15 @@ class AMRGraph(penman.Graph):
         triples = [t for t in self._triples if not (t.source == x and t.target == y)]
         self._update_penman_graph(triples)
 
+    def update_edge_label(self, x, y, old, new):
+        self._G[x][y]['label'] = new
+        triples = []
+        for t in self._triples:
+            if t.source == x.identifier and t.target == y.identifier and t.relation == old:
+                t = Triple(x.identifier, new, y.identifier)
+            triples.append(t)
+        self._update_penman_graph(triples)
+
     def add_node(self, instance):
         identifier = instance[0]
         assert identifier.isalpha()
@@ -374,7 +383,8 @@ class AMRGraph(penman.Graph):
         children = [child for _, child in self._G.edges(root)]
         nodes += children
         for child in children:
-            nodes = nodes + self.get_subtree(child, max_depth - 1)
+            if len(list(self._G.in_edges(child))) == 1:
+                nodes = nodes + self.get_subtree(child, max_depth - 1)
         return nodes
 
     def get_nodes(self):
@@ -559,8 +569,8 @@ class AMRGraph(penman.Graph):
         def is_attribute_value(value):
             return re.search(r'(^".*"$|^[^a-zA-Z]+$)', value) is not None
 
-        def is_edge_label(label):
-            return label.startswith('ARG')
+        def is_attribute_edge(label):
+            return label in ('instance', 'mode', 'li', 'value', 'month', 'year', 'day', 'decade', 'ARG6')
 
         def normalize_number(text):
             if re.search(r'^\d+,\d+$', text):
@@ -579,7 +589,7 @@ class AMRGraph(penman.Graph):
         for coref_index in corefs:
             node = nodes[coref_index - 1]
             head_label = head_labels[coref_index - 1]
-            if '/' in node or (is_attribute_value(node) and not is_edge_label(head_label)):
+            if '/' in node or is_attribute_value(node) or is_attribute_edge(head_label):
                 continue
             variable_map['vv{}'.format(coref_index)] = node
         for head_index in heads:

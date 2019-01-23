@@ -333,7 +333,7 @@ class Polarity:
     def get_node_instances(self):
         instances = {}
         for node in self.amr.graph.get_nodes():
-            instance = re.sub(r'-\d\d$', '', node.instance)
+            instance = re.sub(r'-\d\d$', '', str(node.instance))
             if instance not in instances:
                 instances[instance] = []
             instances[instance].append(node)
@@ -369,7 +369,7 @@ class Polarity:
             aligned_indexes = alignment[node]
             valid_indexes = []
             for index in aligned_indexes:
-                if not all(index in indexes for indexes in alignment.values()):
+                if sum(1 for indexes in alignment.values() if index in indexes) == 1:
                     valid_indexes.append(index)
             if len(valid_indexes):
                 scores.append(min([abs(i - head) for i in valid_indexes]))

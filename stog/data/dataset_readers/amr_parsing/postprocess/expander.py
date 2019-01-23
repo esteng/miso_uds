@@ -68,19 +68,18 @@ class Expander:
         self.restore_polarity(amr)
         graph = amr.graph
         abstract_map = amr.abstract_map
+        nodes = list(graph.get_nodes())
         for abstract, saved_dict in abstract_map.items():
             abstract_type = saved_dict['type']
-            for node in graph.get_nodes():
+            for node in nodes:
                 if node.instance == abstract:
                     if abstract_type == 'named-entity':
                         self.expand_name_node(node, saved_dict, amr)
                         self.name_node_expand_count += 1
-                        break
 
                     if abstract_type == 'date-entity':
                         self.expand_date_node(node, saved_dict, amr)
                         self.date_node_expand_count += 1
-                        break
 
                     if abstract_type == 'score-entity':
                         self.expand_score_node(node, saved_dict, amr)
