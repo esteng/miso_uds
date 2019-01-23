@@ -511,6 +511,10 @@ class AMRGraph(penman.Graph):
                 pos_tag = DEFAULT_OOV_TOKEN
             tgt_pos_tags.append(pos_tag)
 
+        # Remove ord in 'op' and 'snt'
+        head_tags = [re.sub('\d+$', '', tag) if re.search(r'^(op|snt)\d+$', tag) else tag
+                     for tag in head_tags]
+
         return {
             "tgt_tokens" : tgt_tokens,
             "tgt_pos_tags": tgt_pos_tags,
