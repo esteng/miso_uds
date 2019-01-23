@@ -441,7 +441,7 @@ class AMRGraph(penman.Graph):
 
             node_to_idx[node].append(len(tgt_tokens))
 
-            instance = [attr[1] for attr in node.attributes if attr[0] =="instance"]
+            instance = [attr[1] for attr in node.attributes if attr[0] == "instance"]
             assert len(instance) == 1
             instance = instance[0]
 
@@ -490,43 +490,71 @@ class AMRGraph(penman.Graph):
         src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
         src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
 
+        def add_source_side_tags_to_target_side(src_tags):
+            assert len(src_tags) == len(src_tokens)
+            tag_counter = defaultdict(lambda: defaultdict(int))
+            for src_token, src_tag in zip(src_tokens, src_tags):
+                tag_counter[src_token][src_tag] += 1
+
+            tag_lut = {DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN,
+                       DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN}
+            for src_token in set(src_tokens):
+                tag = max(tag_counter[src_token].keys(), key=lambda x: tag_counter[src_token][x])
+                tag_lut[src_token] = tag
+
+            tgt_tags = []
+            for tgt_token in tgt_tokens:
+                if tgt_token in src_tokens:
+                    index = src_tokens.index(tgt_token)
+                    tag = src_tags[index]
+                else:
+                    tag = DEFAULT_OOV_TOKEN
+                tgt_tags.append(tag)
+
+            return tgt_tags, tag_lut
+
         # Add Source and Target POS tag features
-        assert len(amr.pos_tags) == len(src_tokens)
-        src_pos_tags = amr.pos_tags
+        # assert len(amr.pos_tags) == len(src_tokens)
+        # src_pos_tags = amr.pos_tags
 
-        pos_tag_counter = defaultdict(lambda: defaultdict(int))
-        for token, pos_tag in zip(src_tokens, src_pos_tags):
-            pos_tag_counter[token][pos_tag] += 1
-        pos_tag_lut = {DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN}
-        for token in set(src_tokens):
-            tag = max(pos_tag_counter[token].keys(), key=lambda x: pos_tag_counter[token][x])
-            pos_tag_lut[token] = tag
+        # pos_tag_counter = defaultdict(lambda: defaultdict(int))
+        # for token, pos_tag in zip(src_tokens, src_pos_tags):
+        #     pos_tag_counter[token][pos_tag] += 1
+        # pos_tag_lut = {DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN: DEFAULT# _OOV_TOKEN}
+        # for token in set(src_tokens):
+        #     tag = max(pos_tag_counter[token].keys(), key=lambda x: pos_tag_counter[token][x])
+        #     pos_tag_lut[token] = tag
 
-        tgt_pos_tags = []
-        for token in tgt_tokens:
-            if token in src_tokens:
-                index = src_tokens.index(token)
-                pos_tag = src_pos_tags[index]
-            else:
-                pos_tag = DEFAULT_OOV_TOKEN
-            tgt_pos_tags.append(pos_tag)
+        # tgt_pos_tags = []
+        # for token in tgt_tokens:
+        #     if token in src_tokens:
+        #         index = src_tokens.index(token)
+        #         pos_tag = src_pos_tags[index]
+        #     else:
+        #         pos_tag = DEFAULT_OOV_TOKEN
+        #     tgt_pos_tags.append(pos_tag)
+        tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(amr.pos_tags)
+        tgt_ner_tags, ner_tag_lut = add_source_side_tags_to_target_side(amr.ner_tags)
 
         # Remove ord in 'op' and 'snt'
-        head_tags = [re.sub('\d+$', '', tag) if re.search(r'^(op|snt)\d+$', tag) else tag
-                     for tag in head_tags]
+        # head_tags = [re.sub('\d+$', '', tag) if re.search(r'^(op|snt)\d+$', tag) else tag
+        #              for tag in head_tags]
 
         return {
             "tgt_tokens" : tgt_tokens,
             "tgt_pos_tags": tgt_pos_tags,
+            "tgt_ner_tags": tgt_ner_tags,
             "tgt_copy_indices" : tgt_copy_indices,
             "tgt_copy_map" : tgt_copy_map,
             "tgt_copy_mask" : tgt_copy_mask,
             "src_tokens" : src_tokens,
-            "src_pos_tags": src_pos_tags,
+            "src_pos_tags": amr.pos_tags,
+            "src_ner_tags": amr.ner_tags,
             "src_copy_vocab" : src_copy_vocab,
             "src_copy_indices" : src_copy_indices,
             "src_copy_map" : src_copy_map,
             "pos_tag_lut": pos_tag_lut,
+            "ner_tag_lut": ner_tag_lut,
             "head_tags" : head_tags,
             "head_indices" : head_indices,
         }
