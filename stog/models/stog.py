@@ -58,7 +58,6 @@ class STOG(Model):
                  # Encoder
                  encoder_token_embedding,
                  encoder_pos_embedding,
-                 encoder_ner_embedding,
                  encoder_char_embedding,
                  encoder_char_cnn,
                  encoder_embedding_dropout,
@@ -67,12 +66,14 @@ class STOG(Model):
                  # Decoder
                  decoder_token_embedding,
                  decoder_pos_embedding,
-                 decoder_ner_embedding,
                  decoder_coref_embedding,
                  decoder_char_embedding,
                  decoder_char_cnn,
                  decoder_embedding_dropout,
                  decoder,
+                 # Aux Encoder
+                 aux_encoder,
+                 aux_encoder_output_dropout,
                  # Generator
                  generator,
                  # Graph decoder
@@ -88,7 +89,6 @@ class STOG(Model):
 
         self.encoder_token_embedding = encoder_token_embedding
         self.encoder_pos_embedding = encoder_pos_embedding
-        self.encoder_ner_embedding = encoder_ner_embedding
         self.encoder_char_embedding = encoder_char_embedding
         self.encoder_char_cnn = encoder_char_cnn
         self.encoder_embedding_dropout = encoder_embedding_dropout
@@ -97,12 +97,14 @@ class STOG(Model):
 
         self.decoder_token_embedding = decoder_token_embedding
         self.decoder_pos_embedding = decoder_pos_embedding
-        self.decoder_ner_embedding = decoder_ner_embedding
         self.decoder_coref_embedding = decoder_coref_embedding
         self.decoder_char_embedding = decoder_char_embedding
         self.decoder_char_cnn = decoder_char_cnn
         self.decoder_embedding_dropout = decoder_embedding_dropout
         self.decoder = decoder
+
+        self.aux_encoder = aux_encoder
+        self.aux_encoder_output_dropout = aux_encoder_output_dropout
 
         self.generator = generator
 
@@ -285,7 +287,6 @@ class STOG(Model):
         encoder_outputs = self.encode(
             encoder_inputs['token'],
             encoder_inputs['pos_tag'],
-            encoder_inputs['ner_tag'],
             encoder_inputs['char'],
             encoder_inputs['mask']
         )
@@ -294,12 +295,12 @@ class STOG(Model):
             decoder_outputs = self.decode_for_training(
                 decoder_inputs['token'],
                 decoder_inputs['pos_tag'],
-                decoder_inputs['ner_tag'],
                 decoder_inputs['char'],
                 decoder_inputs['coref'],
                 encoder_outputs['memory_bank'],
                 encoder_inputs['mask'],
-                encoder_outputs['final_states']
+                encoder_outputs['final_states'],
+                parser_inputs['mask']
             )
 
             generator_output = self.generator(
@@ -328,6 +329,7 @@ class STOG(Model):
                 parser_inputs['edge_labels'],
                 parser_inputs['corefs'],
                 parser_inputs['mask'],
+                decoder_outputs['aux_encoder_outputs']
             )
 
             return dict(
@@ -344,18 +346,16 @@ class STOG(Model):
                 tag_luts=batch['tag_lut']
             )
 
-    def encode(self, tokens, pos_tags, ner_tags, chars, mask):
+    def encode(self, tokens, pos_tags, chars, mask):
         # [batch, num_tokens, embedding_size]
         token_embeddings = self.encoder_token_embedding(tokens)
         pos_tag_embeddings = self.encoder_pos_embedding(pos_tags)
-        ner_tag_embeddings = self.encoder_ner_embedding(ner_tags)
         if self.use_char_cnn:
             char_cnn_output = self._get_encoder_char_cnn_output(chars)
             encoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, ner_tag_embeddings, char_cnn_output], 2)
+                token_embeddings, pos_tag_embeddings, char_cnn_output], 2)
         else:
-            encoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, ner_tag_embeddings], 2)
+            encoder_inputs = torch.cat([token_embeddings, pos_tag_embeddings], 2)
 
         encoder_inputs = self.encoder_embedding_dropout(encoder_inputs)
 
@@ -373,23 +373,25 @@ class STOG(Model):
         )
 
     def decode_for_training(
-            self, tokens, pos_tags, ner_tags, chars, corefs, memory_bank, mask, states):
+            self, tokens, pos_tags, chars, corefs, memory_bank, mask, states, tgt_mask):
         # [batch, num_tokens, embedding_size]
         token_embeddings = self.decoder_token_embedding(tokens)
         pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
-        ner_tag_embeddings = self.decoder_ner_embedding(ner_tags)
         coref_embeddings = self.decoder_coref_embedding(corefs)
         if self.use_char_cnn:
             char_cnn_output = self._get_decoder_char_cnn_output(chars)
             decoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, ner_tag_embeddings, coref_embeddings, char_cnn_output], 2)
+                token_embeddings, pos_tag_embeddings, coref_embeddings, char_cnn_output], 2)
         else:
             decoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, ner_tag_embeddings, coref_embeddings], 2)
-
+                token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
-
         decoder_outputs = self.decoder(decoder_inputs, memory_bank, mask, states)
+
+        aux_encoder_inputs = decoder_inputs[:, 1:]
+        aux_encoder_outputs = self.aux_encoder(aux_encoder_inputs, tgt_mask[:, 1:].byte())
+        aux_encoder_outputs = self.aux_encoder_output_dropout(aux_encoder_outputs)
+        self.aux_encoder.reset_states()
 
         return dict(
             memory_bank=decoder_outputs['output_sequences'],
@@ -398,12 +400,14 @@ class STOG(Model):
             coref_attentions=decoder_outputs['coref_attentions'],
             copy_attentions=decoder_outputs['copy_attentions'],
             source_attentions=decoder_outputs['std_attentions'],
-            coverage_records=decoder_outputs['coverage_records']
+            coverage_records=decoder_outputs['coverage_records'],
+            aux_encoder_outputs=aux_encoder_outputs
         )
 
-    def graph_decode(self, memory_bank, edge_heads, edge_labels, corefs, mask):
+    def graph_decode(self, memory_bank, edge_heads, edge_labels, corefs, mask, aux_memory_bank):
         # Exclude the BOS symbol.
         memory_bank = memory_bank[:, 1:]
+        memory_bank = torch.cat([memory_bank, aux_memory_bank], 2)
         corefs = corefs[:, 1:]
         mask = mask[:, 1:]
         return self.graph_decoder(memory_bank, edge_heads, edge_labels, corefs, mask)
@@ -438,6 +442,7 @@ class STOG(Model):
             generator_outputs = self.decode_with_pointer_generator(
                 memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
             parser_outputs = self.decode_with_graph_parser(
+                generator_outputs['decoder_inputs'],
                 generator_outputs['decoder_rnn_memory_bank'],
                 generator_outputs['coref_indexes'],
                 generator_outputs['decoder_mask']
@@ -459,13 +464,11 @@ class STOG(Model):
             START_SYMBOL, "decoder_token_ids")
         pos_tags = torch.ones(batch_size, 1) * self.vocab.get_token_index(
             DEFAULT_OOV_TOKEN, "pos_tags")
-        ner_tags = torch.ones(batch_size, 1) * self.vocab.get_token_index(
-            DEFAULT_OOV_TOKEN, "ner_tags")
         tokens = tokens.type_as(mask).long()
         pos_tags = pos_tags.type_as(tokens)
-        ner_tags = ner_tags.type_as(tokens)
         corefs = torch.zeros(batch_size, 1).type_as(mask).long()
 
+        decoder_input_history = []
         decoder_outputs = []
         rnn_outputs = []
         source_attentions = []
@@ -494,7 +497,6 @@ class STOG(Model):
             # 1. Get the decoder inputs.
             token_embeddings = self.decoder_token_embedding(tokens)
             pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
-            ner_tag_embeddings = self.decoder_ner_embedding(ner_tags)
             coref_embeddings = self.decoder_coref_embedding(corefs)
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
@@ -507,12 +509,11 @@ class STOG(Model):
 
                 char_cnn_output = self._get_decoder_char_cnn_output(chars)
                 decoder_inputs = torch.cat(
-                    [token_embeddings, pos_tag_embeddings, ner_tag_embeddings,
+                    [token_embeddings, pos_tag_embeddings,
                      coref_embeddings, char_cnn_output], 2)
             else:
                 decoder_inputs = torch.cat(
-                    [token_embeddings, pos_tag_embeddings, ner_tag_embeddings,
-                     coref_embeddings], 2)
+                    [token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
             # 2. Decode one step.
@@ -539,7 +540,7 @@ class STOG(Model):
             _predictions = generator_output['predictions']
 
             # 4. Update maps and get the next token input.
-            tokens, _predictions, pos_tags, ner_tags, corefs, _mask = self._update_maps_and_get_next_input(
+            tokens, _predictions, pos_tags, corefs, _mask = self._update_maps_and_get_next_input(
                 step_i,
                 generator_output['predictions'].squeeze(1),
                 generator_output['source_dynamic_vocab_size'],
@@ -551,6 +552,7 @@ class STOG(Model):
             )
 
             # 5. Update variables.
+            decoder_input_history += [decoder_inputs]
             decoder_outputs += [_decoder_outputs]
             rnn_outputs += [_rnn_outputs]
 
@@ -566,6 +568,7 @@ class STOG(Model):
 
         # 6. Do the following chunking for the graph decoding input.
         # Exclude the hidden state for BOS.
+        decoder_input_history = torch.cat(decoder_input_history[1:], dim=1)
         decoder_outputs = torch.cat(decoder_outputs[1:], dim=1)
         rnn_outputs = torch.cat(rnn_outputs[1:], dim=1)
         source_attentions = torch.cat(source_attentions, dim=1)
@@ -581,6 +584,7 @@ class STOG(Model):
             coref_indexes=coref_indexes,
             decoder_mask=decoder_mask,
             # [batch_size, max_decode_length, hidden_size]
+            decoder_inputs=decoder_input_history,
             decoder_memory_bank=decoder_outputs,
             decoder_rnn_memory_bank=rnn_outputs,
             # [batch_size, max_decode_length, encoder_length]
@@ -633,14 +637,11 @@ class STOG(Model):
         # If a token is copied from the source side, we look up its index in the gen vocab.
         copy_predictions = (predictions - vocab_size) * copy_mask.long()
         pos_tags = torch.full_like(predictions, self.vocab.get_token_index(DEFAULT_OOV_TOKEN, 'pos_tags'))
-        ner_tags = torch.full_like(predictions, self.vocab.get_token_index(DEFAULT_OOV_TOKEN, 'ner_tags'))
         for i, index in enumerate(copy_predictions.tolist()):
             copied_token = copy_vocabs[i].get_token_from_idx(index)
             if index != 0:
                 pos_tags[i] = self.vocab.get_token_index(
                     tag_luts[i]['pos'][copied_token], 'pos_tags')
-                ner_tags[i] = self.vocab.get_token_index(
-                    tag_luts[i]['ner'][copied_token], 'ner_tags')
             copy_predictions[i] = self.vocab.get_token_index(copied_token, 'decoder_token_ids')
 
         next_input = coref_predictions * coref_mask.long() + \
@@ -663,12 +664,12 @@ class STOG(Model):
         return (next_input.unsqueeze(1),
                 coref_resolved_preds.unsqueeze(1),
                 pos_tags.unsqueeze(1),
-                ner_tags.unsqueeze(1),
                 coref_index.unsqueeze(1),
                 mask.unsqueeze(1))
 
-    def decode_with_graph_parser(self, memory_bank, corefs, mask):
+    def decode_with_graph_parser(self, decoder_inputs, memory_bank, corefs, mask):
         """Predict edges and edge labels between nodes.
+        :param decoder_inputs: [batch_size, node_length, embedding_size]
         :param memory_bank: [batch_size, node_length, hidden_size]
         :param corefs: [batch_size, node_length]
         :param mask:  [batch_size, node_length]
@@ -676,6 +677,10 @@ class STOG(Model):
             edge_heads: [batch_size, node_length]
             edge_labels: [batch_size, node_length]
         """
+        aux_encoder_outputs = self.aux_encoder(decoder_inputs, mask)
+        self.aux_encoder.reset_states()
+        memory_bank = torch.cat([memory_bank, aux_encoder_outputs], 2)
+
         memory_bank, _, _, corefs, mask = self.graph_decoder._add_head_sentinel(
             memory_bank, None, None, corefs, mask)
         (edge_node_h, edge_node_m), (edge_label_h, edge_label_m) = self.graph_decoder.encode(memory_bank)
@@ -694,7 +699,6 @@ class STOG(Model):
         # Encoder
         encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
         encoder_pos_embedding = Embedding.from_params(vocab, params['encoder_pos_embedding'])
-        encoder_ner_embedding = Embedding.from_params(vocab, params['encoder_ner_embedding'])
         if params['use_char_cnn']:
             encoder_char_embedding = Embedding.from_params(vocab, params['encoder_char_embedding'])
             encoder_char_cnn = CnnEncoder(
@@ -719,7 +723,6 @@ class STOG(Model):
         decoder_token_embedding = Embedding.from_params(vocab, params['decoder_token_embedding'])
         decoder_coref_embedding = Embedding.from_params(vocab, params['decoder_coref_embedding'])
         decoder_pos_embedding = Embedding.from_params(vocab, params['decoder_pos_embedding'])
-        decoder_ner_embedding = Embedding.from_params(vocab, params['decoder_ner_embedding'])
         if params['use_char_cnn']:
             decoder_char_embedding = Embedding.from_params(vocab, params['decoder_char_embedding'])
             decoder_char_cnn = CnnEncoder(
@@ -785,6 +788,12 @@ class STOG(Model):
             use_coverage=params['use_coverage']
         )
 
+        aux_encoder = PytorchSeq2SeqWrapper(
+            module=StackedBidirectionalLstm.from_params(params['aux_encoder']),
+            stateful=True
+        )
+        aux_encoder_output_dropout = InputVariationalDropout(p=params['aux_encoder']['dropout'])
+
         switch_input_size = params['encoder']['hidden_size'] * 2
         generator = PointerGenerator(
             input_size=params['decoder']['hidden_size'],
@@ -809,7 +818,6 @@ class STOG(Model):
             max_decode_length=params.get('max_decode_length', 50),
             encoder_token_embedding=encoder_token_embedding,
             encoder_pos_embedding=encoder_pos_embedding,
-            encoder_ner_embedding=encoder_ner_embedding,
             encoder_char_embedding=encoder_char_embedding,
             encoder_char_cnn=encoder_char_cnn,
             encoder_embedding_dropout=encoder_embedding_dropout,
@@ -818,11 +826,12 @@ class STOG(Model):
             decoder_token_embedding=decoder_token_embedding,
             decoder_coref_embedding=decoder_coref_embedding,
             decoder_pos_embedding=decoder_pos_embedding,
-            decoder_ner_embedding=decoder_ner_embedding,
             decoder_char_cnn=decoder_char_cnn,
             decoder_char_embedding=decoder_char_embedding,
             decoder_embedding_dropout=decoder_embedding_dropout,
             decoder=decoder,
+            aux_encoder=aux_encoder,
+            aux_encoder_output_dropout=aux_encoder_output_dropout,
             generator=generator,
             graph_decoder=graph_decoder,
             test_config=params.get('mimick_test', None)

@@ -26,13 +26,6 @@ model:
     padding_index: 0
     dropout: 0
 
-  encoder_ner_embedding:
-    num_embeddings:
-    vocab_namespace: 'ner_tags'
-    embedding_dim: 50
-    padding_index: 0
-    dropout: 0
-
   encoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'encoder_token_characters'
@@ -61,13 +54,6 @@ model:
     padding_index: 0
     dropout: 0
 
-  decoder_ner_embedding:
-    num_embeddings:
-    vocab_namespace: 'ner_tags'
-    embedding_dim: 50
-    padding_index: 0
-    dropout: 0
-
   decoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'decoder_token_characters'
@@ -88,18 +74,25 @@ model:
     ngram_filter_sizes: [3]
 
   encoder:
-    input_size: 450
+    input_size: 400
     hidden_size: 256
     num_layers: 2
     use_highway: False
     dropout: 0
 
   decoder:
-    input_size: 1012
+    input_size: 962
     hidden_size: &deocder_hidden_size 512
     num_layers: 2
     use_highway: False
     dropout: 0
+
+  aux_encoder:
+    input_size: 450
+    hidden_size: 64
+    num_layers: 2
+    use_highway: False
+    dropout: 0.5
 
   source_attention:
     attention_function: dot
@@ -119,7 +112,7 @@ model:
 
   graph_decoder:
     decode_algorithm: 'greedy'
-    input_size: 512
+    input_size: 640
     edge_node_hidden_size: 200
     edge_label_hidden_size: 100
     dropout: 0
@@ -153,7 +146,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir debug-ckpt
+  serialization_dir: &serialization_dir debug-exp-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0
