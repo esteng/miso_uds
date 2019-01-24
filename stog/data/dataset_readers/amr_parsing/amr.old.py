@@ -1,12 +1,11 @@
 import re
 import json
-from collections import defaultdict, Counter
+from collections import defaultdict
 
 import penman
 import networkx as nx
 from penman import Triple
 
-from stog.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 from stog.data.dataset_readers.amr_parsing.graph_repair import GraphRepair
 from stog.utils import logging
 
@@ -85,9 +84,6 @@ class AMR:
             ner = [self.ner_tags[indexes[0]]]
         self.ner_tags = self.ner_tags[:indexes[0]] + ner + self.ner_tags[indexes[-1] + 1:]
 
-    def remove_span(self, indexes):
-        self.replace_span(indexes, [], [], [])
-
     def __repr__(self):
         fields = []
         for k, v in dict(
@@ -98,6 +94,7 @@ class AMR:
             pos_tags=self.pos_tags,
             ner_tags=self.ner_tags,
             abstract_map=self.abstract_map,
+            reorder=self.reorder,
             misc=self.misc,
             graph=self.graph
         ).items():
@@ -115,6 +112,9 @@ class AMR:
 
     def get_src_tokens(self):
         return self.lemmas if self.lemmas else self.sentence.split()
+
+    def get_reorder(self):
+        return self.reorder
 
 
 class AMRNode:
@@ -197,6 +197,7 @@ class AMRGraph(penman.Graph):
         self._top = penman_graph._top
         self._build_extras()
         self._src_tokens = []
+        self._reorder = []
 
     def __str__(self):
         self._triples = penman.alphanum_order(self._triples)
@@ -380,6 +381,12 @@ class AMRGraph(penman.Graph):
             sentence = sentence.split(" ")
         self._src_tokens = sentence
 
+    def set_reorder(self, reorder_list):
+        self._reorder = reorder_list
+    
+    def get_reorder(self):
+        return self._reorder
+
     def get_src_tokens(self):
         return self._src_tokens
 
@@ -404,7 +411,7 @@ class AMRGraph(penman.Graph):
 
         return node_list
 
-    def get_list_data(self, amr, bos=None, eos=None):
+    def get_list_data(self, bos=None, eos=None):
         node_list = self.get_list_node()
 
         tgt_tokens = []
@@ -435,6 +442,10 @@ class AMRGraph(penman.Graph):
                         update_info(node, attr[0], parent_node, attr[1])
             visited[node] = 1
 
+        #import pdb;pdb.set_trace()
+        tgt_tokens, head_tags, head_indices = self.reorder_tgt(
+            tgt_tokens, head_tags, head_indices)
+
         copy_offset = 0
         if bos:
             tgt_tokens = [bos] + tgt_tokens
@@ -460,135 +471,32 @@ class AMRGraph(penman.Graph):
             if i == copy_index:
                 tgt_copy_indices[i] = 0
 
-        tgt_token_counter = Counter(tgt_tokens)
-        tgt_copy_mask = [0] * len(tgt_tokens)
-        for i, token in enumerate(tgt_tokens):
-            if tgt_token_counter[token] > 1:
-                tgt_copy_mask[i] = 1
-
         # Source Copy
         src_tokens = self.get_src_tokens()
         src_copy_vocab = SourceCopyVocabulary(src_tokens)
         src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
         src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
 
-        # Add Source and Target POS tag features
-        assert len(amr.pos_tags) == len(src_tokens)
-        src_pos_tags = amr.pos_tags
+        return {
+            "tgt_tokens" : tgt_tokens,
+            "tgt_copy_indices" : tgt_copy_indices,
+            "tgt_copy_map" : tgt_copy_map,
+            "src_tokens" : src_tokens,
+            "src_copy_vocab" : src_copy_vocab,
+            "src_copy_indices" : src_copy_indices,
+            "src_copy_map" : src_copy_map,
+            "head_tags" : head_tags,
+            "head_indices" : head_indices,
+        }
 
-        pos_tag_counter = defaultdict(lambda: defaultdict(int))
-        for token, pos_tag in zip(src_tokens, src_pos_tags):
-            pos_tag_counter[token][pos_tag] += 1
-        pos_tag_lut = {DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN}
-        for token in set(src_tokens):
-            tag = max(pos_tag_counter[token].keys(), key=lambda x: pos_tag_counter[token][x])
-            pos_tag_lut[token] = tag
+    def reorder_tgt(self, tgt_tokens, head_tags, head_indices):
+        if not self.get_reorder() or len(self.get_reorder()) == 0:
+            return tgt_tokens, head_tags, head_indices
+        new_tgt_tokens = [tgt_tokens[i] for i in self.get_reorder()]
+        new_head_tags = [head_tags[i] for i in self.get_reorder()]
+        new_head_indices = [1 + self._reorder[head_indices[i] - 1] for i in self.get_reorder()]
 
-        tgt_pos_tags = []
-        for token in tgt_tokens:
-            if token in src_tokens:
-                index = src_tokens.index(token)
-                pos_tag = src_pos_tags[index]
-            else:
-                pos_tag = DEFAULT_OOV_TOKEN
-            tgt_pos_tags.append(pos_tag)
-
-        return self.reorder_dict(
-            {
-                "tgt_tokens" : tgt_tokens,
-                "tgt_pos_tags": tgt_pos_tags,
-                "tgt_copy_indices" : tgt_copy_indices,
-                "tgt_copy_map" : tgt_copy_map,
-                "tgt_copy_mask" : tgt_copy_mask,
-                "src_tokens" : src_tokens,
-                "src_pos_tags": src_pos_tags,
-                "src_copy_vocab" : src_copy_vocab,
-                "src_copy_indices" : src_copy_indices,
-                "src_copy_map" : src_copy_map,
-                "pos_tag_lut": pos_tag_lut,
-                "head_tags" : head_tags,
-                "head_indices" : head_indices,
-            },
-            amr.reorder
-        )
-    
-    def reorder_dict(self, data_dict, reorder_list=None):
-        if reorder_list is None:
-            return data_dict
-
-        reorder_map = {orig_idx : new_idx for orig_idx, new_idx in enumerate(reorder_list)}
-        reorder_map[-1] = -1
-        reorder_reverse_map = {new_idx : orig_idx for orig_idx, new_idx in enumerate(reorder_list)}
-
-        #print(reorder_list)
-        #print(data_dict["tgt_tokens"])
-        #print([(i, w) for i, w in zip(reorder_list, data_dict["tgt_tokens"][1:-1])])
-        # 1. Target tokens, including bos and eos tokens
-        data_dict["tgt_tokens"] = \
-            [data_dict["tgt_tokens"][0]] + [
-                data_dict["tgt_tokens"][1 + reorder_reverse_map[idx]] for idx in range(len(data_dict["tgt_tokens"]) - 2)
-            ] + [data_dict["tgt_tokens"][-1]]
-        #print(data_dict["tgt_tokens"])
-
-        #print([(i, w) for i, w in zip(reorder_list, data_dict["tgt_pos_tags"][1:-1])])
-        # 2. Target pos tag, including bos and eos tokens
-        #print(data_dict["tgt_pos_tags"])
-        data_dict["tgt_pos_tags"] = \
-            [data_dict["tgt_pos_tags"][0]] + [
-                data_dict["tgt_pos_tags"][1 + reorder_reverse_map[idx]] for idx in range(len(data_dict["tgt_pos_tags"]) - 2)
-            ] + [data_dict["tgt_pos_tags"][-1]]
-        #print(data_dict["tgt_pos_tags"])
-
-        # 3. Target copy indices, including bos and eos tokens
-        #print(data_dict["tgt_copy_indices"])
-        converted_copy_indices = [1 + reorder_map[i - 1] for i in data_dict["tgt_copy_indices"]]
-        #print(converted_copy_indices)
-        data_dict["tgt_copy_indices"] = \
-            [data_dict["tgt_copy_indices"][0]] + [
-                converted_copy_indices[1 + reorder_reverse_map[idx]] for idx in range(len(data_dict["tgt_copy_indices"]) - 2)
-            ] + [data_dict["tgt_copy_indices"][-1]]
-        #print(data_dict["tgt_copy_indices"])
-        # 3.1 make sure that we always copy the preivious token
-        real_copy_idx_map = {}
-        new_copy_indices = data_dict["tgt_copy_indices"]
-        for token_idx, copy_idx in enumerate(data_dict["tgt_copy_indices"]):
-            if copy_idx == 0:
-                continue
-            
-            if copy_idx not in real_copy_idx_map:
-                if copy_idx >= token_idx:
-                    new_copy_indices[copy_idx] = token_idx
-                    new_copy_indices[token_idx] = 0
-                    real_copy_idx_map[copy_idx] = token_idx
-                else:
-                    real_copy_idx_map[copy_idx] = copy_idx
-            else:
-                new_copy_indices[token_idx] = real_copy_idx_map[copy_idx]
-        #print(new_copy_indices)
-        #print(data_dict["tgt_copy_indices"])
-
-        data_dict["tgt_copy_indices"] = new_copy_indices
-        #data_dict["tgt_copy_indices"] = [0 for i in new_copy_indices]
-       
-        # 4. Target copy map
-        copy_indices = []
-        for token_idx, copy_idx in enumerate(data_dict["tgt_copy_indices"]):
-            if copy_idx == 0:
-                copy_indices += [(token_idx, token_idx)]
-            else:
-                copy_indices += [(token_idx, copy_idx)]
-
-        
-        # 5. Source Copy
-        #print(data_dict["src_copy_indices"])
-        data_dict["src_copy_indices"] = data_dict["src_copy_vocab"].index_sequence(data_dict["tgt_tokens"])
-        #print(data_dict["src_copy_map"])
-        #src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
-        #assert copy_dict == data_dict
-        #import pdb;pdb.set_trace()
-        
-        return data_dict
-
+        return new_tgt_tokens, new_head_tags, new_head_indices
 
     @classmethod
     def decode(cls, raw_graph_string):
@@ -652,7 +560,7 @@ class AMRGraph(penman.Graph):
         for coref_index in corefs:
             node = nodes[coref_index - 1]
             head_label = head_labels[coref_index - 1]
-            if '/' in node or (is_attribute_value(node) and not is_edge_label(head_label)):
+            if is_attribute_value(node) and not is_edge_label(head_label):
                 continue
             variable_map['vv{}'.format(coref_index)] = node
         for head_index in heads:
@@ -697,7 +605,7 @@ class AMRGraph(penman.Graph):
 
 
 class SourceCopyVocabulary:
-    def __init__(self, sentence, pad_token=DEFAULT_PADDING_TOKEN, unk_token=DEFAULT_OOV_TOKEN):
+    def __init__(self, sentence, pad_token="@@PAD@@", unk_token="@@UNKNOWN@@"):
         if type(sentence) is not list:
             sentence = sentence.split(" ")
 
