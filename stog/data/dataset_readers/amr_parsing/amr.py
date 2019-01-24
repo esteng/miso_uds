@@ -368,13 +368,17 @@ class AMRGraph(penman.Graph):
 
     def remove_subtree(self, root):
         children = []
+        removed_nodes = set()
         for _, child in list(self._G.edges(root)):
             self.remove_edge(root, child)
             children.append(child)
         for child in children:
-            self.remove_subtree(child)
+            if len(list(self._G.in_edges(child))) == 0:
+                removed_nodes.update(self.remove_subtree(child))
         if len(list(self._G.in_edges(root))) == 0:
             self.remove_node(root)
+            removed_nodes.add(root)
+        return removed_nodes
 
     def get_subtree(self, root, max_depth):
         if max_depth == 0:
@@ -535,10 +539,6 @@ class AMRGraph(penman.Graph):
         #     tgt_pos_tags.append(pos_tag)
         tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(amr.pos_tags)
         tgt_ner_tags, ner_tag_lut = add_source_side_tags_to_target_side(amr.ner_tags)
-
-        # Remove ord in 'op' and 'snt'
-        # head_tags = [re.sub('\d+$', '', tag) if re.search(r'^(op|snt)\d+$', tag) else tag
-        #              for tag in head_tags]
 
         return {
             "tgt_tokens" : tgt_tokens,

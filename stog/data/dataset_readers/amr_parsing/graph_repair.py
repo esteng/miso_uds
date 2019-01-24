@@ -6,6 +6,18 @@ from stog.utils import logging
 logger = logging.init_logger()
 
 
+def is_similar(instances1, instances2):
+    if len(instances1) < len(instances2):
+        small = instances1
+        large = instances2
+    else:
+        small = instances2
+        large = instances1
+    coverage1 = sum(1 for x in small if x in large) / len(small)
+    coverage2 = sum(1 for x in large if x in small) / len(large)
+    return coverage1 > .8 and coverage2 > .8
+
+
 class GraphRepair:
 
     def __init__(self, graph, nodes):
@@ -43,22 +55,51 @@ class GraphRepair:
             for source, target in edges:
                 label = graph._G[source][target]['label']
                 # `name`, `ARGx`, and `ARGx-of` should only appear once.
-                if label == 'name' or label.startswith('ARG'):
-                    edge_counter[label].append((source, target))
+                if label == 'name':  # or label.startswith('ARG'):
+                    edge_counter[label].append(target)
                 # the target of `opx' should only appear once.
-                elif label.startswith('op'):
-                    edge_counter[str(target.instance)].append((source, target))
+                elif label.startswith('op') or label.startswith('snt'):
+                    edge_counter[str(target.instance)].append(target)
                 else:
-                    edge_counter[label + str(target.instance)].append((source, target))
-            for label, list_of_edges in edge_counter.items():
-                if len(list_of_edges) > 1:
+                    edge_counter[label + str(target.instance)].append(target)
+            for label, children in edge_counter.items():
+                if len(children) == 1:
+                    continue
+                if label == 'name':
+                    # import pdb; pdb.set_trace()
                     # remove redundant edges.
-                    for source, target in list_of_edges[1:]:
+                    for target in children[1:]:
                         if len(list(graph._G.in_edges(target))) == 1 and len(list(graph._G.edges(target))) == 0:
-                            graph.remove_edge(source, target)
+                            graph.remove_edge(node, target)
                             graph.remove_node(target)
                             removed_nodes.add(target)
                             self.repaired_items.add('remove-redundant-edge')
+                    continue
+                visited_children = set()
+                groups = []
+                for i, target in enumerate(children):
+                    if target in visited_children:
+                        continue
+                    subtree_instances1 = [n.instance for n in graph.get_subtree(target, 5)]
+                    group = [(target, subtree_instances1)]
+                    visited_children.add(target)
+                    for _t in children[i + 1:]:
+                        if _t in visited_children or target.instance != _t.instance:
+                            continue
+                        subtree_instances2 = [n.instance for n in graph.get_subtree(_t, 5)]
+                        if is_similar(subtree_instances1, subtree_instances2):
+                            group.append((_t, subtree_instances2))
+                            visited_children.add(_t)
+                    groups.append(group)
+                for group in groups:
+                    if len(group) == 1:
+                        continue
+                    kept_target, _ = max(group, key=lambda x: len(x[1]))
+                    for target, _ in group:
+                        if target == kept_target:
+                            continue
+                        graph.remove_edge(node, target)
+                        removed_nodes.update(graph.remove_subtree(target))
 
     def fix_op_ordinal(self):
         """

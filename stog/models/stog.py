@@ -494,7 +494,7 @@ class STOG(Model):
             # 1. Get the decoder inputs.
             token_embeddings = self.decoder_token_embedding(tokens)
             pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
-            ner_tag_embeddings = self.decoder_pos_embedding(ner_tags)
+            ner_tag_embeddings = self.decoder_ner_embedding(ner_tags)
             coref_embeddings = self.decoder_coref_embedding(corefs)
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
