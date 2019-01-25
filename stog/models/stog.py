@@ -197,7 +197,6 @@ class STOG(Model):
         # [batch, num_tokens]
         encoder_token_inputs = batch['src_tokens']['encoder_tokens']
         encoder_pos_tags = batch['src_pos_tags']
-        encoder_ner_tags = batch['src_ner_tags']
         # [batch, num_tokens, num_chars]
         encoder_char_inputs = batch['src_tokens']['encoder_characters']
         # [batch, num_tokens]
@@ -206,7 +205,6 @@ class STOG(Model):
         encoder_inputs = dict(
             token=encoder_token_inputs,
             pos_tag=encoder_pos_tags,
-            ner_tag=encoder_ner_tags,
             char=encoder_char_inputs,
             mask=encoder_mask
         )
@@ -214,7 +212,6 @@ class STOG(Model):
         # [batch, num_tokens]
         decoder_token_inputs = batch['tgt_tokens']['decoder_tokens'][:, :-1].contiguous()
         decoder_pos_tags = batch['tgt_pos_tags'][:, :-1]
-        decoder_ner_tags = batch['tgt_ner_tags'][:, :-1]
         # [batch, num_tokens, num_chars]
         decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, :-1].contiguous()
         # TODO: The following change can be done in amr.py.
@@ -234,7 +231,6 @@ class STOG(Model):
         decoder_inputs = dict(
             token=decoder_token_inputs,
             pos_tag=decoder_pos_tags,
-            ner_tag=decoder_ner_tags,
             char=decoder_char_inputs,
             coref=decoder_coref_inputs
         )
