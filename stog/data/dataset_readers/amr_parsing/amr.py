@@ -524,6 +524,11 @@ class AMRGraph(penman.Graph):
         #print(data_dict["tgt_tokens"])
         #print([(i, w) for i, w in zip(reorder_list, data_dict["tgt_tokens"][1:-1])])
         # 1. Target tokens, including bos and eos tokens
+        #print("")
+        #tokens = data_dict["tgt_tokens"][1:-1]
+        #for head_idx, tag, token in zip(data_dict["head_indices"], data_dict["head_tags"], tokens):
+        #    print(data_dict["tgt_tokens"][head_idx], tag, token)
+        #import pdb;pdb.set_trace()
         data_dict["tgt_tokens"] = \
             [data_dict["tgt_tokens"][0]] + [
                 data_dict["tgt_tokens"][1 + reorder_reverse_map[idx]] for idx in range(len(data_dict["tgt_tokens"]) - 2)
@@ -585,6 +590,23 @@ class AMRGraph(penman.Graph):
         #print(data_dict["src_copy_map"])
         #src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
         #assert copy_dict == data_dict
+        #import pdb;pdb.set_trace()
+
+        # 6. Target head indices
+        # 6.1 Head tags, similar to tokens, except that there is no bos and eos
+        #print(data_dict["head_tags"])
+        data_dict["head_tags"] = [data_dict["head_tags"][reorder_reverse_map[idx]] for idx in range(len(data_dict["head_tags"]))]
+        #print(data_dict["head_tags"])
+        #print(data_dict["head_indices"])
+        data_dict["head_indices"] = [ 
+            reorder_map[data_dict["head_indices"][reorder_reverse_map[new_idx]] - 1] + 1 for new_idx in range(len(data_dict["head_indices"]))
+        ]
+        #print(data_dict["head_indices"])
+        #import pdb;pdb.set_trace()
+        #print("")
+        #tokens = data_dict["tgt_tokens"][1:-1]
+        #for head_idx, tag, token in zip(data_dict["head_indices"], data_dict["head_tags"], tokens):
+        #    print(data_dict["tgt_tokens"][head_idx], tag, token)
         #import pdb;pdb.set_trace()
         
         return data_dict

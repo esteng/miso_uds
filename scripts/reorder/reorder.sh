@@ -7,8 +7,8 @@ dev=${data}/dev_amr.txt.features.preproc
 fast_align=/home/xma/projects/stog/experiments/reorder/fast_align
 BASEDIR=$(dirname $0)
 
-python ${BASEDIR}/make_amr_with_align.py --input $dev --align dev.align.output --type node
-exit 0
+#python ${BASEDIR}/make_amr_with_align.py --input $dev --align dev.align.output --type node
+#exit 0
 
 python ${BASEDIR}/linearize_amr.py ${train} > train.align.input
 python ${BASEDIR}/linearize_amr.py ${dev} > dev.align.input
@@ -23,7 +23,7 @@ python ${BASEDIR}/check_align.py all.align.output.forward all.align.input > chec
 head -n `wc -l < train.align.input` all.align.output.forward > train.align.output
 tail -n `wc -l < dev.align.input` all.align.output.forward > dev.align.output
 
-python ${BASEDIR}/make_amr_with_align.py --input $train --align train.align.output --type full > train_amr.reorder
-python ${BASEDIR}/make_amr_with_align.py --input $dev --align dev.align.output --type full> dev_amr.reorder
+python ${BASEDIR}/make_amr_with_align.py --input $train --align train.align.output --type node > train_amr.reorder
+python ${BASEDIR}/make_amr_with_align.py --input $dev --align dev.align.output --type node> dev_amr.reorder
 
 

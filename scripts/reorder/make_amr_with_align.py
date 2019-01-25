@@ -84,28 +84,55 @@ def node_reorder(instance, token_with_alignment):
         return node_spans
         
     
-    def reorder_subseq(tgt_list, tgt_depth):
-        assert len(tgt_list) == len(tgt_depth)
+    def reorder_subseq(start, end):
+        
+        sub_tgt_list = tgt_list[start:end]
+        sub_tgt_depth = tgt_depth[start:end]
 
-        if len(tgt_depth) < 2:
+        if end - start < 2:
             return
 
-        spans = split_nodes(tgt_depth)
-        
-        if len(spans) <= 1:
-            return
-        
-        spans_with_head_alignment = [
-            (tgt_list[i][-1], spans[i]) for i in len(tgt_list)
+        sub_spans = split_nodes(tgt_depth[start:end])
+
+        token_align_start_indices = [
+            (
+                token_with_alignment[start + start_idx], 
+                start_idx,
+                end_idx - start_idx
+            ) for (start_idx, end_idx) in sub_spans
         ]
 
+        sorted_token = sorted(token_align_start_indices, key=lambda x: x[0][1])
+
+        sub_seq_start_idx = 0
+        new_sub_span = []
+        new_sub_tgt_list = []
+        new_sub_tgt_depth = []
+
+        for _, orig_start_idx, length in sorted_token:
+            new_sub_span.append((sub_seq_start_idx, sub_seq_start_idx + length))
+            new_sub_tgt_list += sub_tgt_list[orig_start_idx: orig_start_idx + length]
+            new_sub_tgt_depth += sub_tgt_depth[orig_start_idx: orig_start_idx + length]
+            sub_seq_start_idx += length
+
         
-    split = split_nodes(tgt_depth)
-    print(tgt_depth)
-    for span in split:
-        print(tgt_depth[span[0]: span[1]])
+        tgt_list[start: end] = new_sub_tgt_list
+        tgt_depth[start: end] = new_sub_tgt_depth
+
+        for s, e in new_sub_span:
+            reorder_subseq(s + start, e + start) 
+
        
-    import pdb;pdb.set_trace()
+    reorder_subseq(0, len(tgt_list))
+    
+    reorder_info = [ i for i in range(len(token_with_alignment))] 
+    for i, item in enumerate(tgt_list):
+        reorder_info[item[0]] = i
+
+    return re.sub(
+        "# ::save-date", "# ::reorder {}\n# ::save-date".format(json.dumps(reorder_info)), 
+        instance.fields['amr'].metadata.__str__()
+    )
 
 if __name__ == '__main__':
     
