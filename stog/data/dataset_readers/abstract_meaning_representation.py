@@ -80,18 +80,6 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             label_namespace="pos_tags"
         )
 
-        fields["src_ner_tags"] = SequenceLabelField(
-            labels=list_data["src_ner_tags"],
-            sequence_field=fields["src_tokens"],
-            label_namespace="ner_tags"
-        )
-
-        fields["tgt_ner_tags"] = SequenceLabelField(
-            labels=list_data["tgt_ner_tags"],
-            sequence_field=fields["tgt_tokens"],
-            label_namespace="ner_tags"
-        )
-
         fields["tgt_copy_indices"] = SequenceLabelField(
             labels=list_data["tgt_copy_indices"],
             sequence_field=fields["tgt_tokens"],
@@ -157,12 +145,12 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         )
 
         fields["tag_lut"] = MetadataField(
-            dict(pos=list_data["pos_tag_lut"], ner=list_data["ner_tag_lut"])
+            dict(pos=list_data["pos_tag_lut"])
         )
 
-        fields["amr"] = MetadataField(
-            amr
-        )
+        # fields["amr"] = MetadataField(
+        #     amr
+        # )
 
         return Instance(fields)
 
