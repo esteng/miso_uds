@@ -31,13 +31,18 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                  token_indexers: Dict[str, TokenIndexer] = None,
                  word_splitter = None,
                  lazy: bool = False,
-                 skip_first_line: bool = True
+                 skip_first_line: bool = True,
+                 evaluation: bool = False
                  ) -> None:
 
         super().__init__(lazy=lazy)
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
         self._word_splitter = word_splitter or SpacyWordSplitter()
         self._skip_first_line = skip_first_line
+        self._evaluation = evaluation
+
+    def set_evaluation(self):
+        self._evaluation = True
 
     @overrides
     def _read(self, file_path):
@@ -148,9 +153,10 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             dict(pos=list_data["pos_tag_lut"])
         )
 
-        # fields["amr"] = MetadataField(
-        #     amr
-        # )
+        if self._evaluation:
+            fields["amr"] = MetadataField(
+                amr
+            )
 
         return Instance(fields)
 

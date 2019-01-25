@@ -115,6 +115,8 @@ class Predictor(Registrable):
             predictor_name = DEFAULT_PREDICTORS[model_type]
 
         dataset_reader = load_dataset_reader(config["data"]["data_type"])
+        if hasattr(dataset_reader, 'set_evaluation'):
+            dataset_reader.set_evaluation()
 
         model = archive.model
         model.eval()
