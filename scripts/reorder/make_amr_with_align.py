@@ -37,7 +37,11 @@ def fully_reorder(instance, token_with_alignment):
         instance.fields['amr'].metadata.__str__()
     )
 
-def node_reorder(instance, token_with_alignment):
+def node_reorder(
+        instance, 
+        token_with_alignment,
+        head_first=False
+):
     graph = instance.fields["amr"].metadata.graph
     
     tgt_list = [item for item in token_with_alignment]
@@ -102,7 +106,14 @@ def node_reorder(instance, token_with_alignment):
             ) for (start_idx, end_idx) in sub_spans
         ]
 
+        if head_first:
+            head = token_align_start_indices[0]
+            token_align_start_indices = token_align_start_indices[1:]
+
         sorted_token = sorted(token_align_start_indices, key=lambda x: x[0][1])
+        
+        if head_first:
+            sorted_token = [head] + sorted_token
 
         sub_seq_start_idx = 0
         new_sub_span = []
@@ -139,7 +150,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--alignment", required=True)
-    parser.add_argument("--type", choices=["none", "full", "node"], default="none")
+    parser.add_argument("--type", choices=["none", "full", "node", "node_head_first"], default="none")
     
     args = parser.parse_args()
 
@@ -161,7 +172,11 @@ if __name__ == '__main__':
             amr_string = no_reorder(instance, token_with_alignment)
         elif args.type == "source":
             amr_string = fully_reorder(instance, token_with_alignment)
-        else:
+        elif args.type == "node":
             amr_string = node_reorder(instance, token_with_alignment)
+        elif args.type == "node_head_first":
+            amr_string = node_reorder(instance, token_with_alignment, head_first=True)
+        else:
+            raise NotImplementedError
             
         print(amr_string + "\n")
