@@ -621,7 +621,7 @@ class AMRGraph(penman.Graph):
         for coref_index in corefs:
             node = nodes[coref_index - 1]
             head_label = head_labels[coref_index - 1]
-            if '/' in node or is_attribute_value(node) or is_attribute_edge(head_label):
+            if re.search(r'[/:\\()]', node) or is_attribute_value(node) or is_attribute_edge(head_label):
                 continue
             variable_map['vv{}'.format(coref_index)] = node
         for head_index in heads:
@@ -647,21 +647,21 @@ class AMRGraph(penman.Graph):
                 triples.append((head_variable, label, modifier_variable))
             else:
                 # Add quotes if there's a backslash.
-                if '/' in modifier and not re.search(r'^".*"$', modifier):
+                if re.search(r'[/:\\()]', modifier) and not re.search(r'^".*"$', modifier):
                     modifier = '"{}"'.format(modifier)
                 triples.append((head_variable, label, modifier))
 
         for var, node in variable_map.items():
             if re.search(r'^".*"$', node):
                 node = node[1:-1]
-            if '/' in node:
-                parts = node.split('/')
+            if re.search(r'[/:\\()]', node):
+                parts = re.split(r'[/:\\()]', node)
                 for part in parts[::-1]:
                     if len(part):
                         node = part
                         break
                 else:
-                    node = node.replace('/', '_')
+                    node = re.sub(r'[/:\\()]', '_', node)
             triples.append((var, 'instance', node))
 
         if len(triples) == 0:
