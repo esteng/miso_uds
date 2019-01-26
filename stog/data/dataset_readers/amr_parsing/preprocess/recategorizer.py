@@ -8,7 +8,7 @@ from nltk.tokenize import word_tokenize
 from word2number import w2n
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
-from stog.data.dataset_readers.amr_parsing.amr_concepts import Entity, Date, Score, Ordinal, Polarity, Polite
+from stog.data.dataset_readers.amr_parsing.amr_concepts import Entity, Date, Score, Quantity, Ordinal, Polarity, Polite
 from stog.utils import logging
 
 
@@ -76,6 +76,8 @@ class Recategorizer:
         self.recat_score_entity_count = 0
         self.ordinal_entity_count = 0
         self.recat_ordinal_entity_count = 0
+        self.quantity_count = 0
+        self.recat_quantity_count = 0
         self.removed_wiki_count = 0
 
         self.name_type_cooccur_counter = defaultdict(lambda: defaultdict(int))
@@ -106,6 +108,10 @@ class Recategorizer:
             logger.info('Ordinal entity collapse rate: {} ({}/{})'.format(
                 self.recat_ordinal_entity_count / self.ordinal_entity_count,
                 self.recat_ordinal_entity_count, self.ordinal_entity_count))
+        if self.quantity_count != 0:
+            logger.info('Quantity collapse rate: {} ({}/{})'.format(
+                self.recat_quantity_count / self.quantity_count,
+                self.recat_quantity_count, self.quantity_count))
         logger.info('Removed {} wikis.'.format(self.removed_wiki_count))
 
     def reset_statistics(self):
@@ -117,6 +123,8 @@ class Recategorizer:
         self.recat_score_entity_count = 0
         self.ordinal_entity_count = 0
         self.recat_ordinal_entity_count = 0
+        self.quantity_count = 0
+        self.recat_quantity_count = 0
         self.removed_wiki_count = 0
 
     def _build_utils(self):
@@ -184,6 +192,7 @@ class Recategorizer:
         self.recategorize_date_nodes(amr)
         self.recategorize_score_nodes(amr)
         self.recategorize_ordinal_nodes(amr)
+        self.recategorize_quantities(amr)
 
     def resolve_name_node_reentrancy(self, amr):
         """
@@ -296,6 +305,11 @@ class Recategorizer:
                     self.recat_ordinal_entity_count += 1
                 ordinals.append(ordinal)
         Ordinal.collapse_ordinal_nodes(ordinals, amr)
+
+    def recategorize_quantities(self, amr):
+        quantity = Quantity(amr)
+        self.recat_quantity_count += quantity.abstract()
+        self.quantity_count += quantity.quant_count
 
     def _get_aligned_date(self, node, amr):
         date = Date(node, amr.graph)

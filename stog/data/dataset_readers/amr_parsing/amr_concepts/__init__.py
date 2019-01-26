@@ -4,3 +4,4 @@ from .score import Score
 from .ordinal import Ordinal
 from .polarity import Polarity
 from .polite import Polite
+from .quantity import Quantity
