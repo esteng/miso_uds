@@ -609,6 +609,12 @@ class AMRGraph(penman.Graph):
                 text = text.replace(',', '')
             return text
 
+        def abstract_node(value):
+            return re.search(r'^([A-Z]+|DATE_ATTRS|SCORE_ENTITY|ORDINAL_ENTITY)_\d+$', value)
+
+        def abstract_attribute(value):
+            return re.search(r'^_QUANTITY_\d+$', value)
+
         nodes = [normalize_number(n) for n in prediction['nodes']]
         heads = prediction['heads']
         corefs = prediction['corefs']
@@ -621,7 +627,8 @@ class AMRGraph(penman.Graph):
         for coref_index in corefs:
             node = nodes[coref_index - 1]
             head_label = head_labels[coref_index - 1]
-            if re.search(r'[/:\\()]', node) or is_attribute_value(node) or is_attribute_edge(head_label):
+            if (re.search(r'[/:\\()]', node) or is_attribute_value(node) or
+                    is_attribute_edge(head_label) or abstract_attribute(node)):
                 continue
             variable_map['vv{}'.format(coref_index)] = node
         for head_index in heads:
@@ -673,6 +680,13 @@ class AMRGraph(penman.Graph):
         graph._triples = [penman.Triple(*t) for t in triples]
         graph = cls(graph)
         GraphRepair.do(graph, nodes)
+        try:
+            amr_codec.encode(graph)
+        except penman.EncodeError:
+            logger.warn('Graph repairing failed.')
+            graph._top = top
+            graph._triples = [penman.Triple(*t) for t in triples]
+            graph = cls(graph)
         return graph
 
 
