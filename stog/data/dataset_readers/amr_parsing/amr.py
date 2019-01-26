@@ -679,10 +679,10 @@ class AMRGraph(penman.Graph):
         graph._top = top
         graph._triples = [penman.Triple(*t) for t in triples]
         graph = cls(graph)
-        GraphRepair.do(graph, nodes)
         try:
+            GraphRepair.do(graph, nodes)
             amr_codec.encode(graph)
-        except penman.EncodeError:
+        except:
             logger.warn('Graph repairing failed.')
             graph._top = top
             graph._triples = [penman.Triple(*t) for t in triples]
