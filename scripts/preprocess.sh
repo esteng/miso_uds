@@ -16,43 +16,51 @@ propbank_dir=data/misc/propbank-frames-xml-2016-03-08/
 # Verbalization list file.
 # Download it from amr.isi.edu.
 verbalization_file=data/misc/verbalization-list-v1.06.txt
+morph_verbalization_file=data/misc/morph-verbalization-v1.01.txt
 
 # ========== Set the above variables correctly ==========
 
-printf "Creating utils...`date`\n"
-mkdir -p ${util_dir}
-python -u -m stog.data.dataset_readers.amr_parsing.node_utils \
-    --amr_train_files ${train_data} \
-    --propbank_dir ${propbank_dir} \
-    --verbalization_file ${verbalization_file} \
-    --dump_dir ${util_dir} || exit
-printf "Done.`date`\n\n"
+# printf "Creating utils...`date`\n"
+# mkdir -p ${util_dir}
+# python -u -m stog.data.dataset_readers.amr_parsing.node_utils \
+#     --amr_train_files ${train_data} \
+#     --propbank_dir ${propbank_dir} \
+#     --verbalization_file ${verbalization_file} \
+#     --dump_dir ${util_dir} || exit
+# printf "Done.`date`\n\n"
 
 printf "Cleaning inputs...`date`\n"
 python -u -m stog.data.dataset_readers.amr_parsing.preprocess.input_cleaner \
-    --amr_files ${train_data} ${dev_data} ${test_data} || exit
+    --amr_files ${test_data} \
+    ${train_data} ${dev_data} || exit
 printf "Done.`date`\n\n"
 
-printf "Recategorizing subgraphs...`date`\n"
+# printf "Recategorizing subgraphs...`date`\n"
+# python -u -m stog.data.dataset_readers.amr_parsing.preprocess.recategorizer \
+#     --build_utils \
+#     --amr_train_file ${train_data}.input_clean \
+#     --dump_dir ${util_dir} || exit
 python -u -m stog.data.dataset_readers.amr_parsing.preprocess.recategorizer \
-    --build_utils \
-    --amr_train_file ${train_data}.input_clean \
-    --dump_dir ${util_dir} || exit
-python -u -m stog.data.dataset_readers.amr_parsing.preprocess.recategorizer \
-    --amr_files ${train_data}.input_clean ${dev_data}.input_clean ${test_data}.input_clean \
-    --dump_dir ${util_dir} || exit
+    --dump_dir ${util_dir} \
+    --amr_files ${test_data}.input_clean \
+    ${train_data}.input_clean ${dev_data}.input_clean || exit
 printf "Done.`date`\n\n"
+
+# printf "Morph verbalization...`date`\n"
+# python -u -m stog.data.dataset_readers.amr_parsing.preprocess.morph \
+#     --morph_verbalization_file ${morph_verbalization_file} \
+#     --amr_files ${test_data}.input_clean.recategorize
+# printf "Done.`date`\n\n"
 
 printf "Creating alignment...`date`\n"
 python -u -m stog.data.dataset_readers.amr_parsing.preprocess.aligner \
     --util_dir ${util_dir} \
-    --amr_files ${train_data}.input_clean.recategorize \
-    ${dev_data}.input_clean.recategorize \
-    ${test_data}.input_clean.recategorize || exit
+    --amr_files ${test_data}.input_clean.recategorize \
+    ${train_data}.input_clean.recategorize ${dev_data}.input_clean.recategorize || exit
 printf "Done.`date`\n\n"
 
 printf "Rename preprocessed files...`date`\n"
+mv ${test_data}.input_clean.recategorize.align ${test_data}.preproc
 mv ${train_data}.input_clean.recategorize.align ${train_data}.preproc
 mv ${dev_data}.input_clean.recategorize.align ${dev_data}.preproc
-mv ${test_data}.input_clean.recategorize.align ${test_data}.preproc
-rm ${data_dir}/*.recate*
+rm ${data_dir}/*.input_clean*

@@ -10,6 +10,7 @@ model:
   model_type: STOG
   use_char_cnn: True
   use_coverage: True
+  use_aux_encoder: False
 
   encoder_token_embedding:
     num_embeddings:
@@ -82,17 +83,10 @@ model:
 
   decoder:
     input_size: 1574
-    hidden_size: &deocder_hidden_size 1024
+    hidden_size: &decoder_hidden_size 1024
     num_layers: 2
     use_highway: False
     dropout: 0.33
-
-  aux_encoder:
-    input_size: 550
-    hidden_size: 64
-    num_layers: 2
-    use_highway: False
-    dropout: 0.5
 
   source_attention:
     attention_function: mlp
@@ -103,7 +97,7 @@ model:
     share_linear: True
 
   generator:
-    input_size: *deocder_hidden_size
+    input_size: *decoder_hidden_size
     # Specify vocab_size and pad_idx dynamically
     vocab_size:
     pad_idx:
@@ -111,7 +105,7 @@ model:
 
   graph_decoder:
     decode_algorithm: 'greedy'
-    input_size: 1152
+    input_size: *decoder_hidden_size
     edge_node_hidden_size: 256
     edge_label_hidden_size: 128
     dropout: 0.33

@@ -5,10 +5,10 @@ util_dir=data/amr_utils
 
 # AMR data with **features**
 data_dir=data/exp
-test_data=${data_dir}/test_amr.txt.features.preproc
+# test_data=${data_dir}/test_amr.txt.features.preproc
+test_data=test.best.txt
 
 # ========== Set the above variables correctly ==========
-
 
 printf "Frame lookup...`date`\n"
 python -u -m stog.data.dataset_readers.amr_parsing.postprocess.node_restore \
