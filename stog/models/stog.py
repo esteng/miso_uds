@@ -54,6 +54,7 @@ class STOG(Model):
                  vocab,
                  use_char_cnn,
                  use_coverage,
+                 use_aux_encoder,
                  max_decode_length,
                  # Encoder
                  encoder_token_embedding,
@@ -85,6 +86,7 @@ class STOG(Model):
         self.vocab = vocab
         self.use_char_cnn = use_char_cnn
         self.use_coverage = use_coverage
+        self.use_aux_encoder = use_aux_encoder
         self.max_decode_length = max_decode_length
 
         self.encoder_token_embedding = encoder_token_embedding
@@ -135,6 +137,7 @@ class STOG(Model):
 
     def mimick_test(self):
         dataset_reader = load_dataset_reader('AMR')
+        dataset_reader.set_evaluation()
         predictor = Predictor.by_name('STOG')(self, dataset_reader)
         manager = _PredictManager(
             predictor,
@@ -384,10 +387,13 @@ class STOG(Model):
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
         decoder_outputs = self.decoder(decoder_inputs, memory_bank, mask, states)
 
-        aux_encoder_inputs = decoder_inputs[:, 1:]
-        aux_encoder_outputs = self.aux_encoder(aux_encoder_inputs, tgt_mask[:, 1:].byte())
-        aux_encoder_outputs = self.aux_encoder_output_dropout(aux_encoder_outputs)
-        self.aux_encoder.reset_states()
+        if self.use_aux_encoder:
+            aux_encoder_inputs = decoder_inputs[:, 1:]
+            aux_encoder_outputs = self.aux_encoder(aux_encoder_inputs, tgt_mask[:, 1:].byte())
+            aux_encoder_outputs = self.aux_encoder_output_dropout(aux_encoder_outputs)
+            self.aux_encoder.reset_states()
+        else:
+            aux_encoder_outputs = None
 
         return dict(
             memory_bank=decoder_outputs['output_sequences'],
@@ -403,7 +409,8 @@ class STOG(Model):
     def graph_decode(self, memory_bank, edge_heads, edge_labels, corefs, mask, aux_memory_bank):
         # Exclude the BOS symbol.
         memory_bank = memory_bank[:, 1:]
-        memory_bank = torch.cat([memory_bank, aux_memory_bank], 2)
+        if self.use_aux_encoder:
+            memory_bank = torch.cat([memory_bank, aux_memory_bank], 2)
         corefs = corefs[:, 1:]
         mask = mask[:, 1:]
         return self.graph_decoder(memory_bank, edge_heads, edge_labels, corefs, mask)
@@ -673,9 +680,10 @@ class STOG(Model):
             edge_heads: [batch_size, node_length]
             edge_labels: [batch_size, node_length]
         """
-        aux_encoder_outputs = self.aux_encoder(decoder_inputs, mask)
-        self.aux_encoder.reset_states()
-        memory_bank = torch.cat([memory_bank, aux_encoder_outputs], 2)
+        if self.use_aux_encoder:
+            aux_encoder_outputs = self.aux_encoder(decoder_inputs, mask)
+            self.aux_encoder.reset_states()
+            memory_bank = torch.cat([memory_bank, aux_encoder_outputs], 2)
 
         memory_bank, _, _, corefs, mask = self.graph_decoder._add_head_sentinel(
             memory_bank, None, None, corefs, mask)
@@ -784,11 +792,16 @@ class STOG(Model):
             use_coverage=params['use_coverage']
         )
 
-        aux_encoder = PytorchSeq2SeqWrapper(
-            module=StackedBidirectionalLstm.from_params(params['aux_encoder']),
-            stateful=True
-        )
-        aux_encoder_output_dropout = InputVariationalDropout(p=params['aux_encoder']['dropout'])
+        if params.get('use_aux_encoder', False):
+            aux_encoder = PytorchSeq2SeqWrapper(
+                module=StackedBidirectionalLstm.from_params(params['aux_encoder']),
+                stateful=True
+            )
+            aux_encoder_output_dropout = InputVariationalDropout(
+                p=params['aux_encoder']['dropout'])
+        else:
+            aux_encoder = None
+            aux_encoder_output_dropout = None
 
         switch_input_size = params['encoder']['hidden_size'] * 2
         generator = PointerGenerator(
@@ -811,6 +824,7 @@ class STOG(Model):
             vocab=vocab,
             use_char_cnn=params['use_char_cnn'],
             use_coverage=params['use_coverage'],
+            use_aux_encoder=params.get('use_aux_encoder', False),
             max_decode_length=params.get('max_decode_length', 50),
             encoder_token_embedding=encoder_token_embedding,
             encoder_pos_embedding=encoder_pos_embedding,
