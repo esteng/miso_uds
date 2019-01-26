@@ -49,6 +49,10 @@ def clean(amr):
     split_year_month(amr)
     split_era(amr)
     split_911(amr)
+    split_ratio(amr)
+    split_unit_with_number(amr)
+    split_number_with_dash_prefix(amr)
+    add_default_quant(amr)
 
 
 def correct_errors(amr):
@@ -219,6 +223,24 @@ def correct_errors(amr):
                 pos = ['NN', 'JJ']
                 ner = ['O', 'ORDINAL']
                 break
+            if amr.id.startswith('DF-200-192400-625_7046.5') and token == 'my' and amr.tokens[i + 1] == 'counsellers':
+                index = i
+                tokens = ['my', '2']
+                pos = ['PRP$', 'CD']
+                ner = ['O', 'NUMBER']
+                break
+            if amr.id.startswith('PROXY_LTW_ENG_20081115_0076.19') and token == 'a' and amr.tokens[i + 1] == 'year':
+                index = list(range(i, i + 5))
+                tokens = ['1.5', 'year']
+                pos = ['CD', 'NN']
+                ner = ['NUMBER', 'DURATION']
+                break
+            if amr.id.startswith('PROXY_XIN_ENG_20020905_0122.11') and token == 'separate' and amr.tokens[i + 1] == 'bomb':
+                index = list(range(i, i + 2))
+                tokens = ['separate', 'two', 'bomb']
+                pos = ['JJ', 'CD', 'JJ']
+                ner = ['O', 'NUMBER', 'O']
+                break
             if (token == 'second' and i + 2 < len(amr.tokens) and
                     amr.tokens[i + 1] == 'to' and amr.tokens[i + 2] == 'last'):
                 index = [i, i + 1, i + 2]
@@ -231,6 +253,30 @@ def correct_errors(amr):
                 tokens = ['today', 'night']
                 pos = ['NN', 'NN']
                 ner = ['DATE', 'DATE']
+                break
+            if token == '1ps':
+                index = i
+                tokens = ['1', 'pence']
+                pos = ['CD', 'NN']
+                ner = ['NUMBER', 'O']
+                break
+            if token == 'twice':
+                index = i
+                tokens = ['2', 'time']
+                pos = ['CD', 'NNS']
+                ner = ['NUMBER', 'O']
+                break
+            if token.lower() in ('daily', 'everyday'):
+                index = i
+                tokens = ['every', '1', 'day']
+                pos = ['DT', 'CD', 'NN']
+                ner = ['O', 'NUMBER', 'O']
+                break
+            if token.lower() == 'annual':
+                index = i
+                tokens = ['1', '-', 'year']
+                pos = ['CD', ':', 'NN']
+                ner = ['NUMBER', 'O', 'O']
                 break
         else:
             break
@@ -454,6 +500,53 @@ def split_entity_prefix(amr, prefix):
             amr.replace_span([index], [prefix, lemma], ['JJ', pos], [ner, ner])
 
 
+def split_unit_with_number(amr):
+    # Split unit with number, e.g. '30pence'.
+    while True:
+        index = None
+        for i, lemma in enumerate(amr.lemmas):
+            if re.search(r'^\d+(ps|pence)$', lemma):
+                index = i
+                break
+        else:
+            break
+        lemma = amr.lemmas[index]
+        x = re.split(r'(ps|pence)$', lemma)[0]
+        y = lemma[len(x):]
+        amr.replace_span([index], [x, y], ['CD', 'NN'], ['NUMBER', 'O'])
+
+
+def split_ratio(amr):
+    # Split ratio with number, e.g. '1:1.4'.
+    while True:
+        index = None
+        for i, lemma in enumerate(amr.lemmas):
+            if re.search(r'^\d+\.?\d*:\d+\.?\d*$', lemma):
+                index = i
+                break
+        else:
+            break
+        lemma = amr.lemmas[index]
+        x, y = lemma.split(':')
+        amr.replace_span([index], [x, ':', y], ['CD', ':', 'CD'], ['NUMBER', 'O', 'NUMBER'])
+
+
+def split_number_with_dash_prefix(amr):
+    # Split number with dash prefix, e.g. '-6'
+    while True:
+        index = None
+        for i, lemma in enumerate(amr.lemmas):
+            if re.search(r'^-\d+$', lemma):
+                index = i
+                break
+        else:
+            break
+        lemma = amr.lemmas[index]
+        x = lemma[0]
+        y = lemma[1:]
+        amr.replace_span([index], [x, y], [':', 'CD'], ['O', 'NUMBER'])
+
+
 def split_date_duration(amr):
     # 201005-201006
     while True:
@@ -572,6 +665,58 @@ def replace_NT_dollar_abbr(amr):
     for i, token in enumerate(amr.tokens):
         if token == 'NT' and len(amr.tokens) > i + 1 and amr.tokens[i + 1] in ('$', 'dollars', 'dollar'):
             amr.replace_span([i], ['Taiwan'], ['NNP'], ['COUNTRY'])
+
+
+def add_default_quant(amr):
+    has_default_quant = False
+    for node in amr.graph.get_nodes():
+        for attr, value in node.attributes:
+            if attr == 'quant' and value == 1:
+                has_default_quant = True
+                break
+        if has_default_quant:
+            break
+    if not has_default_quant:
+        return
+    while True:
+        index = None
+        for i, token in enumerate(amr.tokens):
+            if i > 0 and token.lower() in ('decades', 'years', 'months', 'weeks', 'miles', 'days'):
+                lemma = amr.lemmas[i]
+                pos_tag = amr.pos_tags[i]
+                ner_tag = amr.ner_tags[i]
+                last_lemma = amr.lemmas[i - 1]
+                last_pos_tag = amr.pos_tags[i - 1]
+                if last_pos_tag == 'CD':
+                    continue
+                if last_lemma in ('several', 'since', 'few', "'s", 'not', 'many', 'stretch', 'couple', 'coupla') or last_pos_tag in ('IN', 'POS'):
+                    index = [i]
+                    tokens = ['1', lemma]
+                    pos_tags = ['CD', pos_tag]
+                    if ner_tag not in ('O', '0'):
+                        ner_tags = [ner_tag, ner_tag]
+                    else:
+                        ner_tags = ['NUMBER', ner_tag]
+                    break
+
+            if i + 2 < len(amr.tokens) and ' '.join(amr.lemmas[i: i + 3]) in (
+                    'year by year', 'month by month', 'week by week', 'day by day'):
+                if i == 0 or amr.pos_tags[i - 1] == 'CD':
+                    continue
+                index = list(range(i, i + 3))
+                tokens = ['1'] + amr.lemmas[i: i + 3]
+                pos_tags = ['CD'] + amr.pos_tags[i: i + 3]
+                ner_tags = ['RATE'] * 4
+                break
+            if i + 1 < len(amr.tokens) and amr.lemmas[i] == 'every' and amr.lemmas[i + 1] in ('day', 'week', 'month', 'year', 'decade', 'hour', 'minute', 'second'):
+                index = list(range(i, i + 2))
+                tokens = [amr.lemmas[i], '1', amr.lemmas[i + 1]]
+                pos_tags = [amr.pos_tags[i], 'CD', amr.lemmas[i + 1]]
+                ner_tags = ['RATE'] * 3
+                break
+        else:
+            break
+        amr.replace_span(index, tokens, pos_tags, ner_tags)
 
 
 if __name__ == '__main__':
