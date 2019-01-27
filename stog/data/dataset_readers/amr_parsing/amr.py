@@ -430,9 +430,12 @@ class AMRGraph(penman.Graph):
             update_info(node, relation, parent_node, instance)
 
             if len(node.attributes) > 1 and visited[node] == 0:
+                # In penman's design, a node could have more than one attributes.
+                # Usually, the attribute[0] is the instance, the rest can be modifier, such as quant etc.
+                # Some modifiers are not considered as nodes in penman, here we need to extract out them.
                 for attr in node.attributes:
                     if attr[0] != "instance":
-                        update_info(node, attr[0], parent_node, attr[1])
+                        update_info(node, attr[0], node, attr[1])
             visited[node] = 1
 
         copy_offset = 0
