@@ -454,7 +454,7 @@ class AMRGraph(penman.Graph):
             if len(node.attributes) > 1 and visited[node] == 0:
                 for attr in node.attributes:
                     if attr[0] != "instance":
-                        update_info(node, attr[0], parent_node, attr[1])
+                        update_info(node, attr[0], node, attr[1])
             visited[node] = 1
 
         copy_offset = 0
@@ -615,8 +615,14 @@ class AMRGraph(penman.Graph):
         def abstract_attribute(value):
             return re.search(r'^_QUANTITY_\d+$', value)
 
+        def correct_multiroot(heads):
+            for i in range(1, len(heads)):
+                if heads[i] == 0:
+                    heads[i] = 1
+            return heads
+
         nodes = [normalize_number(n) for n in prediction['nodes']]
-        heads = prediction['heads']
+        heads = correct_multiroot(prediction['heads'])
         corefs = prediction['corefs']
         head_labels = prediction['head_labels']
 
