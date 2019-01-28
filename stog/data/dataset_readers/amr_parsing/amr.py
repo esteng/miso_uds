@@ -117,12 +117,14 @@ class AMR:
 
 class AMRNode:
 
-    def __init__(self, identifier, attributes=None):
+    def __init__(self, identifier, attributes=None, copy_of=None):
         self.identifier = identifier
         if attributes is None:
             self.attributes = []
         else:
             self.attributes = attributes
+        self._num_copies = 0
+        self.copy_of = copy_of
 
     def __hash__(self):
         return hash(self.identifier)
@@ -165,6 +167,14 @@ class AMRNode:
         if len(ops):
             ops.sort(key=lambda x: x[0])
         return [v for k, v in ops]
+
+    def copy(self):
+        attributes = None
+        if self.attributes is not None:
+            attributes = self.attributes[:]
+        self._num_copies += 1
+        copy = AMRNode(self.identifier + '_copy_{}'.format(self._num_copies), attributes, self)
+        return copy
 
     def remove_attribute(self, attr, value):
         self.attributes.remove((attr, value))
@@ -212,6 +222,7 @@ class AMRGraph(penman.Graph):
             G.add_node(node)
             self.variable_to_node[v] = node
 
+        edge_set = set()
         for edge in self.edges():
             if type(edge.source) is not str:
                 logger.warn("A source is not string : {} (type : {})".format(edge, type(edge.source)))
@@ -229,6 +240,10 @@ class AMRGraph(penman.Graph):
             if edge.inverted:
                 source, target, relation = target, source, amr_codec.invert_relation(edge.relation)
 
+            if (source, target) in edge_set:
+                target = target.copy()
+
+            edge_set.add((source, target))
             G.add_edge(source, target, label=relation)
 
         self._G = G
@@ -411,7 +426,10 @@ class AMRGraph(penman.Graph):
 
         def dfs(node, relation, parent):
 
-            node_list.append((node, relation, parent))
+            node_list.append((
+                node if node.copy_of is None else node.copy_of,
+                relation,
+                parent if parent.copy_of is None else parent.copy_of))
 
             if len(self._G[node]) > 0 and visited[node] == 0:
                 visited[node] = 1
@@ -680,7 +698,7 @@ class AMRGraph(penman.Graph):
         if len(triples) == 0:
             triples.append(('s', 'instance', 'string-entity'))
             top = 's'
-        triples.sort()
+        triples.sort(key=lambda x: int(x[0].replace('vv', '')))
         graph = penman.Graph()
         graph._top = top
         graph._triples = [penman.Triple(*t) for t in triples]
