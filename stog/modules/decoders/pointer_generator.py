@@ -188,6 +188,8 @@ class PointerGenerator(torch.nn.Module):
 
         return dict(
             loss=loss.sum().div(float(num_tokens)),
+            total_loss=loss,
+            num_tokens=torch.tensor([float(num_tokens)]),
             predictions=predictions
         )
 

@@ -64,7 +64,7 @@ class DeepBiaffineGraphDecoder(torch.nn.Module):
             edge_labels=pred_edge_labels,
             loss=(edge_node_nll + edge_label_nll) / num_nodes,
             total_loss=edge_node_nll + edge_label_nll,
-            num_nodes=float(num_nodes)
+            num_nodes=torch.tensor(float(num_nodes))
         )
 
     def encode(self, memory_bank):
