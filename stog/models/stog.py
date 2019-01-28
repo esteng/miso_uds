@@ -333,6 +333,10 @@ class STOG(Model):
 
             return dict(
                 loss=generator_loss_output['loss'] + graph_decoder_outputs['loss'],
+                token_loss=generator_loss_output['total_loss'],
+                edge_loss=graph_decoder_outputs['total_loss'],
+                num_tokens=generator_loss_output['num_tokens'],
+                num_nodes=graph_decoder_outputs['num_nodes']
             )
 
         else:

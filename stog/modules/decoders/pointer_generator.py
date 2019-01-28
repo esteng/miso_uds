@@ -324,5 +324,7 @@ class SimplePointerGenerator(torch.nn.Module):
 
         return dict(
             loss=loss.sum().div(float(num_tokens)),
+            total_loss=loss.sum(),
+            num_tokens=float(num_tokens),
             predictions=predictions
         )

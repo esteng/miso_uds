@@ -46,7 +46,8 @@ class Trainer:
             num_serialized_models_to_keep = 20,
             model_save_interval = None,
             summary_interval = 100,
-            batch_size = 64
+            batch_size = 64,
+            n_gpus = 0,
     ):
         """
         Parameters
@@ -94,6 +95,8 @@ class Trainer:
             Number of batches between logging scalars to tensorboard
         :param batch_size:
             Training and dev batch size
+        :param n_gpus:
+            Number of GPUs
         """
         self._model = model
         self._optimizer = optimizer
@@ -113,6 +116,7 @@ class Trainer:
         self._model_save_interval = model_save_interval
         self._summary_interval = summary_interval
         self._batch_size = batch_size
+        self._n_gpus = n_gpus
 
         self._num_trained_batches = 0
         self._serialized_paths = []
@@ -133,9 +137,14 @@ class Trainer:
         output_dict = self._model(batch, for_training=for_training)
 
         try:
+            if self._n_gpus > 1:
+                import pdb; pdb.set_trace()
             loss = output_dict["loss"]
             if for_training:
-                loss += self._model.get_regularization_penalty()
+                if self._n_gpus > 1:
+                    loss += self._model.module.get_regularization_penalty()
+                else:
+                    loss += self._model.get_regularization_penalty()
         except KeyError:
             if for_training:
                 raise RuntimeError("The model you are trying to optimize does not contain a"
@@ -180,7 +189,10 @@ class Trainer:
             self._optimizer.step()
 
             # Update the description with the latest metrics
-            metrics = self._model.get_metrics()
+            if self._n_gpus > 1:
+                metrics = self._model.module.get_metrics()
+            else:
+                metrics = self._model.get_metrics()
             description = self._description_from_metrics(metrics)
 
             train_generator_tqdm.set_description(description, refresh=False)
@@ -202,7 +214,10 @@ class Trainer:
                     '{0}.{1}'.format(epoch, time_to_str(int(last_save_time))), [], is_best=False
                 )
         logger.info('Finish one epoch.')
-        return self._model.get_metrics(reset=True)
+        if self._n_gpus > 1:
+            return self._model.module.get_metrics(reset=True)
+        else:
+            return self._model.get_metrics(reset=True)
 
     def _metrics_to_tensorboard(self,
                                 epoch: int,
@@ -292,11 +307,17 @@ class Trainer:
                 dev_loss += loss.item()
 
             # Update the description with the latest metrics
-            dev_metrics = self._model.get_metrics()
+            if self._n_gpus > 1:
+                dev_metrics = self._model.module.get_metrics()
+            else:
+                dev_metrics = self._model.get_metrics()
             description = self._description_from_metrics(dev_metrics)
             dev_generator_tqdm.set_description(description, refresh=False)
 
-        return self._model.get_metrics(reset=True, mimick_test=epoch > 30)
+        if self._n_gpus > 1:
+            return self._model.module.get_metrics(reset=True, mimick_test=epoch > 30)
+        else:
+            return self._model.get_metrics(reset=True, mimick_test=epoch > 30)
 
     def train(self):
         """Trains the supplied model with the supplied parameters.
@@ -530,9 +551,10 @@ class Trainer:
         serialization_dir = params['serialization_dir']
         model_save_interval = params['model_save_interval']
         batch_size = params['batch_size']
+        n_gpus = torch.cuda.device_count()
 
-        if torch.cuda.device_count() > 1:
-            logger.info('Multi-GPU ({}) model is enabled!'.format(torch.cuda.device_count()))
+        if n_gpus > 1:
+            logger.info('Multi-GPU ({}) model is enabled!'.format(n_gpus))
             model = torch.nn.DataParallel(model)
 
         model.to(device)
@@ -559,7 +581,8 @@ class Trainer:
             num_serialized_models_to_keep=5,
             model_save_interval=model_save_interval,
             summary_interval=100,
-            batch_size=batch_size
+            batch_size=batch_size,
+            n_gpus=n_gpus
         )
 
         return trainer
