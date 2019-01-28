@@ -43,6 +43,9 @@ class GraphRepair:
         graph = self.graph
         nodes = [node for node in graph.get_nodes()]
         for node in nodes:
+            for attr, value in node.attributes:
+                if value == '@@UNKNOWN@@' and attr != 'instance':
+                    graph.remove_node_attribute(node, attr, value)
             if node.instance == '@@UNKNOWN@@':
                 if len(list(graph._G.edges(node))) == 0:
                     for source, target in list(graph._G.in_edges(node)):
