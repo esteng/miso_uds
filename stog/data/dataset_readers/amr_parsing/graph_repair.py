@@ -31,12 +31,24 @@ class GraphRepair:
             before = str(graph)
         gr = GraphRepair(graph, nodes)
         gr.remove_redundant_edges()
+        gr.remove_unknown_nodes()
         if debug:
             if 'remove-redundant-edge' in self.repaired_items:
                 logger.info(gr.repaired_items)
                 logger.info(before)
                 logger.info('---------------')
                 logger.info(str(graph) + '\n\n')
+
+    def remove_unknown_nodes(self):
+        graph = self.graph
+        nodes = [node for node in graph.get_nodes()]
+        for node in nodes:
+            if node.instance == '@@UNKNOWN@@':
+                if len(list(graph._G.edges(node))) == 0:
+                    for source, target in list(graph._G.in_edges(node)):
+                        graph.remove_edge(source, target)
+                    graph.remove_node(node)
+                    self.repaired_items.add('remove-unknown-node')
 
     def remove_redundant_edges(self):
         """
