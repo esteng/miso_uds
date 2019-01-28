@@ -138,8 +138,10 @@ class Trainer:
 
         try:
             if self._n_gpus > 1:
-                import pdb; pdb.set_trace()
-            loss = output_dict["loss"]
+                loss = (output_dict['token_loss'].sum() / output_dict['num_tokens'].sum() +
+                        output_dict['edge_loss'].sum() / output_dict['num_nodes'].sum())
+            else:
+                loss = output_dict["loss"]
             if for_training:
                 if self._n_gpus > 1:
                     loss += self._model.module.get_regularization_penalty()
