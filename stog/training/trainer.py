@@ -531,6 +531,10 @@ class Trainer:
         model_save_interval = params['model_save_interval']
         batch_size = params['batch_size']
 
+        if torch.cuda.device_count() > 1:
+            logger.info('Multi-GPU ({}) model is enabled!'.format(torch.cuda.device_count()))
+            model = torch.nn.DataParallel(model)
+
         model.to(device)
 
         optimizer = Optimizer(optimizer_type, lr, max_grad_norm, device=device)
