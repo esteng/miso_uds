@@ -45,7 +45,6 @@ def load_dataset_reader(dataset_type, *args, **kwargs):
 
 def load_dataset(path, dataset_type, *args, **kwargs):
     return load_dataset_reader(dataset_type, *args, **kwargs).read(path)
-    return instances
 
 def dataset_from_params(params):
 

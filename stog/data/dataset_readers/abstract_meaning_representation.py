@@ -50,7 +50,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         self._number_pos_tags = 0
 
     def report_coverage(self):
-        logger.info('POS tag coverage: {} ({}/{})'.format(
+        logger.info('POS tag coverage: {0:.4f} ({1}/{2})'.format(
             self._number_non_oov_pos_tags / self._number_pos_tags,
             self._number_non_oov_pos_tags, self._number_pos_tags
         ))
