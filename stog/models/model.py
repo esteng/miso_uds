@@ -5,6 +5,7 @@ Adopted from AllenNLP:
 """
 
 import os
+import re
 from typing import Dict, Union, List, Set
 
 import numpy
@@ -255,6 +256,8 @@ class Model(torch.nn.Module):
         remove_pretrained_embedding_params(model_params)
         model = cls.from_params(vocab=vocab, params=model_params)
         model_state = torch.load(weights_file, map_location=device_mapping(-1))
+        if not isinstance(model, torch.nn.DataParallel):
+            model_state = {re.sub(r'^module\.', '', k):v for k, v in model_state.items()}
         model.load_state_dict(model_state)
         model.set_vocab(vocab)
         model.to(device)

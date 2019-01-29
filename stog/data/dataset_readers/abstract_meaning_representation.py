@@ -104,9 +104,9 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             label_namespace="pos_tags"
         )
 
-        self._number_pos_tags += len(list_data['src_copy_indices'])
+        self._number_pos_tags += len(list_data['tgt_pos_tags'])
         self._number_non_oov_pos_tags += len(
-            [tag for tag in list_data['src_copy_indices'] if tag != 1])
+            [tag for tag in list_data['tgt_pos_tags'] if tag != '@@UNKNOWN@@'])
 
         fields["tgt_copy_indices"] = SequenceLabelField(
             labels=list_data["tgt_copy_indices"],
