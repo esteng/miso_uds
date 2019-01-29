@@ -43,7 +43,12 @@ def load_dataset_reader(dataset_type):
     return dataset_reader
 
 def load_dataset(path, dataset_type):
-    return load_dataset_reader(dataset_type).read(path)
+    # return load_dataset_reader(dataset_type).read(path)
+    reader = load_dataset_reader(dataset_type)
+    instances = reader.read(path)
+    reader.report_coverage()
+    # import pdb; pdb.set_trace()
+    return instances
 
 def dataset_from_params(params):
 

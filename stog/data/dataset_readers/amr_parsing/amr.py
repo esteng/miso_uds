@@ -8,6 +8,7 @@ from penman import Triple
 
 from stog.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 from stog.data.dataset_readers.amr_parsing.graph_repair import GraphRepair
+from stog.utils.string import find_similar_token
 from stog.utils import logging
 
 
@@ -526,8 +527,9 @@ class AMRGraph(penman.Graph):
 
             tgt_tags = []
             for tgt_token in tgt_tokens:
-                if tgt_token in src_tokens:
-                    index = src_tokens.index(tgt_token)
+                sim_token = find_similar_token(tgt_token, src_tokens)
+                if sim_token is not None:
+                    index = src_tokens.index(sim_token)
                     tag = src_tags[index]
                 else:
                     tag = DEFAULT_OOV_TOKEN
@@ -555,8 +557,10 @@ class AMRGraph(penman.Graph):
         #     else:
         #         pos_tag = DEFAULT_OOV_TOKEN
         #     tgt_pos_tags.append(pos_tag)
-        tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(amr.pos_tags)
-        tgt_ner_tags, ner_tag_lut = add_source_side_tags_to_target_side(amr.ner_tags)
+
+        tgt_pos_tags, pos_tag_lut, tgt_ner_tags, ner_tag_lut = None, None, None, None
+        # tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(amr.pos_tags)
+        # tgt_ner_tags, ner_tag_lut = add_source_side_tags_to_target_side(amr.ner_tags)
 
         return {
             "tgt_tokens" : tgt_tokens,

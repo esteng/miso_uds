@@ -1,4 +1,5 @@
 from typing import Any, Callable, Dict, List, Tuple, TypeVar, Iterable, Iterator
+import re
 import torch
 import numpy
 JsonDict = Dict[str, Any]
@@ -9,6 +10,27 @@ JsonDict = Dict[str, Any]
 # those cases).
 START_SYMBOL = '@start@'
 END_SYMBOL = '@end@'
+
+
+def find_similar_token(token, tokens):
+    token = re.sub(r'-\d\d$', '', token) # .lower())
+    for i, t in enumerate(tokens):
+        if token == t:
+            return tokens[i]
+        # t = t.lower()
+        # if (token == t or
+        #     (t.startswith(token) and len(token) > 3) or
+        #     token + 'd' == t or
+        #     token + 'ed' == t or
+        #     re.sub('ly$', 'le', t) == token or
+        #     re.sub('tive$', 'te', t) == token or
+        #     re.sub('tion$', 'te', t) == token or
+        #     re.sub('ied$', 'y', t) == token or
+        #     re.sub('ly$', '', t) == token
+        # ):
+        #     return tokens[i]
+    return None
+
 
 def namespace_match(pattern: str, namespace: str):
     """

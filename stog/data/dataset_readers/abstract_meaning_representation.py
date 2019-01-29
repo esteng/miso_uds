@@ -2,6 +2,7 @@
 from typing import Dict, List, Tuple
 import logging
 import os
+import json
 
 from overrides import overrides
 # NLTK is so performance orientated (ha ha) that they have lazy imports. Why? Who knows.
@@ -17,7 +18,9 @@ from stog.data.tokenizers.word_splitter import SpacyWordSplitter
 from stog.data.dataset_readers.dataset_utils.span_utils import enumerate_spans
 from stog.utils.checks import ConfigurationError
 from stog.utils.string import START_SYMBOL, END_SYMBOL
-import json
+
+from pytorch_pretrained_bert.tokenization import BertTokenizer
+
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -40,6 +43,18 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         self._word_splitter = word_splitter or SpacyWordSplitter()
         self._skip_first_line = skip_first_line
         self._evaluation = evaluation
+        self._number_non_oov_pos_tags = 0
+        self._number_pos_tags = 0
+        self._tokenizer = BertTokenizer.from_pretrained(
+            "/home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt",
+            do_lower_case=False
+        )
+
+    def report_coverage(self):
+        logger.info('POS tag coverage: {} ({}/{})'.format(
+            self._number_non_oov_pos_tags / self._number_pos_tags,
+            self._number_non_oov_pos_tags, self._number_pos_tags
+        ))
 
     def set_evaluation(self):
         self._evaluation = True
@@ -52,6 +67,8 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         logger.info("Reading instances from lines in file at: %s", file_path)
         for amr in AMRIO.read(file_path):
+            tokens = self._tokenizer.tokenize(' '.join(amr.lemmas))
+            amr.graph.set_src_tokens(tokens)
             yield self.text_to_instance(amr)
 
     @overrides
@@ -73,17 +90,21 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
 
-        fields["src_pos_tags"] = SequenceLabelField(
-            labels=list_data["src_pos_tags"],
-            sequence_field=fields["src_tokens"],
-            label_namespace="pos_tags"
-        )
+        # fields["src_pos_tags"] = SequenceLabelField(
+        #     labels=list_data["src_pos_tags"],
+        #     sequence_field=fields["src_tokens"],
+        #     label_namespace="pos_tags"
+        # )
 
-        fields["tgt_pos_tags"] = SequenceLabelField(
-            labels=list_data["tgt_pos_tags"],
-            sequence_field=fields["tgt_tokens"],
-            label_namespace="pos_tags"
-        )
+        # fields["tgt_pos_tags"] = SequenceLabelField(
+        #     labels=list_data["tgt_pos_tags"],
+        #     sequence_field=fields["tgt_tokens"],
+        #     label_namespace="pos_tags"
+        # )
+
+        self._number_pos_tags += len(list_data['src_copy_indices'])
+        self._number_non_oov_pos_tags += len(
+            [tag for tag in list_data['src_copy_indices'] if tag != 1])
 
         fields["tgt_copy_indices"] = SequenceLabelField(
             labels=list_data["tgt_copy_indices"],

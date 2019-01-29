@@ -16,7 +16,7 @@ from stog.modules.decoders.generator import Generator
 from stog.modules.decoders.pointer_generator import PointerGenerator
 from stog.modules.decoders.deep_biaffine_graph_decoder import DeepBiaffineGraphDecoder
 from stog.utils.nn import get_text_field_mask
-from stog.utils.string import START_SYMBOL, END_SYMBOL
+from stog.utils.string import START_SYMBOL, END_SYMBOL, find_similar_token
 from stog.data.vocabulary import DEFAULT_OOV_TOKEN
 from stog.data.tokenizers.character_tokenizer import CharacterTokenizer
 # The following imports are added for mimick testing.
@@ -650,6 +650,14 @@ class STOG(Model):
                 pos_tags[i] = self.vocab.get_token_index(
                     tag_luts[i]['pos'][copied_token], 'pos_tags')
             copy_predictions[i] = self.vocab.get_token_index(copied_token, 'decoder_token_ids')
+
+        for i, index in enumerate((predictions * gen_mask.long()).tolist()):
+            if index != 0:
+                token = self.vocab.get_token_from_index(index, 'decoder_token_ids')
+                src_token = find_similar_token(token, list(tag_luts[i]['pos'].keys()))
+                if src_token is not None:
+                    pos_tags[i] = self.vocab.get_token_index(
+                        tag_luts[i]['pos'][src_token], 'pos_tag')
 
         next_input = coref_predictions * coref_mask.long() + \
                      copy_predictions * copy_mask.long() + \
