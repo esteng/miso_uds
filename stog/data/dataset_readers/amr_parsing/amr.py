@@ -445,7 +445,7 @@ class AMRGraph(penman.Graph):
 
         return node_list
 
-    def get_list_data(self, amr, bos=None, eos=None):
+    def get_list_data(self, amr, bos=None, eos=None, bert_tokenizer=None):
         node_list = self.get_list_node()
 
         tgt_tokens = []
@@ -507,76 +507,63 @@ class AMRGraph(penman.Graph):
             if tgt_token_counter[token] > 1:
                 tgt_copy_mask[i] = 1
 
-        # Source Copy
-        src_tokens = self.get_src_tokens()
-        src_copy_vocab = SourceCopyVocabulary(src_tokens)
-        src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
-        src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
-
-        def add_source_side_tags_to_target_side(src_tags):
-            assert len(src_tags) == len(src_tokens)
+        def add_source_side_tags_to_target_side(_src_tokens, _src_tags):
+            assert len(_src_tags) == len(_src_tokens)
             tag_counter = defaultdict(lambda: defaultdict(int))
-            for src_token, src_tag in zip(src_tokens, src_tags):
+            for src_token, src_tag in zip(_src_tokens, _src_tags):
                 tag_counter[src_token][src_tag] += 1
 
             tag_lut = {DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN,
                        DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN}
-            for src_token in set(src_tokens):
+            for src_token in set(_src_tokens):
                 tag = max(tag_counter[src_token].keys(), key=lambda x: tag_counter[src_token][x])
                 tag_lut[src_token] = tag
 
             tgt_tags = []
             for tgt_token in tgt_tokens:
-                sim_token = find_similar_token(tgt_token, src_tokens)
+                sim_token = find_similar_token(tgt_token, _src_tokens)
                 if sim_token is not None:
-                    index = src_tokens.index(sim_token)
-                    tag = src_tags[index]
+                    index = _src_tokens.index(sim_token)
+                    tag = _src_tags[index]
                 else:
                     tag = DEFAULT_OOV_TOKEN
                 tgt_tags.append(tag)
 
             return tgt_tags, tag_lut
 
-        # Add Source and Target POS tag features
-        # assert len(amr.pos_tags) == len(src_tokens)
-        # src_pos_tags = amr.pos_tags
-
-        # pos_tag_counter = defaultdict(lambda: defaultdict(int))
-        # for token, pos_tag in zip(src_tokens, src_pos_tags):
-        #     pos_tag_counter[token][pos_tag] += 1
-        # pos_tag_lut = {DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN: DEFAULT# _OOV_TOKEN}
-        # for token in set(src_tokens):
-        #     tag = max(pos_tag_counter[token].keys(), key=lambda x: pos_tag_counter[token][x])
-        #     pos_tag_lut[token] = tag
-
-        # tgt_pos_tags = []
-        # for token in tgt_tokens:
-        #     if token in src_tokens:
-        #         index = src_tokens.index(token)
-        #         pos_tag = src_pos_tags[index]
-        #     else:
-        #         pos_tag = DEFAULT_OOV_TOKEN
-        #     tgt_pos_tags.append(pos_tag)
-
-        tgt_pos_tags, pos_tag_lut, tgt_ner_tags, ner_tag_lut = None, None, None, None
-        # tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(amr.pos_tags)
-        # tgt_ner_tags, ner_tag_lut = add_source_side_tags_to_target_side(amr.ner_tags)
+        # Source Copy
+        if bert_tokenizer is not None:
+            # Note: '[CLS]' and '[SEP'] will be added to the front and the end of tokens.
+            src_tokens, src_token_ids, no_hashtag_tokens, src_pos_tags = bert_tokenizer.tokenize(
+                self.get_src_tokens(), amr.pos_tags)
+            src_copy_vocab = SourceCopyVocabulary(no_hashtag_tokens)
+            src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
+            src_copy_map = src_copy_vocab.get_copy_map(no_hashtag_tokens)
+            tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(
+                no_hashtag_tokens, src_pos_tags)
+        else:
+            src_tokens = self.get_src_tokens()
+            src_token_ids = [0] * len(src_tokens)
+            src_pos_tags = amr.pos_tags
+            src_copy_vocab = SourceCopyVocabulary(src_tokens)
+            src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
+            src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
+            tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(
+                src_tokens, src_pos_tags)
 
         return {
             "tgt_tokens" : tgt_tokens,
             "tgt_pos_tags": tgt_pos_tags,
-            "tgt_ner_tags": tgt_ner_tags,
             "tgt_copy_indices" : tgt_copy_indices,
             "tgt_copy_map" : tgt_copy_map,
             "tgt_copy_mask" : tgt_copy_mask,
             "src_tokens" : src_tokens,
-            "src_pos_tags": amr.pos_tags,
-            "src_ner_tags": amr.ner_tags,
+            "src_token_ids" : src_token_ids,
+            "src_pos_tags": src_pos_tags,
             "src_copy_vocab" : src_copy_vocab,
             "src_copy_indices" : src_copy_indices,
             "src_copy_map" : src_copy_map,
             "pos_tag_lut": pos_tag_lut,
-            "ner_tag_lut": ner_tag_lut,
             "head_tags" : head_tags,
             "head_indices" : head_indices,
         }
@@ -700,8 +687,8 @@ class AMRGraph(penman.Graph):
             triples.append((var, 'instance', node))
 
         if len(triples) == 0:
-            triples.append(('s', 'instance', 'string-entity'))
-            top = 's'
+            triples.append(('vv1', 'instance', 'string-entity'))
+            top = 'vv1'
         triples.sort(key=lambda x: int(x[0].replace('vv', '')))
         graph = penman.Graph()
         graph._top = top

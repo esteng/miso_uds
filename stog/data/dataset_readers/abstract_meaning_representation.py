@@ -14,12 +14,10 @@ from stog.data.fields import TextField, SpanField, SequenceLabelField, ListField
 from stog.data.instance import Instance
 from stog.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
 from stog.data.tokenizers import Token
-from stog.data.tokenizers.word_splitter import SpacyWordSplitter
+from stog.data.tokenizers.bert_tokenizer import AMRBertTokenizer
 from stog.data.dataset_readers.dataset_utils.span_utils import enumerate_spans
 from stog.utils.checks import ConfigurationError
 from stog.utils.string import START_SYMBOL, END_SYMBOL
-
-from pytorch_pretrained_bert.tokenization import BertTokenizer
 
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -40,15 +38,16 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         super().__init__(lazy=lazy)
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
-        self._word_splitter = word_splitter or SpacyWordSplitter()
+        if word_splitter is not None:
+            self._word_splitter = AMRBertTokenizer.from_pretrained(
+                word_splitter, do_lower_case=False)
+        else:
+            self._word_splitter = None
         self._skip_first_line = skip_first_line
         self._evaluation = evaluation
+
         self._number_non_oov_pos_tags = 0
         self._number_pos_tags = 0
-        self._tokenizer = BertTokenizer.from_pretrained(
-            "/home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt",
-            do_lower_case=False
-        )
 
     def report_coverage(self):
         logger.info('POS tag coverage: {} ({}/{})'.format(
@@ -63,13 +62,10 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
     def _read(self, file_path):
         # if `file_path` is a URL, redirect to the cache
         file_path = cached_path(file_path)
-        directory, filename = os.path.split(file_path)
-
         logger.info("Reading instances from lines in file at: %s", file_path)
         for amr in AMRIO.read(file_path):
-            tokens = self._tokenizer.tokenize(' '.join(amr.lemmas))
-            amr.graph.set_src_tokens(tokens)
             yield self.text_to_instance(amr)
+        self.report_coverage()
 
     @overrides
     def text_to_instance(self, amr) -> Instance:
@@ -77,7 +73,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         fields: Dict[str, Field] = {}
 
-        list_data = amr.graph.get_list_data(amr, START_SYMBOL, END_SYMBOL)
+        list_data = amr.graph.get_list_data(amr, START_SYMBOL, END_SYMBOL, self._word_splitter)
 
         # These four fields are used for seq2seq model and target side self copy
         fields["src_tokens"] = TextField(
@@ -85,22 +81,28 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
         )
 
+        fields["src_token_ids"] = SequenceLabelField(
+            labels=list_data["src_token_ids"],
+            sequence_field=fields["src_tokens"],
+            label_namespace="bert_tags"
+        )
+
         fields["tgt_tokens"] = TextField(
             tokens=[Token(x) for x in list_data["tgt_tokens"]],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
 
-        # fields["src_pos_tags"] = SequenceLabelField(
-        #     labels=list_data["src_pos_tags"],
-        #     sequence_field=fields["src_tokens"],
-        #     label_namespace="pos_tags"
-        # )
+        fields["src_pos_tags"] = SequenceLabelField(
+            labels=list_data["src_pos_tags"],
+            sequence_field=fields["src_tokens"],
+            label_namespace="pos_tags"
+        )
 
-        # fields["tgt_pos_tags"] = SequenceLabelField(
-        #     labels=list_data["tgt_pos_tags"],
-        #     sequence_field=fields["tgt_tokens"],
-        #     label_namespace="pos_tags"
-        # )
+        fields["tgt_pos_tags"] = SequenceLabelField(
+            labels=list_data["tgt_pos_tags"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="pos_tags"
+        )
 
         self._number_pos_tags += len(list_data['src_copy_indices'])
         self._number_non_oov_pos_tags += len(
@@ -157,24 +159,24 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             strip_sentence_symbols=True
         )
 
-        # Metadata fields, good for debugging
-        fields["src_tokens_str"] = MetadataField(
-            list_data["src_tokens"]
-        )
-
-        fields["tgt_tokens_str"] = MetadataField(
-            list_data.get("tgt_tokens", [])
-        )
-
-        fields["src_copy_vocab"] = MetadataField(
-            list_data["src_copy_vocab"]
-        )
-
-        fields["tag_lut"] = MetadataField(
-            dict(pos=list_data["pos_tag_lut"])
-        )
-
         if self._evaluation:
+            # Metadata fields, good for debugging
+            fields["src_tokens_str"] = MetadataField(
+                list_data["src_tokens"]
+            )
+
+            fields["tgt_tokens_str"] = MetadataField(
+                list_data.get("tgt_tokens", [])
+            )
+
+            fields["src_copy_vocab"] = MetadataField(
+                list_data["src_copy_vocab"]
+            )
+
+            fields["tag_lut"] = MetadataField(
+                dict(pos=list_data["pos_tag_lut"])
+            )
+
             fields["amr"] = MetadataField(
                 amr
             )

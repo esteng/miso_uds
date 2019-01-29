@@ -1,5 +1,7 @@
 import torch
 
+from pytorch_pretrained_bert.modeling import BertModel
+
 from stog.models.model import Model
 from stog.utils.logging import init_logger
 from stog.modules.token_embedders.embedding import Embedding
@@ -55,6 +57,7 @@ class STOG(Model):
                  use_char_cnn,
                  use_coverage,
                  use_aux_encoder,
+                 use_bert,
                  max_decode_length,
                  # Encoder
                  encoder_token_embedding,
@@ -87,6 +90,7 @@ class STOG(Model):
         self.use_char_cnn = use_char_cnn
         self.use_coverage = use_coverage
         self.use_aux_encoder = use_aux_encoder
+        self.use_bert = use_bert
         self.max_decode_length = max_decode_length
 
         self.encoder_token_embedding = encoder_token_embedding
@@ -198,7 +202,10 @@ class STOG(Model):
 
     def prepare_batch_input(self, batch):
         # [batch, num_tokens]
-        encoder_token_inputs = batch['src_tokens']['encoder_tokens']
+        if self.use_bert:
+            encoder_token_inputs = batch['src_token_ids']
+        else:
+            encoder_token_inputs = batch['src_tokens']['encoder_tokens']
         encoder_pos_tags = batch['src_pos_tags']
         # [batch, num_tokens, num_chars]
         encoder_char_inputs = batch['src_tokens']['encoder_characters']
@@ -351,7 +358,11 @@ class STOG(Model):
 
     def encode(self, tokens, pos_tags, chars, mask):
         # [batch, num_tokens, embedding_size]
-        token_embeddings = self.encoder_token_embedding(tokens)
+        if self.use_bert:
+            token_embeddings, _ = self.encoder_token_embedding(
+                tokens, attention_mask=mask, output_all_encoded_layers=False)
+        else:
+            token_embeddings = self.encoder_token_embedding(tokens)
         pos_tag_embeddings = self.encoder_pos_embedding(pos_tags)
         if self.use_char_cnn:
             char_cnn_output = self._get_encoder_char_cnn_output(chars)
@@ -713,8 +724,17 @@ class STOG(Model):
         logger.info('Building the STOG Model...')
 
         # Encoder
-        encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
+        encoder_input_size = 0
+        if params.get('use_bert', False):
+            encoder_token_embedding = BertModel.from_pretrained(params['bert']['pretrained_model_dir'])
+            encoder_input_size += params['bert']['hidden_size']
+            for p in encoder_token_embedding.parameters():
+                p.requires_grad = False
+        else:
+            encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
+            encoder_input_size += params['encoder_token_embedding']['embedding_dim']
         encoder_pos_embedding = Embedding.from_params(vocab, params['encoder_pos_embedding'])
+        encoder_input_size += params['encoder_pos_embedding']['embedding_dim']
         if params['use_char_cnn']:
             encoder_char_embedding = Embedding.from_params(vocab, params['encoder_char_embedding'])
             encoder_char_cnn = CnnEncoder(
@@ -723,12 +743,14 @@ class STOG(Model):
                 ngram_filter_sizes=params['encoder_char_cnn']['ngram_filter_sizes'],
                 conv_layer_activation=torch.tanh
             )
+            encoder_input_size += params['encoder_char_cnn']['num_filters']
         else:
             encoder_char_embedding = None
             encoder_char_cnn = None
 
         encoder_embedding_dropout = InputVariationalDropout(p=params['encoder_token_embedding']['dropout'])
 
+        params['encoder']['input_size'] = encoder_input_size
         encoder = PytorchSeq2SeqWrapper(
             module=StackedBidirectionalLstm.from_params(params['encoder']),
             stateful=True
@@ -736,6 +758,10 @@ class STOG(Model):
         encoder_output_dropout = InputVariationalDropout(p=params['encoder']['dropout'])
 
         # Decoder
+        decoder_input_size = params['decoder']['hidden_size']
+        decoder_input_size += params['decoder_token_embedding']['embedding_dim']
+        decoder_input_size += params['decoder_coref_embedding']['embedding_dim']
+        decoder_input_size += params['decoder_pos_embedding']['embedding_dim']
         decoder_token_embedding = Embedding.from_params(vocab, params['decoder_token_embedding'])
         decoder_coref_embedding = Embedding.from_params(vocab, params['decoder_coref_embedding'])
         decoder_pos_embedding = Embedding.from_params(vocab, params['decoder_pos_embedding'])
@@ -747,6 +773,7 @@ class STOG(Model):
                 ngram_filter_sizes=params['decoder_char_cnn']['ngram_filter_sizes'],
                 conv_layer_activation=torch.tanh
             )
+            decoder_input_size += params['decoder_char_cnn']['num_filters']
         else:
             decoder_char_embedding = None
             decoder_char_cnn = None
@@ -795,6 +822,7 @@ class STOG(Model):
             attention=coref_attention
         )
 
+        params['decoder']['input_size'] = decoder_input_size
         decoder = InputFeedRNNDecoder(
             rnn_cell=StackedLstm.from_params(params['decoder']),
             attention_layer=source_attention_layer,
@@ -837,6 +865,7 @@ class STOG(Model):
             use_char_cnn=params['use_char_cnn'],
             use_coverage=params['use_coverage'],
             use_aux_encoder=params.get('use_aux_encoder', False),
+            use_bert=params.get('use_bert', False),
             max_decode_length=params.get('max_decode_length', 50),
             encoder_token_embedding=encoder_token_embedding,
             encoder_pos_embedding=encoder_pos_embedding,

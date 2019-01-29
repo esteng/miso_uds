@@ -11,7 +11,7 @@ ROOT_TOKEN="<root>"
 ROOT_CHAR="<r>"
 logger = logging.init_logger()
 
-def load_dataset_reader(dataset_type):
+def load_dataset_reader(dataset_type, *args, **kwargs):
     if dataset_type == "UD":
         dataset_reader = UniversalDependenciesDatasetReader(
             token_indexers= {
@@ -22,12 +22,13 @@ def load_dataset_reader(dataset_type):
     elif dataset_type == "AMR":
         # TODO: Xutai
         dataset_reader = AbstractMeaningRepresentationDatasetReader(
-            token_indexers= dict(
+            token_indexers=dict(
                 encoder_tokens=SingleIdTokenIndexer(namespace="encoder_token_ids"),
                 encoder_characters=TokenCharactersIndexer(namespace="encoder_token_characters"),
                 decoder_tokens=SingleIdTokenIndexer(namespace="decoder_token_ids"),
                 decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
-            )
+            ),
+            word_splitter=kwargs.get('word_splitter', None)
         )
 
     elif dataset_type == "MT":
@@ -42,12 +43,8 @@ def load_dataset_reader(dataset_type):
 
     return dataset_reader
 
-def load_dataset(path, dataset_type):
-    # return load_dataset_reader(dataset_type).read(path)
-    reader = load_dataset_reader(dataset_type)
-    instances = reader.read(path)
-    reader.report_coverage()
-    # import pdb; pdb.set_trace()
+def load_dataset(path, dataset_type, *args, **kwargs):
+    return load_dataset_reader(dataset_type, *args, **kwargs).read(path)
     return instances
 
 def dataset_from_params(params):
@@ -58,15 +55,15 @@ def dataset_from_params(params):
     data_type = params['data_type']
 
     logger.info("Building train datasets ...")
-    train_data = load_dataset(train_data, data_type)
+    train_data = load_dataset(train_data, data_type, **params)
 
     logger.info("Building dev datasets ...")
-    dev_data = load_dataset(dev_data, data_type)
+    dev_data = load_dataset(dev_data, data_type, **params)
 
     if test_data:
         test_data = os.path.join(params['data_dir'], params['test_data'])
         logger.info("Building test datasets ...")
-        test_data = load_dataset(test_data, data_type)
+        test_data = load_dataset(test_data, data_type, **params)
 
     #logger.info("Building vocabulary ...")
     #build_vocab(fields, train_data)
