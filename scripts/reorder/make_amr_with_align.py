@@ -2,6 +2,7 @@ import sys
 import re
 import json
 import argparse
+import re
 from collections import defaultdict
 
 from stog.data.dataset_readers.abstract_meaning_representation import AbstractMeaningRepresentationDatasetReader
@@ -32,6 +33,7 @@ def fully_reorder(instance, token_with_alignment):
     for i, item in enumerate(sorted_token_by_alignment):
         reorder_info[item] = i
 
+
     return re.sub(
         "# ::save-date", "# ::reorder {}\n# ::save-date".format(json.dumps(reorder_info)), 
         instance.fields['amr'].metadata.__str__()
@@ -40,7 +42,8 @@ def fully_reorder(instance, token_with_alignment):
 def node_reorder(
         instance, 
         token_with_alignment,
-        head_first=False
+        head_first=False,
+        sort_by_head_tag=False
 ):
     graph = instance.fields["amr"].metadata.graph
     
@@ -53,6 +56,12 @@ def node_reorder(
         def dfs(node, depth):
 
             depth_list.append(depth)
+            
+            if len(node.attributes) > 1:
+                for _type, token in node.attributes:
+                    if _type != "instance":
+                        depth_list.append(depth + 1)
+                
 
             if len(graph._G[node]) > 0 and visited[node] == 0:
                 visited[node] = 1
@@ -86,7 +95,7 @@ def node_reorder(
             node_spans.append((curr_start, len(depth_list)))
     
         return node_spans
-        
+    
     
     def reorder_subseq(start, end):
         
@@ -96,21 +105,36 @@ def node_reorder(
         if end - start < 2:
             return
 
+       
         sub_spans = split_nodes(tgt_depth[start:end])
 
         token_align_start_indices = [
             (
-                token_with_alignment[start + start_idx], 
+                tgt_list[start + start_idx], 
                 start_idx,
                 end_idx - start_idx
             ) for (start_idx, end_idx) in sub_spans
         ]
 
         if head_first:
+            if len(sub_spans) == 2:
+                reorder_subseq(start + sub_spans[1][0], start + sub_spans[1][1])
+                return
             head = token_align_start_indices[0]
             token_align_start_indices = token_align_start_indices[1:]
 
-        sorted_token = sorted(token_align_start_indices, key=lambda x: x[0][1])
+        if sort_by_head_tag:
+            assert head_first
+            tgt_head_tags = instance.fields["head_tags"].labels[start: end]
+            list_to_sort = [((align, tgt_head_tags[start_idx]), start_idx, length) for align, start_idx, length in token_align_start_indices]
+            arg_nodes = list(filter(lambda x: re.match('^ARG[\d]+(-of)*$', x[0][1]), list_to_sort))  
+            opt_nodes = list(filter(lambda x: re.match('^op[\d]+$', x[0][1]), list_to_sort))  
+            snt_nodes = list(filter(lambda x: re.match('^snt[\d]+$', x[0][1]), list_to_sort))  
+            other_nodes = [ item for item in list_to_sort if not (item in arg_nodes or item in opt_nodes or item in snt_nodes)]
+            sorted_token = other_nodes + arg_nodes + opt_nodes + snt_nodes
+            
+        else:
+            sorted_token = sorted(token_align_start_indices, key=lambda x: x[0][1])
         
         if head_first:
             sorted_token = [head] + sorted_token
@@ -133,7 +157,6 @@ def node_reorder(
         for s, e in new_sub_span:
             reorder_subseq(s + start, e + start) 
 
-       
     reorder_subseq(0, len(tgt_list))
     
     reorder_info = [ i for i in range(len(token_with_alignment))] 
@@ -150,7 +173,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--alignment", required=True)
-    parser.add_argument("--type", choices=["none", "full", "node", "node_head_first"], default="none")
+    parser.add_argument("--type", choices=["none", "source", "node", "node_head_first", "head_tags"], default="none")
     
     args = parser.parse_args()
 
@@ -176,6 +199,8 @@ if __name__ == '__main__':
             amr_string = node_reorder(instance, token_with_alignment)
         elif args.type == "node_head_first":
             amr_string = node_reorder(instance, token_with_alignment, head_first=True)
+        elif args.type == "head_tags":
+            amr_string = node_reorder(instance, token_with_alignment, head_first=True, sort_by_head_tag=True)
         else:
             raise NotImplementedError
             
