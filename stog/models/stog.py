@@ -140,7 +140,8 @@ class STOG(Model):
         return metrics
 
     def mimick_test(self):
-        dataset_reader = load_dataset_reader('AMR')
+        dataset_reader = load_dataset_reader(
+            'AMR', word_splitter=self.test_config.get('word_splitter', None))
         dataset_reader.set_evaluation()
         predictor = Predictor.by_name('STOG')(self, dataset_reader)
         manager = _PredictManager(
@@ -662,7 +663,8 @@ class STOG(Model):
                     tag_luts[i]['pos'][copied_token], 'pos_tags')
             copy_predictions[i] = self.vocab.get_token_index(copied_token, 'decoder_token_ids')
 
-        for i, index in enumerate((predictions * gen_mask.long()).tolist()):
+        for i, index in enumerate(
+                (predictions * gen_mask.long() + coref_predictions * coref_mask.long()).tolist()):
             if index != 0:
                 token = self.vocab.get_token_from_index(index, 'decoder_token_ids')
                 src_token = find_similar_token(token, list(tag_luts[i]['pos'].keys()))
@@ -728,8 +730,8 @@ class STOG(Model):
         if params.get('use_bert', False):
             encoder_token_embedding = BertModel.from_pretrained(params['bert']['pretrained_model_dir'])
             encoder_input_size += params['bert']['hidden_size']
-            for p in encoder_token_embedding.parameters():
-                p.requires_grad = False
+            # for p in encoder_token_embedding.parameters():
+            #     p.requires_grad = False
         else:
             encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
             encoder_input_size += params['encoder_token_embedding']['embedding_dim']
