@@ -46,10 +46,16 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         self._skip_first_line = skip_first_line
         self._evaluation = evaluation
 
+        self._number_bert_ids = 0
+        self._number_bert_oov_ids = 0
         self._number_non_oov_pos_tags = 0
         self._number_pos_tags = 0
 
     def report_coverage(self):
+        logger.info('BERT OOV  rate: {0:.4f} ({1}/{2})'.format(
+            self._number_bert_oov_ids / self._number_bert_ids,
+            self._number_bert_oov_ids, self._number_bert_ids
+        ))
         logger.info('POS tag coverage: {0:.4f} ({1}/{2})'.format(
             self._number_non_oov_pos_tags / self._number_pos_tags,
             self._number_non_oov_pos_tags, self._number_pos_tags
@@ -89,6 +95,10 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             ),
             label_namespace="bert_tags"
         )
+
+        self._number_bert_ids += len(list_data['src_token_ids'])
+        self._number_bert_oov_ids += len(
+            [bert_id for bert_id in list_data['src_token_ids'] if bert_id == 100])
 
         fields["tgt_tokens"] = TextField(
             tokens=[Token(x) for x in list_data["tgt_tokens"]],

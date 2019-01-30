@@ -10,7 +10,7 @@ model:
   model_type: STOG
   use_char_cnn: True
   use_coverage: False
-  use_bert: True
+  use_bert: False
 
   bert:
     pretrained_model_dir: /home/sheng/data/bert-base-cased
@@ -121,7 +121,7 @@ model:
     batch_size: 32
     eval_script: scripts/eval_test.sh
     smatch_dir: tools/amr-evaluation-tool-enhanced
-    word_splitter: /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
+    word_splitter: &word_splitter null # /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
 
 
 # Data parameters
@@ -137,7 +137,7 @@ data:
   iter_type: BucketIterator
   pretrain_token_emb: *glove
   pretrain_char_emb:
-  word_splitter: /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
+  word_splitter: *word_splitter
 
 
 # Training parameters

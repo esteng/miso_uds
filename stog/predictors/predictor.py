@@ -114,8 +114,11 @@ class Predictor(Registrable):
                                          f"Please specify a predictor explicitly.")
             predictor_name = DEFAULT_PREDICTORS[model_type]
 
+        word_splitter = None
+        if config.get('use_bert', False):
+            word_splitter=config['data'].get('word_splitter', None)
         dataset_reader = load_dataset_reader(
-            config["data"]["data_type"], word_splitter=config['data'].get('word_splitter', None))
+            config["data"]["data_type"], word_splitter=word_splitter)
         if hasattr(dataset_reader, 'set_evaluation'):
             dataset_reader.set_evaluation()
 

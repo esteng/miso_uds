@@ -546,7 +546,7 @@ class AMRGraph(penman.Graph):
                 no_hashtag_tokens, src_pos_tags)
         else:
             src_tokens = self.get_src_tokens()
-            src_token_ids = [0] * len(src_tokens)
+            src_token_ids = [0] * (len(src_tokens) + 2)
             src_pos_tags = amr.pos_tags
             src_copy_vocab = SourceCopyVocabulary(src_tokens)
             src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
