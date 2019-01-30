@@ -115,7 +115,7 @@ class Predictor(Registrable):
             predictor_name = DEFAULT_PREDICTORS[model_type]
 
         dataset_reader = load_dataset_reader(
-            config["data"]["data_type"], word_splitter=config['data']['word_splitter'])
+            config["data"]["data_type"], word_splitter=config['data'].get('word_splitter', None))
         if hasattr(dataset_reader, 'set_evaluation'):
             dataset_reader.set_evaluation()
 
