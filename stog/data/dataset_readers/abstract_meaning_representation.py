@@ -83,7 +83,10 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         fields["src_token_ids"] = SequenceLabelField(
             labels=list_data["src_token_ids"],
-            sequence_field=fields["src_tokens"],
+            sequence_field=TextField(
+                [Token('[CLS]')] + [Token(x) for x in list_data['src_tokens']] + [Token('[SEP]')],
+                None
+            ),
             label_namespace="bert_tags"
         )
 

@@ -536,6 +536,9 @@ class AMRGraph(penman.Graph):
             # Note: '[CLS]' and '[SEP'] will be added to the front and the end of tokens.
             src_tokens, src_token_ids, no_hashtag_tokens, src_pos_tags = bert_tokenizer.tokenize(
                 self.get_src_tokens(), amr.pos_tags)
+            src_tokens = src_tokens[1:-1]
+            no_hashtag_tokens = no_hashtag_tokens[1:-1]
+            src_pos_tags = src_pos_tags[1:-1]
             src_copy_vocab = SourceCopyVocabulary(no_hashtag_tokens)
             src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
             src_copy_map = src_copy_vocab.get_copy_map(no_hashtag_tokens)

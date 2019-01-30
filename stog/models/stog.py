@@ -60,6 +60,7 @@ class STOG(Model):
                  use_bert,
                  max_decode_length,
                  # Encoder
+                 bert_encoder,
                  encoder_token_embedding,
                  encoder_pos_embedding,
                  encoder_char_embedding,
@@ -92,6 +93,8 @@ class STOG(Model):
         self.use_aux_encoder = use_aux_encoder
         self.use_bert = use_bert
         self.max_decode_length = max_decode_length
+
+        self.bert_encoder = bert_encoder
 
         self.encoder_token_embedding = encoder_token_embedding
         self.encoder_pos_embedding = encoder_pos_embedding
@@ -203,10 +206,8 @@ class STOG(Model):
 
     def prepare_batch_input(self, batch):
         # [batch, num_tokens]
-        if self.use_bert:
-            encoder_token_inputs = batch['src_token_ids']
-        else:
-            encoder_token_inputs = batch['src_tokens']['encoder_tokens']
+        bert_token_inputs = batch['src_token_ids']
+        encoder_token_inputs = batch['src_tokens']['encoder_tokens']
         encoder_pos_tags = batch['src_pos_tags']
         # [batch, num_tokens, num_chars]
         encoder_char_inputs = batch['src_tokens']['encoder_characters']
@@ -214,6 +215,7 @@ class STOG(Model):
         encoder_mask = get_text_field_mask(batch['src_tokens'])
 
         encoder_inputs = dict(
+            bert_token=bert_token_inputs,
             token=encoder_token_inputs,
             pos_tag=encoder_pos_tags,
             char=encoder_char_inputs,
@@ -292,6 +294,7 @@ class STOG(Model):
         encoder_inputs, decoder_inputs, generator_inputs, parser_inputs = self.prepare_batch_input(batch)
 
         encoder_outputs = self.encode(
+            encoder_inputs['bert_token'],
             encoder_inputs['token'],
             encoder_inputs['pos_tag'],
             encoder_inputs['char'],
@@ -357,20 +360,23 @@ class STOG(Model):
                 tag_luts=batch['tag_lut']
             )
 
-    def encode(self, tokens, pos_tags, chars, mask):
+    def encode(self, bert_tokens, tokens, pos_tags, chars, mask):
         # [batch, num_tokens, embedding_size]
+        encoder_inputs = []
         if self.use_bert:
-            token_embeddings, _ = self.encoder_token_embedding(
-                tokens, attention_mask=mask, output_all_encoded_layers=False)
-        else:
-            token_embeddings = self.encoder_token_embedding(tokens)
+            bert_mask = bert_tokens.ne(0)
+            bert_embeddings, _ = self.bert_encoder(
+                bert_tokens, attention_mask=bert_mask, output_all_encoded_layers=False)
+            bert_embeddings = bert_embeddings[:, 1:-1]
+            encoder_inputs += [bert_embeddings]
+        token_embeddings = self.encoder_token_embedding(tokens)
         pos_tag_embeddings = self.encoder_pos_embedding(pos_tags)
+        encoder_inputs += [token_embeddings, pos_tag_embeddings]
         if self.use_char_cnn:
             char_cnn_output = self._get_encoder_char_cnn_output(chars)
-            encoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, char_cnn_output], 2)
-        else:
-            encoder_inputs = torch.cat([token_embeddings, pos_tag_embeddings], 2)
+            encoder_inputs += [char_cnn_output]
+
+        encoder_inputs = torch.cat(encoder_inputs, 2)
 
         encoder_inputs = self.encoder_embedding_dropout(encoder_inputs)
 
@@ -727,14 +733,14 @@ class STOG(Model):
 
         # Encoder
         encoder_input_size = 0
+        bert_encoder = None
         if params.get('use_bert', False):
-            encoder_token_embedding = BertModel.from_pretrained(params['bert']['pretrained_model_dir'])
+            bert_encoder = BertModel.from_pretrained(params['bert']['pretrained_model_dir'])
             encoder_input_size += params['bert']['hidden_size']
-            # for p in encoder_token_embedding.parameters():
-            #     p.requires_grad = False
-        else:
-            encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
-            encoder_input_size += params['encoder_token_embedding']['embedding_dim']
+            for p in bert_encoder.parameters():
+                p.requires_grad = False
+        encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
+        encoder_input_size += params['encoder_token_embedding']['embedding_dim']
         encoder_pos_embedding = Embedding.from_params(vocab, params['encoder_pos_embedding'])
         encoder_input_size += params['encoder_pos_embedding']['embedding_dim']
         if params['use_char_cnn']:
@@ -869,6 +875,7 @@ class STOG(Model):
             use_aux_encoder=params.get('use_aux_encoder', False),
             use_bert=params.get('use_bert', False),
             max_decode_length=params.get('max_decode_length', 50),
+            bert_encoder=bert_encoder,
             encoder_token_embedding=encoder_token_embedding,
             encoder_pos_embedding=encoder_pos_embedding,
             encoder_char_embedding=encoder_char_embedding,

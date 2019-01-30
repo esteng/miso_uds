@@ -132,7 +132,7 @@ data:
   test_data: dev_amr.txt.features.preproc
   data_type: AMR
   batch_first: True
-  train_batch_size: &train_batch_size 16
+  train_batch_size: &train_batch_size 64
   test_batch_size: 32
   iter_type: BucketIterator
   pretrain_token_emb: *glove
@@ -142,7 +142,7 @@ data:
 
 # Training parameters
 environment:
-  recover: True
+  recover: False
   seed: 1
   numpy_seed: 1
   torch_seed: 1
