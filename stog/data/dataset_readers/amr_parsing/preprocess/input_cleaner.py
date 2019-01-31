@@ -521,7 +521,7 @@ def split_ratio(amr):
     while True:
         index = None
         for i, lemma in enumerate(amr.lemmas):
-            if re.search(r'^\d+\.?\d*:\d+\.?\d*$', lemma):
+            if '.' in lemma and re.search(r'^\d+\.?\d*:\d+\.?\d*$', lemma):
                 index = i
                 break
         else:

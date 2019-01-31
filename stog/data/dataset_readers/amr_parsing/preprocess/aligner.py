@@ -36,6 +36,8 @@ class Aligner:
     def align_graph(self, amr):
         graph = amr.graph
         for node in graph.get_nodes():
+            if node.copy_of is not None:
+                continue
             instance = node.instance
             lemmas = self.map_instance_to_lemmas(instance)
             lemma = self.find_corresponding_lemma(instance, lemmas, amr)

@@ -110,11 +110,14 @@ class Quantity:
         self.amr = amr
         self.dry = dry
         self.alignments = []
+        self.ordered_node_list = [n for n, _, _ in amr.graph.get_list_node()]
         self.quant_count = 0
 
     def abstract(self):
         graph = self.amr.graph
         for node in graph.get_nodes():
+            if node.copy_of is not None:
+                continue
             self.align_node_attrs(node)
         groups = self.group_alignment()
         return self.abstract_group(groups)
@@ -168,17 +171,24 @@ class Quantity:
         return groups
 
     def abstract_group(self, groups):
+        if len(groups) == 0:
+            return 0
         count, offset = 0, 0
         representatives = [max(g, key=lambda x: x.end - x.begin) for g in groups]
+        groups, representatives = zip(*sorted(
+            zip(groups, representatives), key=lambda x: (x[1].begin, x[1].end)))
         for i, alignment in enumerate(representatives):
-            abstract = '_QUANTITY_{}'.format(i + 1)
+            abstract = 'QUANTITY_{}'.format(i + 1)
             span = [index - offset for index in alignment.span]
             offset += len(span) - 1
             self.amr.abstract_map[abstract] = dict(type='quantity', value=alignment.value)
             self.amr.replace_span(span, [abstract], ['CD'], ['NUMBER'])
             for a in groups[i]:
                 count += 1
-                self.amr.graph.replace_node_attribute(a.node, a.attr, a.value, abstract)
+                try:
+                    self.amr.graph.replace_node_attribute(a.node, a.attr, a.value, abstract)
+                except:
+                    import pdb; pdb.set_trace()
         return count
 
     def get_alignment(self, tokens, node_position, node, attr, value):
@@ -210,6 +220,8 @@ class Quantity:
                     if instance in lemmas:
                         position = lemmas.index(instance)
                         break
+        if position == -1:
+            position = self.ordered_node_list.index(node)
         return position
 
     def normalize_quant(self, q):
