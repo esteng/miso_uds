@@ -9,6 +9,11 @@ def main(file_path):
     for amr in AMRIO.read(file_path):
         graph = amr.graph
         for node in graph.get_nodes():
+            for source, target in graph._G.edges(node):
+                label = graph._G[source][target]['label']
+                if re.search(r'^(ARG|op|snt)', label):
+                    continue
+                attributes.append(graph._G[source][target]['label'])
             # if re.search(r'(^".*"$|^[^a-zA-Z0-9]+$)', node.instance):
             #     attributes.append(node.instance)
             # for attr, value in node.attributes:
@@ -31,13 +36,6 @@ def main(file_path):
             #     if re.search('.*\d.*', attr):
             #         attributes.append(attr)
 
-            for attr, value in node.attributes:
-                if attr.endswith('-entity') or attr.endswith('-quantity'):
-                    attributes.append(attr)
-
-            if node.instance.endswith('-entity') or node.instance.endswith('-quantity'):
-                attributes.append(node.instance)
-
             # if re.search(r'^"?[0-9/]+"?$', node.instance):
             #     attributes.append(node.instance)
             # if node.instance.endswith('-quantity'):
@@ -47,6 +45,7 @@ def main(file_path):
             #         attributes.append(attr)
     counter = Counter(attributes)
     print('\n'.join('{}\t{}'.format(k, v) for k, v in counter.most_common(100)))
+    print(' '.join(k for k, v in counter.most_common()))
     print(len(attributes))
 
 

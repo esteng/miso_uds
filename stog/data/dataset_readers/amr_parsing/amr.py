@@ -118,14 +118,30 @@ class AMR:
 
 class AMRNode:
 
+    attribute_priority = [
+        'instance', 'quant', 'mode', 'value', 'name', 'li', 'mod', 'frequency',
+        'month', 'day', 'year', 'time', 'unit', 'decade', 'poss'
+    ]
+
     def __init__(self, identifier, attributes=None, copy_of=None):
         self.identifier = identifier
         if attributes is None:
             self.attributes = []
         else:
             self.attributes = attributes
+            # self._sort_attributes()
         self._num_copies = 0
         self.copy_of = copy_of
+
+    def _sort_attributes(self):
+        def get_attr_priority(attr):
+            if attr in self.attribute_priority:
+                return self.attribute_priority.index(attr), attr
+            if not re.search(r'^(ARG|op|snt)', attr):
+                return len(self.attribute_priority), attr
+            else:
+                return len(self.attribute_priority) + 1, attr
+        self.attributes.sort(key=lambda x: get_attr_priority(x[0]))
 
     def __hash__(self):
         return hash(self.identifier)
@@ -199,6 +215,17 @@ class AMRNode:
 
 
 class AMRGraph(penman.Graph):
+
+    edge_label_priority = (
+        'mod name time location degree poss domain quant manner unit purpose topic condition part-of compared-to '
+        'duration source ord beneficiary concession direction frequency consist-of example medium location-of '
+        'manner-of quant-of time-of instrument prep-in destination accompanier prep-with extent instrument-of age '
+        'path concession-of subevent-of prep-as prep-to prep-against prep-on prep-for degree-of prep-under part '
+        'condition-of prep-without topic-of season duration-of poss-of prep-from prep-at range purpose-of source-of '
+        'subevent example-of value path-of scale conj-as-if prep-into prep-by prep-on-behalf-of medium-of prep-among '
+        'calendar beneficiary-of prep-along-with extent-of age-of frequency-of dayperiod accompanier-of '
+        'destination-of prep-amid prep-toward prep-in-addition-to ord-of name-of weekday direction-of prep-out-of '
+        'timezone subset-of'.split())
 
     def __init__(self, penman_graph):
         super(AMRGraph, self).__init__()
@@ -421,20 +448,20 @@ class AMRGraph(penman.Graph):
     def get_src_tokens(self):
         return self._src_tokens
 
-    def get_list_node(self):
+    def get_list_node(self, replace_copy=True):
         visited = defaultdict(int)
         node_list = []
 
         def dfs(node, relation, parent):
 
             node_list.append((
-                node if node.copy_of is None else node.copy_of,
+                node if node.copy_of is None or not replace_copy else node.copy_of,
                 relation,
-                parent if parent.copy_of is None else parent.copy_of))
+                parent if parent.copy_of is None or not replace_copy else parent.copy_of))
 
             if len(self._G[node]) > 0 and visited[node] == 0:
                 visited[node] = 1
-                for child_node, child_relation in self._G[node].items():
+                for child_node, child_relation in self.sort_edges(self._G[node].items()):
                     dfs(child_node, child_relation["label"], node)
 
         dfs(
@@ -444,6 +471,15 @@ class AMRGraph(penman.Graph):
         )
 
         return node_list
+
+    def sort_edges(self, edges):
+        return edges
+        def get_edge_priority(label):
+            if label in self.edge_label_priority:
+                return self.edge_label_priority.index(label), label
+            else:
+                return len(self.edge_label_priority), label
+        return sorted(edges, key=lambda e: get_edge_priority(e[1]['label']))
 
     def get_list_data(self, amr, bos=None, eos=None, bert_tokenizer=None):
         node_list = self.get_list_node()
@@ -474,6 +510,7 @@ class AMRGraph(penman.Graph):
                 for attr in node.attributes:
                     if attr[0] != "instance":
                         update_info(node, attr[0], node, attr[1])
+
             visited[node] = 1
 
         copy_offset = 0

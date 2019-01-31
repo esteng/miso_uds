@@ -42,6 +42,7 @@ class Expander:
         self.name_node_expand_count = 0
         self.date_node_expand_count = 0
         self.score_node_expand_count = 0
+        self.url_expand_count = 0
         self.ordinal_node_expand_count = 0
         self.quantity_expand_count = 0
         self.correctly_restored_count = 0
@@ -51,6 +52,7 @@ class Expander:
         self.date_node_expand_count = 0
         self.score_node_expand_count = 0
         self.quantity_expand_count = 0
+        self.url_expand_count = 0
         self.ordinal_node_expand_count = 0
 
     def print_stats(self):
@@ -60,6 +62,7 @@ class Expander:
         logger.info('Expanded {} score nodes.'.format(self.score_node_expand_count))
         logger.info('Expanded {} ordinal nodes.'.format(self.ordinal_node_expand_count))
         logger.info('Expanded {} quantities.'.format(self.quantity_expand_count))
+        logger.info('Expanded {} urls.'.format(self.url_expand_count))
 
     def expand_file(self, file_path):
         for i, amr in enumerate(AMRIO.read(file_path)):
@@ -97,6 +100,10 @@ class Expander:
                         if abstract_type == 'quantity':
                             graph.replace_node_attribute(node, attr, value, saved_dict['value'])
                             self.quantity_expand_count += 1
+
+                        if abstract_type == 'url-entity':
+                            graph.replace_node_attribute(node, attr, value, saved_dict['value'])
+                            self.url_expand_count += 1
 
     def restore_polarity(self, amr):
         polarity = Polarity(amr)

@@ -8,7 +8,7 @@ from nltk.tokenize import word_tokenize
 from word2number import w2n
 
 from stog.data.dataset_readers.amr_parsing.io import AMRIO
-from stog.data.dataset_readers.amr_parsing.amr_concepts import Entity, Date, Score, Quantity, Ordinal, Polarity, Polite
+from stog.data.dataset_readers.amr_parsing.amr_concepts import Entity, Date, Score, Quantity, Ordinal, Polarity, Polite, URL
 from stog.utils import logging
 
 
@@ -78,6 +78,8 @@ class Recategorizer:
         self.recat_ordinal_entity_count = 0
         self.quantity_count = 0
         self.recat_quantity_count = 0
+        self.url_count = 0
+        self.recat_url_count = 0
         self.removed_wiki_count = 0
 
         self.name_type_cooccur_counter = defaultdict(lambda: defaultdict(int))
@@ -112,6 +114,10 @@ class Recategorizer:
             logger.info('Quantity collapse rate: {} ({}/{})'.format(
                 self.recat_quantity_count / self.quantity_count,
                 self.recat_quantity_count, self.quantity_count))
+        if self.url_count != 0:
+            logger.info('URL collapse rate: {} ({}/{})'.format(
+                self.recat_url_count / self.url_count,
+                self.recat_url_count, self.url_count))
         logger.info('Removed {} wikis.'.format(self.removed_wiki_count))
 
     def reset_statistics(self):
@@ -125,6 +131,8 @@ class Recategorizer:
         self.recat_ordinal_entity_count = 0
         self.quantity_count = 0
         self.recat_quantity_count = 0
+        self.url_count = 0
+        self.recat_url_count = 0
         self.removed_wiki_count = 0
 
     def _build_utils(self):
@@ -193,6 +201,7 @@ class Recategorizer:
         self.recategorize_score_nodes(amr)
         self.recategorize_ordinal_nodes(amr)
         self.recategorize_quantities(amr)
+        self.recategorize_urls(amr)
 
     def resolve_name_node_reentrancy(self, amr):
         """
@@ -235,7 +244,9 @@ class Recategorizer:
     def recategorize_name_nodes(self, amr):
         graph = amr.graph
         entities = []
-        for node in graph.get_nodes():
+        for node, _, _ in graph.get_list_node(replace_copy=False):
+            if node.copy_of is not None:
+                continue
             if graph.is_name_node(node):
                 edges = list(graph._G.in_edges(node))
                 assert all(graph._G[s][t]['label'] == 'name' for s, t in edges)
@@ -272,7 +283,9 @@ class Recategorizer:
     def recategorize_date_nodes(self, amr):
         graph = amr.graph
         dates = []
-        for node in graph.get_nodes():
+        for node, _, _ in graph.get_list_node(replace_copy=False):
+            if node.copy_of is not None:
+                continue
             if graph.is_date_node(node) and Date.collapsable(node, graph):
                 self.date_entity_count += 1
                 date = self._get_aligned_date(node, amr)
@@ -285,7 +298,9 @@ class Recategorizer:
     def recategorize_score_nodes(self, amr):
         graph = amr.graph
         scores = []
-        for node in graph.get_nodes():
+        for node, _, _ in graph.get_list_node(replace_copy=False):
+            if node.copy_of is not None:
+                continue
             if node.instance == 'score-entity':
                 self.score_entity_count += 1
                 score = Score(node, amr)
@@ -297,7 +312,9 @@ class Recategorizer:
     def recategorize_ordinal_nodes(self, amr):
         graph = amr.graph
         ordinals = []
-        for node in graph.get_nodes():
+        for node, _, _ in graph.get_list_node(replace_copy=False):
+            if node.copy_of is not None:
+                continue
             if node.instance == 'ordinal-entity':
                 self.ordinal_entity_count += 1
                 ordinal = Ordinal(node, amr)
@@ -310,6 +327,12 @@ class Recategorizer:
         quantity = Quantity(amr)
         self.recat_quantity_count += quantity.abstract()
         self.quantity_count += quantity.quant_count
+
+    def recategorize_urls(self, amr):
+        url = URL(amr)
+        url_count, recat_url_count = url.abstract()
+        self.url_count += url_count
+        self.recat_url_count += recat_url_count
 
     def _get_aligned_date(self, node, amr):
         date = Date(node, amr.graph)
