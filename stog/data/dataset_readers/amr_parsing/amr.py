@@ -420,8 +420,14 @@ class AMRGraph(penman.Graph):
             tgt_tokens.append(str(token))
 
         for node, relation, parent_node in node_list:
-
-            node_to_idx[node].append(len(tgt_tokens))
+            
+            if len(node.attributes) > 1 and visited[node] == 0:
+                node_to_idx[node].append(len(tgt_tokens) + len(node.attributes) -1)
+                for attr in node.attributes:
+                    if attr[0] != "instance":
+                        update_info(node, attr[0], node, attr[1])
+            else:
+                node_to_idx[node].append(len(tgt_tokens))
 
             instance = [attr[1] for attr in node.attributes if attr[0] =="instance"]
             assert len(instance) == 1
@@ -429,13 +435,6 @@ class AMRGraph(penman.Graph):
 
             update_info(node, relation, parent_node, instance)
 
-            if len(node.attributes) > 1 and visited[node] == 0:
-                # In penman's design, a node could have more than one attributes.
-                # Usually, the attribute[0] is the instance, the rest can be modifier, such as quant etc.
-                # Some modifiers are not considered as nodes in penman, here we need to extract them out.
-                for attr in node.attributes:
-                    if attr[0] != "instance":
-                        update_info(node, attr[0], node, attr[1])
             visited[node] = 1
 
         copy_offset = 0
