@@ -200,7 +200,7 @@ class Recategorizer:
         self.recategorize_date_nodes(amr)
         self.recategorize_score_nodes(amr)
         self.recategorize_ordinal_nodes(amr)
-        self.recategorize_quantities(amr)
+        # self.recategorize_quantities(amr)
         self.recategorize_urls(amr)
 
     def resolve_name_node_reentrancy(self, amr):

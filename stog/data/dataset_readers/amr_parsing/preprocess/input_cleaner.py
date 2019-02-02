@@ -52,7 +52,7 @@ def clean(amr):
     split_ratio(amr)
     split_unit_with_number(amr)
     split_number_with_dash_prefix(amr)
-    add_default_quant(amr)
+    # add_default_quant(amr)
 
 
 def correct_errors(amr):
@@ -260,24 +260,24 @@ def correct_errors(amr):
                 pos = ['CD', 'NN']
                 ner = ['NUMBER', 'O']
                 break
-            if token == 'twice':
-                index = i
-                tokens = ['2', 'time']
-                pos = ['CD', 'NNS']
-                ner = ['NUMBER', 'O']
-                break
-            if token.lower() in ('daily', 'everyday'):
-                index = i
-                tokens = ['every', '1', 'day']
-                pos = ['DT', 'CD', 'NN']
-                ner = ['O', 'NUMBER', 'O']
-                break
-            if token.lower() == 'annual':
-                index = i
-                tokens = ['1', '-', 'year']
-                pos = ['CD', ':', 'NN']
-                ner = ['NUMBER', 'O', 'O']
-                break
+            # if token == 'twice':
+            #     index = i
+            #     tokens = ['2', 'time']
+            #     pos = ['CD', 'NNS']
+            #     ner = ['NUMBER', 'O']
+            #     break
+            # if token.lower() in ('daily', 'everyday'):
+            #     index = i
+            #     tokens = ['every', '1', 'day']
+            #     pos = ['DT', 'CD', 'NN']
+            #     ner = ['O', 'NUMBER', 'O']
+            #     break
+            # if token.lower() == 'annual':
+            #     index = i
+            #     tokens = ['1', '-', 'year']
+            #     pos = ['CD', ':', 'NN']
+            #     ner = ['NUMBER', 'O', 'O']
+            #     break
         else:
             break
         if not isinstance(index, list):
@@ -542,9 +542,12 @@ def split_number_with_dash_prefix(amr):
         else:
             break
         lemma = amr.lemmas[index]
+        ner_tag = amr.ner_tags[index]
+        if ner_tag in ('0', 'O'):
+            ner_tag = 'NUMBER'
         x = lemma[0]
         y = lemma[1:]
-        amr.replace_span([index], [x, y], [':', 'CD'], ['O', 'NUMBER'])
+        amr.replace_span([index], [x, y], [':', 'CD'], ['O', ner_tag])
 
 
 def split_date_duration(amr):

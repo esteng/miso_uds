@@ -178,17 +178,21 @@ class Quantity:
         groups, representatives = zip(*sorted(
             zip(groups, representatives), key=lambda x: (x[1].begin, x[1].end)))
         for i, alignment in enumerate(representatives):
-            abstract = 'QUANTITY_{}'.format(i + 1)
             span = [index - offset for index in alignment.span]
             offset += len(span) - 1
-            self.amr.abstract_map[abstract] = dict(type='quantity', value=alignment.value)
-            self.amr.replace_span(span, [abstract], ['CD'], ['NUMBER'])
-            for a in groups[i]:
-                count += 1
-                try:
-                    self.amr.graph.replace_node_attribute(a.node, a.attr, a.value, abstract)
-                except:
-                    import pdb; pdb.set_trace()
+            self.amr.replace_span(span, [str(alignment.value)], ['CD'], ['QUANTITY'])
+            count += len(groups[i])
+            # abstract = 'QUANTITY_{}'.format(i + 1)
+            # span = [index - offset for index in alignment.span]
+            # offset += len(span) - 1
+            # self.amr.abstract_map[abstract] = dict(type='quantity', value=alignment.value)
+            # self.amr.replace_span(span, [abstract], ['CD'], ['NUMBER'])
+            # for a in groups[i]:
+            #     count += 1
+            #     try:
+            #         self.amr.graph.replace_node_attribute(a.node, a.attr, a.value, abstract)#
+            #     except:
+            #         import pdb; pdb.set_trace()
         return count
 
     def get_alignment(self, tokens, node_position, node, attr, value):
