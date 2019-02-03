@@ -30,6 +30,7 @@ class FeatureAnnotator:
         """Load a compound map from partial compound word to a list of possible next token in the compound.
 
         :param file_path: the compound map file.
+        "https://github.com/ChunchuanLv/AMR_AS_GRAPH_PREDICTION/blob/master/data/joints.txt"
         :return: a dict from string to list.
         """
         compound_map = {}

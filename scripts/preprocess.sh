@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
 
+
+# ############### AMR v2.0 ################
+# # Directory where intermediate utils will be saved to speed up processing.
+# util_dir=data/amr_utils
+#
+# # AMR data with **features**
+# data_dir=data/exp
+# train_data=${data_dir}/train_amr.txt.features
+# dev_data=${data_dir}/dev_amr.txt.features
+# test_data=${data_dir}/test_amr.txt.features
+
+############### AMR v1.0 ################
 # Directory where intermediate utils will be saved to speed up processing.
-util_dir=data/amr_utils
+util_dir=data/amr_v1.0_utils
 
 # AMR data with **features**
-data_dir=data/exp
+data_dir=data/amr_v1.0
 train_data=${data_dir}/train_amr.txt.features
 dev_data=${data_dir}/dev_amr.txt.features
 test_data=${data_dir}/test_amr.txt.features
@@ -28,26 +40,26 @@ morph_verbalization_file=data/misc/morph-verbalization-v1.01.txt
 #     --verbalization_file ${verbalization_file} \
 #     --dump_dir ${util_dir} || exit
 # printf "Done.`date`\n\n"
-
-printf "Cleaning inputs...`date`\n"
-python -u -m stog.data.dataset_readers.amr_parsing.preprocess.input_cleaner \
-    --amr_files ${test_data} \
-    ${train_data} ${dev_data} || exit
-printf "Done.`date`\n\n"
-
+#
+# printf "Cleaning inputs...`date`\n"
+# python -u -m stog.data.dataset_readers.amr_parsing.preprocess.input_cleaner \
+#     --amr_files ${test_data} \
+#     ${train_data} ${dev_data} || exit
+# printf "Done.`date`\n\n"
+#
 # printf "Recategorizing subgraphs...`date`\n"
 # python -u -m stog.data.dataset_readers.amr_parsing.preprocess.recategorizer \
 #     --build_utils \
 #     --amr_train_file ${train_data}.input_clean \
 #     --dump_dir ${util_dir} || exit
-python -u -m stog.data.dataset_readers.amr_parsing.preprocess.recategorizer \
-    --dump_dir ${util_dir} \
-    --amr_files ${test_data}.input_clean \
-    ${train_data}.input_clean ${dev_data}.input_clean || exit
-printf "Done.`date`\n\n"
-
-# printf "Morph verbalization...`date`\n"
-# python -u -m stog.data.dataset_readers.amr_parsing.preprocess.morph \
+# python -u -m stog.data.dataset_readers.amr_parsing.preprocess.recategorizer \
+#     --dump_dir ${util_dir} \
+#     --amr_files ${test_data}.input_clean \
+#     ${train_data}.input_clean ${dev_data}.input_clean || exit
+# printf "Done.`date`\n\n"
+#
+# # printf "Morph verbalization...`date`\n"
+# # python -u -m stog.data.dataset_readers.amr_parsing.preprocess.morph \
 #     --morph_verbalization_file ${morph_verbalization_file} \
 #     --amr_files ${test_data}.input_clean.recategorize
 # printf "Done.`date`\n\n"

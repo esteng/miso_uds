@@ -50,7 +50,9 @@ class Aligner:
         Get the candidate lemmas which can be used to represent the instance.
         """
         # Make sure it's a string and not quoted.
-        assert isinstance(instance, str) and not re.search(r'^".*"$', instance)
+        if not (isinstance(instance, str) and not re.search(r'^".*"$', instance)):
+            logger.warn('Node instance "{}" is not a string.'.format(instance))
+            instance = str(instance)
         if re.search(r'-\d\d$', instance):  # frame
             lemmas = self.node_utils.get_lemmas(instance)
         else:
@@ -87,7 +89,7 @@ class Aligner:
         return aligned_lemma
 
     def remove_sense(self, instance):
-        instance_lemma = re.sub(r'-\d\d$', '', instance)
+        instance_lemma = re.sub(r'-\d\d$', '', str(instance))
         restored = self.node_utils.get_frames(instance_lemma)[0]
         if restored == instance:
             return instance_lemma
@@ -96,7 +98,7 @@ class Aligner:
     def update_graph(self, graph, node, old, new):
         if new is not None:
             graph.replace_node_attribute(node, 'instance', old, new)
-            self.try_restore(old, new)
+            self.try_restore(str(old), new)
         else:
             self.try_restore(old, old)
 
