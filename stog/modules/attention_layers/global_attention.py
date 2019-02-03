@@ -3,6 +3,7 @@ import torch
 import torch.nn.functional as F
 
 from stog.modules.attention import MLPAttention
+from stog.modules.attention import BiaffineAttention
 
 
 # This class is mainly used by decoder.py for RNNs but also
@@ -88,6 +89,8 @@ class GlobalAttention(torch.nn.Module):
 
         if isinstance(self.attention, MLPAttention) and coverage is not None:
             align = self.attention(source, memory_bank, coverage)
+        elif isinstance(self.attention, BiaffineAttention):
+            align = self.attention(source, memory_bank).squeeze(1)
         else:
             align = self.attention(source, memory_bank)
 

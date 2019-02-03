@@ -11,7 +11,10 @@ class BiaffineAttention(nn.Module):
     Bi-Affine attention layer.
     """
 
-    def __init__(self, input_size_encoder, input_size_decoder, num_labels=1, biaffine=True, **kwargs):
+    def __init__(self, input_size_encoder, input_size_decoder, num_labels=1,
+                 biaffine=True,
+                 hidden_size=None,
+                 **kwargs):
         """
         Args:
             input_size_encoder: int
@@ -29,12 +32,20 @@ class BiaffineAttention(nn.Module):
         self.input_size_decoder = input_size_decoder
         self.num_labels = num_labels
         self.biaffine = biaffine
+        self.hidden_size = hidden_size
 
         self.W_d = Parameter(torch.Tensor(self.num_labels, self.input_size_decoder))
         self.W_e = Parameter(torch.Tensor(self.num_labels, self.input_size_encoder))
         self.b = Parameter(torch.Tensor(self.num_labels, 1, 1))
         if self.biaffine:
-            self.U = Parameter(torch.Tensor(self.num_labels, self.input_size_decoder, self.input_size_encoder))
+            if self.hidden_size is not None:
+                self.decoder_linear = torch.nn.Linear(self.input_size_decoder, hidden_size)
+                self.encoder_linear = torch.nn.Linear(self.input_size_encoder, hidden_size)
+                self.U = Parameter(torch.Tensor(
+                    self.num_labels, self.hidden_size, self.hidden_size))
+            else:
+                self.U = Parameter(torch.Tensor(
+                    self.num_labels, self.input_size_decoder, self.input_size_encoder))
         else:
             self.register_parameter('U', None)
 
@@ -75,6 +86,10 @@ class BiaffineAttention(nn.Module):
 
         # output shape [batch, num_label, length_decoder, length_encoder]
         if self.biaffine:
+            if self.hidden_size is not None:
+                input_d = self.decoder_linear(input_d)
+                input_e = self.encoder_linear(input_e)
+
             # compute bi-affine part
             # [batch, 1, length_decoder, input_size_decoder] * [num_labels, input_size_decoder, input_size_encoder]
             # output shape [batch, num_label, length_decoder, input_size_encoder]
