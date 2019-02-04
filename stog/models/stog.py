@@ -13,6 +13,7 @@ from stog.modules.decoders.rnn_decoder import InputFeedRNNDecoder
 from stog.modules.attention_layers.global_attention import GlobalAttention
 from stog.modules.attention import DotProductAttention
 from stog.modules.attention import MLPAttention
+from stog.modules.attention import BiaffineAttention
 from stog.modules.input_variational_dropout import InputVariationalDropout
 from stog.modules.decoders.generator import Generator
 from stog.modules.decoders.pointer_generator import PointerGenerator
@@ -54,6 +55,7 @@ class STOG(Model):
 
     def __init__(self,
                  vocab,
+                 use_must_copy_embedding,
                  use_char_cnn,
                  use_coverage,
                  use_aux_encoder,
@@ -63,6 +65,7 @@ class STOG(Model):
                  bert_encoder,
                  encoder_token_embedding,
                  encoder_pos_embedding,
+                 encoder_must_copy_embedding,
                  encoder_char_embedding,
                  encoder_char_cnn,
                  encoder_embedding_dropout,
@@ -88,6 +91,7 @@ class STOG(Model):
         super(STOG, self).__init__()
 
         self.vocab = vocab
+        self.use_must_copy_embedding = use_must_copy_embedding
         self.use_char_cnn = use_char_cnn
         self.use_coverage = use_coverage
         self.use_aux_encoder = use_aux_encoder
@@ -98,6 +102,7 @@ class STOG(Model):
 
         self.encoder_token_embedding = encoder_token_embedding
         self.encoder_pos_embedding = encoder_pos_embedding
+        self.encoder_must_copy_embedding = encoder_must_copy_embedding
         self.encoder_char_embedding = encoder_char_embedding
         self.encoder_char_cnn = encoder_char_cnn
         self.encoder_embedding_dropout = encoder_embedding_dropout
@@ -209,6 +214,7 @@ class STOG(Model):
         bert_token_inputs = batch['src_token_ids']
         encoder_token_inputs = batch['src_tokens']['encoder_tokens']
         encoder_pos_tags = batch['src_pos_tags']
+        encoder_must_copy_tags = batch['src_must_copy_tags']
         # [batch, num_tokens, num_chars]
         encoder_char_inputs = batch['src_tokens']['encoder_characters']
         # [batch, num_tokens]
@@ -218,6 +224,7 @@ class STOG(Model):
             bert_token=bert_token_inputs,
             token=encoder_token_inputs,
             pos_tag=encoder_pos_tags,
+            must_copy_tag=encoder_must_copy_tags,
             char=encoder_char_inputs,
             mask=encoder_mask
         )
@@ -297,6 +304,7 @@ class STOG(Model):
             encoder_inputs['bert_token'],
             encoder_inputs['token'],
             encoder_inputs['pos_tag'],
+            encoder_inputs['must_copy_tag'],
             encoder_inputs['char'],
             encoder_inputs['mask']
         )
@@ -360,7 +368,7 @@ class STOG(Model):
                 tag_luts=batch['tag_lut']
             )
 
-    def encode(self, bert_tokens, tokens, pos_tags, chars, mask):
+    def encode(self, bert_tokens, tokens, pos_tags, must_copy_tags, chars, mask):
         # [batch, num_tokens, embedding_size]
         encoder_inputs = []
         if self.use_bert:
@@ -369,9 +377,15 @@ class STOG(Model):
                 bert_tokens, attention_mask=bert_mask, output_all_encoded_layers=False)
             bert_embeddings = bert_embeddings[:, 1:-1]
             encoder_inputs += [bert_embeddings]
+
         token_embeddings = self.encoder_token_embedding(tokens)
         pos_tag_embeddings = self.encoder_pos_embedding(pos_tags)
         encoder_inputs += [token_embeddings, pos_tag_embeddings]
+
+        if self.use_must_copy_embedding:
+            must_copy_tag_embeddings = self.encoder_must_copy_embedding(must_copy_tags)
+            encoder_inputs += [must_copy_tag_embeddings]
+
         if self.use_char_cnn:
             char_cnn_output = self._get_encoder_char_cnn_output(chars)
             encoder_inputs += [char_cnn_output]
@@ -739,10 +753,18 @@ class STOG(Model):
             encoder_input_size += params['bert']['hidden_size']
             for p in bert_encoder.parameters():
                 p.requires_grad = False
+
         encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
         encoder_input_size += params['encoder_token_embedding']['embedding_dim']
         encoder_pos_embedding = Embedding.from_params(vocab, params['encoder_pos_embedding'])
         encoder_input_size += params['encoder_pos_embedding']['embedding_dim']
+
+        encoder_must_copy_embedding = None
+        if params.get('use_must_copy_embedding', False):
+            encoder_must_copy_embedding = Embedding.from_params(
+            vocab, params['encoder_must_copy_embedding'])
+            encoder_input_size += params['encoder_must_copy_embedding']['embedding_dim']
+
         if params['use_char_cnn']:
             encoder_char_embedding = Embedding.from_params(vocab, params['encoder_char_embedding'])
             encoder_char_cnn = CnnEncoder(
@@ -817,6 +839,12 @@ class STOG(Model):
                 attention_hidden_size=params['decoder']['hidden_size'],
                 coverage=params['coref_attention'].get('coverage', False)
             )
+        elif params['coref_attention']['attention_function'] == 'biaffine':
+            coref_attention = BiaffineAttention(
+                input_size_decoder=params['decoder']['hidden_size'],
+                input_size_encoder=params['encoder']['hidden_size'] * 2,
+                hidden_size=params['coref_attention']['hidden_size']
+            )
         else:
             coref_attention = DotProductAttention(
                 decoder_hidden_size=params['decoder']['hidden_size'],
@@ -870,6 +898,7 @@ class STOG(Model):
 
         return cls(
             vocab=vocab,
+            use_must_copy_embedding=params.get('use_must_copy_embedding', False),
             use_char_cnn=params['use_char_cnn'],
             use_coverage=params['use_coverage'],
             use_aux_encoder=params.get('use_aux_encoder', False),
@@ -878,6 +907,7 @@ class STOG(Model):
             bert_encoder=bert_encoder,
             encoder_token_embedding=encoder_token_embedding,
             encoder_pos_embedding=encoder_pos_embedding,
+            encoder_must_copy_embedding=encoder_must_copy_embedding,
             encoder_char_embedding=encoder_char_embedding,
             encoder_char_cnn=encoder_char_cnn,
             encoder_embedding_dropout=encoder_embedding_dropout,

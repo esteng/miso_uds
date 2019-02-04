@@ -100,6 +100,12 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         self._number_bert_oov_ids += len(
             [bert_id for bert_id in list_data['src_token_ids'] if bert_id == 100])
 
+        fields["src_must_copy_tags"] = SequenceLabelField(
+            labels=list_data["src_must_copy_tags"],
+            sequence_field=fields["src_tokens"],
+            label_namespace="must_copy_tags"
+        )
+
         fields["tgt_tokens"] = TextField(
             tokens=[Token(x) for x in list_data["tgt_tokens"]],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}

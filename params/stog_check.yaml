@@ -31,6 +31,13 @@ model:
     padding_index: 0
     dropout: 0
 
+  encoder_must_copy_embedding:
+    num_embeddings: 3
+    vocab_namespace: 'must_copy_tags'
+    embedding_dim: 20
+    padding_index:
+    dropout: 0
+
   encoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'encoder_token_characters'
@@ -70,7 +77,7 @@ model:
   decoder_coref_embedding:
     num_embeddings: 500
     embedding_dim: 50
-    padding_index: 0
+    padding_index:
     dropout: 0
 
   decoder_char_cnn:
@@ -138,6 +145,11 @@ data:
   pretrain_token_emb: *glove
   pretrain_char_emb:
   word_splitter: *word_splitter
+
+
+# Vocab
+vocab:
+  non_padded_namespaces: [head_tags, must_copy_tags, coref_tags]
 
 
 # Training parameters

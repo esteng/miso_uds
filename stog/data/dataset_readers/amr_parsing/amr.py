@@ -591,6 +591,9 @@ class AMRGraph(penman.Graph):
             tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(
                 src_tokens, src_pos_tags)
 
+        src_must_copy_tags = [
+            1 if re.search(r'^([A-Z]+_)+\d+$', t) else 0 for t in src_tokens]
+
         return {
             "tgt_tokens" : tgt_tokens,
             "tgt_pos_tags": tgt_pos_tags,
@@ -599,6 +602,7 @@ class AMRGraph(penman.Graph):
             "tgt_copy_mask" : tgt_copy_mask,
             "src_tokens" : src_tokens,
             "src_token_ids" : src_token_ids,
+            "src_must_copy_tags" : src_must_copy_tags,
             "src_pos_tags": src_pos_tags,
             "src_copy_vocab" : src_copy_vocab,
             "src_copy_indices" : src_copy_indices,
@@ -610,7 +614,11 @@ class AMRGraph(penman.Graph):
 
     @classmethod
     def decode(cls, raw_graph_string):
-        _graph = amr_codec.decode(raw_graph_string)
+        try:
+            _graph = amr_codec.decode(raw_graph_string)
+        except:
+            print(raw_graph_string)
+            import pdb; pdb.set_trace()
         return cls(_graph)
 
     @classmethod

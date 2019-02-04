@@ -100,7 +100,7 @@ def train_model(params: Params):
 
     # Vocabulary and iterator are created here.
     vocab_params = params.get('vocab', {})
-    vocab = Vocabulary.from_instances(instances=train_data, non_padded_namespaces=(), **vocab_params)
+    vocab = Vocabulary.from_instances(instances=train_data, **vocab_params)
     # Initializing the model can have side effect of expanding the vocabulary
     vocab.save_to_files(os.path.join(environment_params['serialization_dir'], "vocabulary"))
 
