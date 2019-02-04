@@ -8,6 +8,7 @@ glove: &glove /export/ssd/sheng/data/glove/glove.840B.300d.zip
 # Model parameters
 model:
   model_type: STOG
+  use_must_copy_embedding: True
   use_char_cnn: True
   use_coverage: True
   use_aux_encoder: False
@@ -30,6 +31,13 @@ model:
     vocab_namespace: 'pos_tags'
     embedding_dim: 100
     padding_index: 0
+    dropout: 0
+
+  encoder_must_copy_embedding:
+    num_embeddings: 3
+    vocab_namespace: 'must_copy_tags'
+    embedding_dim: 50
+    padding_index:
     dropout: 0
 
   encoder_char_embedding:
@@ -57,7 +65,7 @@ model:
     num_embeddings:
     vocab_namespace: 'pos_tags'
     embedding_dim: 100
-    padding_index: 0
+    padding_index:
     dropout: 0
 
   decoder_coref_embedding:
@@ -80,14 +88,14 @@ model:
     ngram_filter_sizes: [3]
 
   encoder:
-    input_size: 
+    input_size:
     hidden_size: 512
     num_layers: 2
     use_highway: False
     dropout: 0.33
 
   decoder:
-    input_size: 
+    input_size:
     hidden_size: &decoder_hidden_size 1024
     num_layers: 2
     use_highway: False
@@ -126,6 +134,7 @@ model:
 
 # Vocabulary
 vocab:
+  non_padded_namespaces: [must_copy_tags, coref_tags]
   min_count:
       encoder_token_ids: 1
       decoder_token_ids: 1
