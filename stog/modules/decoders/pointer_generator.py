@@ -22,7 +22,8 @@ class PointerGenerator(torch.nn.Module):
 
         self.eps = 1e-20
 
-    def forward(self, hiddens, source_attentions, source_attention_maps, target_attentions, target_attention_maps):
+    def forward(self, hiddens, source_attentions, source_attention_maps,
+                target_attentions, target_attention_maps, invalid_indexes=None):
         """
         Compute a distribution over the target dictionary
         extended by the dynamic dictionary implied by copying target nodes.
@@ -38,6 +39,7 @@ class PointerGenerator(torch.nn.Module):
         :param target_attention_maps: a sparse indicator matrix
             mapping each target node to its index in the dynamic vocabulary.
             [batch_size, num_target_nodes, dynamic_vocab_size]
+        :param invalid_indexes: indexes which are not considered in prediction.
         """
         batch_size, num_target_nodes, _ = hiddens.size()
         source_dynamic_vocab_size = source_attention_maps.size(2)
@@ -58,7 +60,13 @@ class PointerGenerator(torch.nn.Module):
         scores = scores.view(batch_size, num_target_nodes, -1)
         vocab_probs = self.softmax(scores)
         scaled_vocab_probs = torch.mul(vocab_probs, p_generate.expand_as(vocab_probs))
+        if invalid_indexes.get('vocab', None) is not None:
+            vocab_invalid_indexes = invalid_indexes['vocab']
+            scaled_vocab_probs[:, vocab_invalid_indexes] = 0
 
+        if invalid_indexes.get('source_copy', None) is not None:
+            source_copy_skip_mask = invalid_indexes['source_copy'].byte().unsqueeze(1)
+            source_attentions.masked_fill_(source_copy_skip_mask, 0)
         # [batch_size, num_target_nodes, num_source_nodes]
         scaled_source_attentions = torch.mul(source_attentions, p_copy_source.expand_as(source_attentions))
         # [batch_size, num_target_nodes, dynamic_vocab_size]

@@ -106,6 +106,12 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             label_namespace="must_copy_tags"
         )
 
+        fields["src_must_skip_mask"] = SequenceLabelField(
+            labels=list_data["src_must_skip_mask"],
+            sequence_field=fields["src_tokens"],
+            label_namespace="must_skip_mask_tags"
+        )
+
         fields["tgt_tokens"] = TextField(
             tokens=[Token(x) for x in list_data["tgt_tokens"]],
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}

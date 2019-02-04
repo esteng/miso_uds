@@ -55,6 +55,7 @@ class STOG(Model):
 
     def __init__(self,
                  vocab,
+                 punctuation_ids,
                  use_must_copy_embedding,
                  use_char_cnn,
                  use_coverage,
@@ -91,6 +92,7 @@ class STOG(Model):
         super(STOG, self).__init__()
 
         self.vocab = vocab
+        self.punctuation_ids = punctuation_ids
         self.use_must_copy_embedding = use_must_copy_embedding
         self.use_char_cnn = use_char_cnn
         self.use_coverage = use_coverage
@@ -215,6 +217,7 @@ class STOG(Model):
         encoder_token_inputs = batch['src_tokens']['encoder_tokens']
         encoder_pos_tags = batch['src_pos_tags']
         encoder_must_copy_tags = batch['src_must_copy_tags']
+        encoder_must_skip_mask = batch['src_must_skip_mask']
         # [batch, num_tokens, num_chars]
         encoder_char_inputs = batch['src_tokens']['encoder_characters']
         # [batch, num_tokens]
@@ -295,10 +298,15 @@ class STOG(Model):
         )
         # import pdb; pdb.set_trace()
 
-        return encoder_inputs, decoder_inputs, generator_inputs, parser_inputs
+        invalid_indexes = dict(
+            vocab=self.punctuation_ids,
+            source_copy=encoder_must_skip_mask,
+        )
+
+        return encoder_inputs, decoder_inputs, generator_inputs, invalid_indexes, parser_inputs
 
     def forward(self, batch, for_training=False):
-        encoder_inputs, decoder_inputs, generator_inputs, parser_inputs = self.prepare_batch_input(batch)
+        encoder_inputs, decoder_inputs, generator_inputs, invalid_indexes, parser_inputs = self.prepare_batch_input(batch)
 
         encoder_outputs = self.encode(
             encoder_inputs['bert_token'],
@@ -326,7 +334,8 @@ class STOG(Model):
                 decoder_outputs['copy_attentions'],
                 generator_inputs['copy_attention_maps'],
                 decoder_outputs['coref_attentions'],
-                generator_inputs['coref_attention_maps']
+                generator_inputs['coref_attention_maps'],
+                invalid_indexes
             )
 
             generator_loss_output = self.generator.compute_loss(
@@ -365,7 +374,8 @@ class STOG(Model):
                 encoder_final_states=encoder_outputs['final_states'],
                 copy_attention_maps=generator_inputs['copy_attention_maps'],
                 copy_vocabs=batch['src_copy_vocab'],
-                tag_luts=batch['tag_lut']
+                tag_luts=batch['tag_lut'],
+                invalid_indexes=invalid_indexes
             )
 
     def encode(self, bert_tokens, tokens, pos_tags, must_copy_tags, chars, mask):
@@ -476,10 +486,11 @@ class STOG(Model):
         copy_attention_maps = input_dict['copy_attention_maps']
         copy_vocabs = input_dict['copy_vocabs']
         tag_luts = input_dict['tag_luts']
+        invalid_indexes = input_dict['invalid_indexes']
 
         if self.beam_size == 1:
             generator_outputs = self.decode_with_pointer_generator(
-                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
+                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts, invalid_indexes)
             parser_outputs = self.decode_with_graph_parser(
                 generator_outputs['decoder_inputs'],
                 generator_outputs['decoder_rnn_memory_bank'],
@@ -496,7 +507,7 @@ class STOG(Model):
             raise NotImplementedError
 
     def decode_with_pointer_generator(
-            self, memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts):
+            self, memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts, invalid_indexes):
         # [batch_size, 1]
         batch_size = memory_bank.size(0)
         tokens = torch.ones(batch_size, 1) * self.vocab.get_token_index(
@@ -575,7 +586,8 @@ class STOG(Model):
                 _coref_attention_maps = coref_attention_maps[:, :step_i]
 
             generator_output = self.generator(
-                _decoder_outputs, _copy_attentions, copy_attention_maps, _coref_attentions, _coref_attention_maps)
+                _decoder_outputs, _copy_attentions, copy_attention_maps,
+                _coref_attentions, _coref_attention_maps, invalid_indexes)
             _predictions = generator_output['predictions']
 
             # 4. Update maps and get the next token input.
@@ -837,7 +849,8 @@ class STOG(Model):
                 decoder_hidden_size=params['decoder']['hidden_size'],
                 encoder_hidden_size=params['decoder']['hidden_size'],
                 attention_hidden_size=params['decoder']['hidden_size'],
-                coverage=params['coref_attention'].get('coverage', False)
+                coverage=params['coref_attention'].get('coverage', False),
+                use_concat=params['coref_attention'].get('use_concat', False)
             )
         elif params['coref_attention']['attention_function'] == 'biaffine':
             coref_attention = BiaffineAttention(
@@ -891,6 +904,14 @@ class STOG(Model):
 
         graph_decoder = DeepBiaffineGraphDecoder.from_params(vocab, params['graph_decoder'])
 
+        # Vocab
+        punctuation_ids = []
+        oov_id = vocab.get_token_index(DEFAULT_OOV_TOKEN, 'decoder_token_ids')
+        for c in ',.?!:;"\'-(){}[]':
+            c_id = vocab.get_token_index(c, 'decoder_token_ids')
+            if c_id != oov_id:
+                punctuation_ids.append(c_id)
+
         logger.info('encoder_token: %d' % vocab.get_vocab_size('encoder_token_ids'))
         logger.info('encoder_chars: %d' % vocab.get_vocab_size('encoder_token_characters'))
         logger.info('decoder_token: %d' % vocab.get_vocab_size('decoder_token_ids'))
@@ -898,6 +919,7 @@ class STOG(Model):
 
         return cls(
             vocab=vocab,
+            punctuation_ids=punctuation_ids,
             use_must_copy_embedding=params.get('use_must_copy_embedding', False),
             use_char_cnn=params['use_char_cnn'],
             use_coverage=params['use_coverage'],

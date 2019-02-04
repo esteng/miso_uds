@@ -8,6 +8,7 @@ glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
 # Model parameters
 model:
   model_type: STOG
+  use_must_copy_embedding: True
   use_char_cnn: True
   use_coverage: True
   use_aux_encoder: False
@@ -157,7 +158,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir stog-mc-ckpt
+  serialization_dir: &serialization_dir stog-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0

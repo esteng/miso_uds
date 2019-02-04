@@ -593,6 +593,8 @@ class AMRGraph(penman.Graph):
 
         src_must_copy_tags = [
             1 if re.search(r'^([A-Z]+_)+\d+$', t) else 0 for t in src_tokens]
+        src_must_skip_mask = [
+            1 if re.search(r'^[,.?!:;"\'-(){}\[\]]$', t) else 0 for t in src_tokens]
 
         return {
             "tgt_tokens" : tgt_tokens,
@@ -603,6 +605,7 @@ class AMRGraph(penman.Graph):
             "src_tokens" : src_tokens,
             "src_token_ids" : src_token_ids,
             "src_must_copy_tags" : src_must_copy_tags,
+            "src_must_skip_mask" : src_must_skip_mask,
             "src_pos_tags": src_pos_tags,
             "src_copy_vocab" : src_copy_vocab,
             "src_copy_indices" : src_copy_indices,
