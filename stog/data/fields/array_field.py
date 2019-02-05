@@ -4,7 +4,7 @@ import numpy
 import torch
 from overrides import overrides
 
-from allennlp.data.fields.field import Field
+from stog.data.fields.field import Field
 
 
 class ArrayField(Field[numpy.ndarray]):
