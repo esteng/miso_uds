@@ -2,6 +2,7 @@ import re
 import json
 from collections import defaultdict, Counter
 
+import numpy as np
 import penman
 import networkx as nx
 from penman import Triple
@@ -569,27 +570,17 @@ class AMRGraph(penman.Graph):
             return tgt_tags, tag_lut
 
         # Source Copy
+        src_tokens = self.get_src_tokens()
+        src_token_ids = None
+        src_token_subword_index = None
+        src_pos_tags = amr.pos_tags
+        src_copy_vocab = SourceCopyVocabulary(src_tokens)
+        src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
+        src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
+        tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(src_tokens, src_pos_tags)
+
         if bert_tokenizer is not None:
-            # Note: '[CLS]' and '[SEP'] will be added to the front and the end of tokens.
-            src_tokens, src_token_ids, no_hashtag_tokens, src_pos_tags = bert_tokenizer.tokenize(
-                self.get_src_tokens(), amr.pos_tags)
-            src_tokens = src_tokens[1:-1]
-            no_hashtag_tokens = no_hashtag_tokens[1:-1]
-            src_pos_tags = src_pos_tags[1:-1]
-            src_copy_vocab = SourceCopyVocabulary(no_hashtag_tokens)
-            src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
-            src_copy_map = src_copy_vocab.get_copy_map(no_hashtag_tokens)
-            tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(
-                no_hashtag_tokens, src_pos_tags)
-        else:
-            src_tokens = self.get_src_tokens()
-            src_token_ids = [0] * (len(src_tokens) + 2)
-            src_pos_tags = amr.pos_tags
-            src_copy_vocab = SourceCopyVocabulary(src_tokens)
-            src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
-            src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
-            tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(
-                src_tokens, src_pos_tags)
+            src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens, True)
 
         src_must_copy_tags = [
             1 if re.search(r'^([A-Z]+_)+\d+$', t) else 0 for t in src_tokens]
@@ -604,6 +595,7 @@ class AMRGraph(penman.Graph):
             "tgt_copy_mask" : tgt_copy_mask,
             "src_tokens" : src_tokens,
             "src_token_ids" : src_token_ids,
+            "src_token_subword_index" : src_token_subword_index,
             "src_must_copy_tags" : src_must_copy_tags,
             "src_must_skip_mask" : src_must_skip_mask,
             "src_pos_tags": src_pos_tags,
@@ -617,11 +609,7 @@ class AMRGraph(penman.Graph):
 
     @classmethod
     def decode(cls, raw_graph_string):
-        try:
-            _graph = amr_codec.decode(raw_graph_string)
-        except:
-            print(raw_graph_string)
-            import pdb; pdb.set_trace()
+        _graph = amr_codec.decode(raw_graph_string)
         return cls(_graph)
 
     @classmethod

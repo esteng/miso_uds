@@ -10,7 +10,7 @@ from stog.data.dataset_readers.amr_parsing.io import AMRIO
 from stog.data.dataset_readers.amr_parsing.amr import AMRGraph
 from stog.utils.file import cached_path
 from stog.data.dataset_readers.dataset_reader import DatasetReader
-from stog.data.fields import TextField, SpanField, SequenceLabelField, ListField, MetadataField, Field, AdjacencyField
+from stog.data.fields import TextField, SpanField, SequenceLabelField, ListField, MetadataField, Field, AdjacencyField, ArrayField
 from stog.data.instance import Instance
 from stog.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
 from stog.data.tokenizers import Token
@@ -52,14 +52,16 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         self._number_pos_tags = 0
 
     def report_coverage(self):
-        logger.info('BERT OOV  rate: {0:.4f} ({1}/{2})'.format(
-            self._number_bert_oov_ids / self._number_bert_ids,
-            self._number_bert_oov_ids, self._number_bert_ids
-        ))
-        logger.info('POS tag coverage: {0:.4f} ({1}/{2})'.format(
-            self._number_non_oov_pos_tags / self._number_pos_tags,
-            self._number_non_oov_pos_tags, self._number_pos_tags
-        ))
+        if self._number_bert_ids != 0:
+            logger.info('BERT OOV  rate: {0:.4f} ({1}/{2})'.format(
+                self._number_bert_oov_ids / self._number_bert_ids,
+                self._number_bert_oov_ids, self._number_bert_ids
+            ))
+        if self._number_non_oov_pos_tags != 0:
+            logger.info('POS tag coverage: {0:.4f} ({1}/{2})'.format(
+                self._number_non_oov_pos_tags / self._number_pos_tags,
+                self._number_non_oov_pos_tags, self._number_pos_tags
+            ))
 
     def set_evaluation(self):
         self._evaluation = True
@@ -87,18 +89,15 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
         )
 
-        fields["src_token_ids"] = SequenceLabelField(
-            labels=list_data["src_token_ids"],
-            sequence_field=TextField(
-                [Token('[CLS]')] + [Token(x) for x in list_data['src_tokens']] + [Token('[SEP]')],
-                None
-            ),
-            label_namespace="bert_tags"
-        )
+        if list_data['src_token_ids'] is not None:
+            fields['src_token_ids'] = ArrayField(list_data['src_token_ids'])
+            self._number_bert_ids += len(list_data['src_token_ids'])
+            self._number_bert_oov_ids += len(
+                [bert_id for bert_id in list_data['src_token_ids'] if bert_id == 100])
 
-        self._number_bert_ids += len(list_data['src_token_ids'])
-        self._number_bert_oov_ids += len(
-            [bert_id for bert_id in list_data['src_token_ids'] if bert_id == 100])
+        if list_data['src_token_subword_index'] is not None:
+            fields['src_token_subword_index'] = ArrayField(
+                list_data['src_token_subword_index'])
 
         fields["src_must_copy_tags"] = SequenceLabelField(
             labels=list_data["src_must_copy_tags"],

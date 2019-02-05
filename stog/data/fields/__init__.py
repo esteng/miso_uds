@@ -4,7 +4,7 @@ that ends up as an array in a model.
 """
 
 from stog.data.fields.field import Field
-#from stog.data.fields.array_field import ArrayField
+from stog.data.fields.array_field import ArrayField
 from stog.data.fields.adjacency_field import AdjacencyField
 #from stog.data.fields.index_field import IndexField
 #from stog.data.fields.knowledge_graph_field import KnowledgeGraphField
