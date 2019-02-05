@@ -8,10 +8,15 @@ glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
 # Model parameters
 model:
   model_type: STOG
+  use_bert: True
   use_must_copy_embedding: True
   use_char_cnn: True
   use_coverage: True
   use_aux_encoder: False
+
+  bert:
+    pretrained_model_dir: /home/sheng/data/bert-base-cased
+    hidden_size: 768
 
   encoder_token_embedding:
     num_embeddings:
@@ -124,6 +129,7 @@ model:
     batch_size: 32
     eval_script: scripts/eval_test.sh
     smatch_dir: tools/amr-evaluation-tool-enhanced
+    word_splitter: &word_splitter /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
 
 
 # Vocabulary
@@ -150,6 +156,7 @@ data:
   iter_type: BucketIterator
   pretrain_token_emb: *glove
   pretrain_char_emb:
+  word_splitter: *word_splitter
 
 
 # Training parameters
@@ -158,7 +165,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir stog-ckpt
+  serialization_dir: &serialization_dir stog-bert-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0

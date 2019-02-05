@@ -149,7 +149,7 @@ data:
 
 # Vocab
 vocab:
-  non_padded_namespaces: [head_tags, must_copy_tags, coref_tags]
+  non_padded_namespaces: [must_copy_tags, coref_tags]
 
 
 # Training parameters
