@@ -60,11 +60,11 @@ class PointerGenerator(torch.nn.Module):
         scores = scores.view(batch_size, num_target_nodes, -1)
         vocab_probs = self.softmax(scores)
         scaled_vocab_probs = torch.mul(vocab_probs, p_generate.expand_as(vocab_probs))
-        if invalid_indexes.get('vocab', None) is not None:
+        if invalid_indexes and invalid_indexes.get('vocab', None) is not None:
             vocab_invalid_indexes = invalid_indexes['vocab']
             scaled_vocab_probs[:, vocab_invalid_indexes] = 0
 
-        if invalid_indexes.get('source_copy', None) is not None:
+        if invalid_indexes and invalid_indexes.get('source_copy', None) is not None:
             source_copy_skip_mask = invalid_indexes['source_copy'].byte().unsqueeze(1)
             source_attentions.masked_fill_(source_copy_skip_mask, 0)
         # [batch_size, num_target_nodes, num_source_nodes]

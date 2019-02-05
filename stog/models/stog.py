@@ -1,6 +1,6 @@
 import torch
 
-from pytorch_pretrained_bert.modeling import BertModel
+from stog.modules.seq2seq_encoders import Seq2SeqBertEncoder
 
 from stog.models.model import Model
 from stog.utils.logging import init_logger
@@ -213,7 +213,12 @@ class STOG(Model):
 
     def prepare_batch_input(self, batch):
         # [batch, num_tokens]
-        bert_token_inputs = batch['src_token_ids']
+        bert_token_inputs = batch.get('src_token_ids', None)
+        if bert_token_inputs is not None:
+            bert_token_inputs = bert_token_inputs.long()
+        encoder_token_subword_index = batch.get('src_token_subword_index', None)
+        if encoder_token_subword_index is not None:
+            encoder_token_subword_index = encoder_token_subword_index.long()
         encoder_token_inputs = batch['src_tokens']['encoder_tokens']
         encoder_pos_tags = batch['src_pos_tags']
         encoder_must_copy_tags = batch['src_must_copy_tags']
@@ -225,6 +230,7 @@ class STOG(Model):
 
         encoder_inputs = dict(
             bert_token=bert_token_inputs,
+            token_subword_index=encoder_token_subword_index,
             token=encoder_token_inputs,
             pos_tag=encoder_pos_tags,
             must_copy_tag=encoder_must_copy_tags,
@@ -310,6 +316,7 @@ class STOG(Model):
 
         encoder_outputs = self.encode(
             encoder_inputs['bert_token'],
+            encoder_inputs['token_subword_index'],
             encoder_inputs['token'],
             encoder_inputs['pos_tag'],
             encoder_inputs['must_copy_tag'],
@@ -334,8 +341,7 @@ class STOG(Model):
                 decoder_outputs['copy_attentions'],
                 generator_inputs['copy_attention_maps'],
                 decoder_outputs['coref_attentions'],
-                generator_inputs['coref_attention_maps'],
-                invalid_indexes
+                generator_inputs['coref_attention_maps']
             )
 
             generator_loss_output = self.generator.compute_loss(
@@ -378,14 +384,19 @@ class STOG(Model):
                 invalid_indexes=invalid_indexes
             )
 
-    def encode(self, bert_tokens, tokens, pos_tags, must_copy_tags, chars, mask):
+    def encode(self, bert_tokens, token_subword_index, tokens, pos_tags, must_copy_tags, chars, mask):
         # [batch, num_tokens, embedding_size]
         encoder_inputs = []
         if self.use_bert:
             bert_mask = bert_tokens.ne(0)
             bert_embeddings, _ = self.bert_encoder(
-                bert_tokens, attention_mask=bert_mask, output_all_encoded_layers=False)
-            bert_embeddings = bert_embeddings[:, 1:-1]
+                bert_tokens,
+                attention_mask=bert_mask,
+                output_all_encoded_layers=False,
+                token_subword_index=token_subword_index
+            )
+            if token_subword_index is None:
+                bert_embeddings = bert_embeddings[:, 1:-1]
             encoder_inputs += [bert_embeddings]
 
         token_embeddings = self.encoder_token_embedding(tokens)
@@ -761,7 +772,7 @@ class STOG(Model):
         encoder_input_size = 0
         bert_encoder = None
         if params.get('use_bert', False):
-            bert_encoder = BertModel.from_pretrained(params['bert']['pretrained_model_dir'])
+            bert_encoder = Seq2SeqBertEncoder.from_pretrained(params['bert']['pretrained_model_dir'])
             encoder_input_size += params['bert']['hidden_size']
             for p in bert_encoder.parameters():
                 p.requires_grad = False

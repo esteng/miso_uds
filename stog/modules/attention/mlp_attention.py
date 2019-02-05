@@ -14,7 +14,7 @@ class MLPAttention(torch.nn.Module):
         self.use_concat = use_concat
         if self.use_concat:
             self.concat_linear = torch.nn.Linear(
-                decoder_hidden_size + encoder_hidden_size, self.hidden_size, bias=False)
+                decoder_hidden_size, self.hidden_size, bias=False)
 
     def forward(self, decoder_input, encoder_input, coverage=None):
         """
@@ -41,12 +41,16 @@ class MLPAttention(torch.nn.Module):
             attn_features = attn_features + coverage_features
 
         if self.use_concat:
-            concat_input = torch.cat([
-                decoder_input.unsqueeze(2).expand(
-                    batch_size, decoder_seq_length, encoder_seq_length, decoder_hidden_size),
-                encoder_input.unsqueeze(1).expand(
-                    batch_size, decoder_seq_length, encoder_seq_length, encoder_hidden_size)
-            ], dim=3)
+            # concat_input = torch.cat([
+            #     decoder_input.unsqueeze(2).expand(
+            #         batch_size, decoder_seq_length, encoder_seq_length, decoder_hid# den_size),
+            #     encoder_input.unsqueeze(1).expand(
+            #         batch_size, decoder_seq_length, encoder_seq_length, encoder_hidden_size)
+            # ], dim=3)
+            concat_input = (decoder_input.unsqueeze(2).expand(
+                batch_size, decoder_seq_length, encoder_seq_length, decoder_hidden_size) *
+                            encoder_input.unsqueeze(1).expand(
+                batch_size, decoder_seq_length, encoder_seq_length, encoder_hidden_size))
             concat_features = self.concat_linear(concat_input)
             attn_features = attn_features + concat_features
 
