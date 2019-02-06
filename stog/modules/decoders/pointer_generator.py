@@ -60,13 +60,7 @@ class PointerGenerator(torch.nn.Module):
         scores = scores.view(batch_size, num_target_nodes, -1)
         vocab_probs = self.softmax(scores)
         scaled_vocab_probs = torch.mul(vocab_probs, p_generate.expand_as(vocab_probs))
-        if invalid_indexes and invalid_indexes.get('vocab', None) is not None:
-            vocab_invalid_indexes = invalid_indexes['vocab']
-            scaled_vocab_probs[:, vocab_invalid_indexes] = 0
 
-        if invalid_indexes and invalid_indexes.get('source_copy', None) is not None:
-            source_copy_skip_mask = invalid_indexes['source_copy'].byte().unsqueeze(1)
-            source_attentions.masked_fill_(source_copy_skip_mask, 0)
         # [batch_size, num_target_nodes, num_source_nodes]
         scaled_source_attentions = torch.mul(source_attentions, p_copy_source.expand_as(source_attentions))
         # [batch_size, num_target_nodes, dynamic_vocab_size]
@@ -79,6 +73,19 @@ class PointerGenerator(torch.nn.Module):
         scaled_target_attentions = torch.mul(target_attentions, p_copy_target.expand_as(target_attentions))
         # [batch_size, num_target_nodes, dymanic_vocab_size]
         scaled_copy_target_probs = torch.bmm(scaled_target_attentions, target_attention_maps.float())
+
+        if invalid_indexes:
+            if invalid_indexes.get('vocab', None) is not None:
+                vocab_invalid_indexes = invalid_indexes['vocab']
+                for i, indexes in enumerate(vocab_invalid_indexes):
+                    for index in indexes:
+                        scaled_vocab_probs[i, :, index] = 0
+
+            if invalid_indexes.get('source_copy', None) is not None:
+                source_copy_invalid_indexes = invalid_indexes['source_copy']
+                for i, indexes in enumerate(source_copy_invalid_indexes):
+                    for index in indexes:
+                        scaled_copy_source_probs[i, :, index] = 0
 
         # [batch_size, num_target_nodes, vocab_size + dynamic_vocab_size]
         probs = torch.cat([

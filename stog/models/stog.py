@@ -19,7 +19,7 @@ from stog.modules.decoders.generator import Generator
 from stog.modules.decoders.pointer_generator import PointerGenerator
 from stog.modules.decoders.deep_biaffine_graph_decoder import DeepBiaffineGraphDecoder
 from stog.utils.nn import get_text_field_mask
-from stog.utils.string import START_SYMBOL, END_SYMBOL, find_similar_token
+from stog.utils.string import START_SYMBOL, END_SYMBOL, find_similar_token, is_abstract_token
 from stog.data.vocabulary import DEFAULT_OOV_TOKEN
 from stog.data.tokenizers.character_tokenizer import CharacterTokenizer
 # The following imports are added for mimick testing.
@@ -222,7 +222,6 @@ class STOG(Model):
         encoder_token_inputs = batch['src_tokens']['encoder_tokens']
         encoder_pos_tags = batch['src_pos_tags']
         encoder_must_copy_tags = batch['src_must_copy_tags']
-        encoder_must_skip_mask = batch['src_must_skip_mask']
         # [batch, num_tokens, num_chars]
         encoder_char_inputs = batch['src_tokens']['encoder_characters']
         # [batch, num_tokens]
@@ -304,15 +303,10 @@ class STOG(Model):
         )
         # import pdb; pdb.set_trace()
 
-        invalid_indexes = dict(
-            vocab=self.punctuation_ids,
-            source_copy=encoder_must_skip_mask,
-        )
-
-        return encoder_inputs, decoder_inputs, generator_inputs, invalid_indexes, parser_inputs
+        return encoder_inputs, decoder_inputs, generator_inputs, parser_inputs
 
     def forward(self, batch, for_training=False):
-        encoder_inputs, decoder_inputs, generator_inputs, invalid_indexes, parser_inputs = self.prepare_batch_input(batch)
+        encoder_inputs, decoder_inputs, generator_inputs, parser_inputs = self.prepare_batch_input(batch)
 
         encoder_outputs = self.encode(
             encoder_inputs['bert_token'],
@@ -374,6 +368,12 @@ class STOG(Model):
             )
 
         else:
+
+            invalid_indexes = dict(
+                source_copy=batch.get('source_copy_invalid_ids', None),
+                vocab=[set(self.punctuation_ids) for _ in range(len(batch['tag_lut']))]
+            )
+
             return dict(
                 encoder_memory_bank=encoder_outputs['memory_bank'],
                 encoder_mask=encoder_inputs['mask'],
@@ -518,9 +518,11 @@ class STOG(Model):
             raise NotImplementedError
 
     def decode_with_pointer_generator(
-            self, memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts, invalid_indexes):
+            self, memory_bank, mask, states, copy_attention_maps, copy_vocabs,
+            tag_luts, invalid_indexes):
         # [batch_size, 1]
         batch_size = memory_bank.size(0)
+
         tokens = torch.ones(batch_size, 1) * self.vocab.get_token_index(
             START_SYMBOL, "decoder_token_ids")
         pos_tags = torch.ones(batch_size, 1) * self.vocab.get_token_index(
@@ -610,7 +612,8 @@ class STOG(Model):
                 coref_vocab_maps,
                 copy_vocabs,
                 decoder_mask,
-                tag_luts
+                tag_luts,
+                invalid_indexes
             )
 
             # 5. Update variables.
@@ -657,7 +660,7 @@ class STOG(Model):
 
     def _update_maps_and_get_next_input(
             self, step, predictions, copy_vocab_size, coref_attention_maps, coref_vocab_maps,
-            copy_vocabs, masks, tag_luts):
+            copy_vocabs, masks, tag_luts, invalid_indexes):
         """Dynamically update/build the maps needed for copying.
 
         :param step: the decoding step, int.
@@ -669,6 +672,7 @@ class STOG(Model):
         :param masks: a list of [batch_size] tensors indicating whether EOS has been generated.
             if EOS has has been generated, then the mask is `1`.
         :param tag_luts: a dict mapping key to a list of dicts mapping a source token to a POS tag.
+        :param invalid_indexes: a dict storing invalid indexes for copying and generation.
         :return:
         """
         vocab_size = self.generator.vocab_size
@@ -704,6 +708,8 @@ class STOG(Model):
             if index != 0:
                 pos_tags[i] = self.vocab.get_token_index(
                     tag_luts[i]['pos'][copied_token], 'pos_tags')
+                if False: # is_abstract_token(copied_token):
+                    invalid_indexes['source_copy'][i].add(index)
             copy_predictions[i] = self.vocab.get_token_index(copied_token, 'decoder_token_ids')
 
         for i, index in enumerate(
@@ -714,6 +720,8 @@ class STOG(Model):
                 if src_token is not None:
                     pos_tags[i] = self.vocab.get_token_index(
                         tag_luts[i]['pos'][src_token], 'pos_tag')
+                if False: # is_abstract_token(token):
+                    invalid_indexes['vocab'][i].add(index)
 
         next_input = coref_predictions * coref_mask.long() + \
                      copy_predictions * copy_mask.long() + \
