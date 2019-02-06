@@ -9,7 +9,7 @@ from penman import Triple
 
 from stog.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 from stog.data.dataset_readers.amr_parsing.graph_repair import GraphRepair
-from stog.utils.string import find_similar_token
+from stog.utils.string import find_similar_token, is_abstract_token, is_english_punct
 from stog.utils import logging
 
 
@@ -580,12 +580,11 @@ class AMRGraph(penman.Graph):
         tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(src_tokens, src_pos_tags)
 
         if bert_tokenizer is not None:
-            src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens, True)
+            src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens)
 
-        src_must_copy_tags = [
-            1 if re.search(r'^([A-Z]+_)+\d+$', t) else 0 for t in src_tokens]
-        src_must_skip_mask = [
-            1 if re.search(r'^[,.?!:;"\'-(){}\[\]]$', t) else 0 for t in src_tokens]
+        src_must_copy_tags = [1 if is_abstract_token(t) else 0 for t in src_tokens]
+        src_copy_invalid_ids = set(src_copy_vocab.index_sequence(
+            [t for t in src_tokens if is_english_punct(t)]))
 
         return {
             "tgt_tokens" : tgt_tokens,
@@ -597,7 +596,6 @@ class AMRGraph(penman.Graph):
             "src_token_ids" : src_token_ids,
             "src_token_subword_index" : src_token_subword_index,
             "src_must_copy_tags" : src_must_copy_tags,
-            "src_must_skip_mask" : src_must_skip_mask,
             "src_pos_tags": src_pos_tags,
             "src_copy_vocab" : src_copy_vocab,
             "src_copy_indices" : src_copy_indices,
@@ -605,6 +603,7 @@ class AMRGraph(penman.Graph):
             "pos_tag_lut": pos_tag_lut,
             "head_tags" : head_tags,
             "head_indices" : head_indices,
+            "src_copy_invalid_ids" : src_copy_invalid_ids
         }
 
     @classmethod
