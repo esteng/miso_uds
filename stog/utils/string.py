@@ -12,6 +12,14 @@ START_SYMBOL = '@start@'
 END_SYMBOL = '@end@'
 
 
+def is_abstract_token(token):
+    return re.search(r'^([A-Z]+_)+\d+$', token)
+
+
+def is_english_punct(c):
+    return re.search(r'^[,.?!:;"\'-(){}\[\]]$', c)
+
+
 def find_similar_token(token, tokens):
     token = re.sub(r'-\d\d$', '', token) # .lower())
     for i, t in enumerate(tokens):
