@@ -81,7 +81,10 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         fields: Dict[str, Field] = {}
 
-        list_data = amr.graph.get_list_data(amr, START_SYMBOL, END_SYMBOL, self._word_splitter)
+        max_tgt_length = None if self._evaluation else 60
+
+        list_data = amr.graph.get_list_data(
+            amr, START_SYMBOL, END_SYMBOL, self._word_splitter, max_tgt_length)
 
         # These four fields are used for seq2seq model and target side self copy
         fields["src_tokens"] = TextField(

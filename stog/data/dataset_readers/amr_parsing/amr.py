@@ -475,14 +475,8 @@ class AMRGraph(penman.Graph):
 
     def sort_edges(self, edges):
         return edges
-        def get_edge_priority(label):
-            if label in self.edge_label_priority:
-                return self.edge_label_priority.index(label), label
-            else:
-                return len(self.edge_label_priority), label
-        return sorted(edges, key=lambda e: get_edge_priority(e[1]['label']))
 
-    def get_list_data(self, amr, bos=None, eos=None, bert_tokenizer=None):
+    def get_list_data(self, amr, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None):
         node_list = self.get_list_node()
 
         tgt_tokens = []
@@ -513,6 +507,20 @@ class AMRGraph(penman.Graph):
                         update_info(node, attr[0], node, attr[1])
 
             visited[node] = 1
+
+        def trim_very_long_tgt_tokens(tgt_tokens, head_tags, head_indices, node_to_idx):
+            tgt_tokens = tgt_tokens[:max_tgt_length]
+            head_tags = head_tags[:max_tgt_length]
+            head_indices = head_indices[:max_tgt_length]
+            for node, indices in node_to_idx.items():
+                invalid_indices = [index for index in indices if index >= max_tgt_length]
+                for index in invalid_indices:
+                    indices.remove(index)
+            return tgt_tokens, head_tags, head_indices, node_to_idx
+
+        if max_tgt_length is not None:
+            tgt_tokens, head_tags, head_indices, node_to_idx = trim_very_long_tgt_tokens(
+                tgt_tokens, head_tags, head_indices, node_to_idx)
 
         copy_offset = 0
         if bos:
