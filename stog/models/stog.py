@@ -455,12 +455,10 @@ class STOG(Model):
             aux_encoder_outputs = None
 
         return dict(
-            memory_bank=decoder_outputs['output_sequences'],
-            rnn_memory_bank=decoder_outputs['rnn_output_sequences'],
-            coref_inputs=decoder_outputs['coref_inputs'],
-            coref_attentions=decoder_outputs['coref_attentions'],
-            copy_attentions=decoder_outputs['copy_attentions'],
-            source_attentions=decoder_outputs['std_attentions'],
+            memory_bank=decoder_outputs['decoder_hidden_states'],
+            rnn_memory_bank=decoder_outputs['rnn_hidden_states'],
+            coref_attentions=decoder_outputs['target_copy_attentions'],
+            copy_attentions=decoder_outputs['source_copy_attentions'],
             coverage_records=decoder_outputs['coverage_records'],
             aux_encoder_outputs=aux_encoder_outputs
         )
@@ -536,7 +534,6 @@ class STOG(Model):
         decoder_input_history = []
         decoder_outputs = []
         rnn_outputs = []
-        source_attentions = []
         copy_attentions = []
         coref_attentions = []
         predictions = []
@@ -544,7 +541,7 @@ class STOG(Model):
         decoder_mask = []
 
         input_feed = None
-        coref_inputs = None
+        coref_inputs = []
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
         # Here the maximum size of the dynamic vocab is just max_decode_length.
@@ -584,13 +581,11 @@ class STOG(Model):
             # 2. Decode one step.
             decoder_output_dict = self.decoder(
                 decoder_inputs, memory_bank, mask, states, input_feed, coref_inputs, coverage)
-            _decoder_outputs = decoder_output_dict['output_sequences']
-            _rnn_outputs = decoder_output_dict['rnn_output_sequences']
-            coref_inputs = decoder_output_dict['coref_inputs']
-            _source_attentions = decoder_output_dict['std_attentions']
-            _copy_attentions = decoder_output_dict['copy_attentions']
-            _coref_attentions = decoder_output_dict['coref_attentions']
-            states = decoder_output_dict['hidden_state']
+            _decoder_outputs = decoder_output_dict['decoder_hidden_states']
+            _rnn_outputs = decoder_output_dict['rnn_hidden_states']
+            _copy_attentions = decoder_output_dict['source_copy_attentions']
+            _coref_attentions = decoder_output_dict['target_copy_attentions']
+            states = decoder_output_dict['last_hidden_state']
             input_feed = decoder_output_dict['input_feed']
             coverage = decoder_output_dict['coverage']
 
@@ -623,7 +618,6 @@ class STOG(Model):
             decoder_outputs += [_decoder_outputs]
             rnn_outputs += [_rnn_outputs]
 
-            source_attentions += [_source_attentions]
             copy_attentions += [_copy_attentions]
             coref_attentions += [_coref_attentions]
 
@@ -638,7 +632,6 @@ class STOG(Model):
         decoder_input_history = torch.cat(decoder_input_history[1:], dim=1)
         decoder_outputs = torch.cat(decoder_outputs[1:], dim=1)
         rnn_outputs = torch.cat(rnn_outputs[1:], dim=1)
-        source_attentions = torch.cat(source_attentions, dim=1)
         # Exclude coref/mask for EOS.
         # TODO: Answer "What if the last one is not EOS?"
         predictions = torch.cat(predictions[:-1], dim=1)
@@ -655,7 +648,6 @@ class STOG(Model):
             decoder_memory_bank=decoder_outputs,
             decoder_rnn_memory_bank=rnn_outputs,
             # [batch_size, max_decode_length, encoder_length]
-            source_attentions=source_attentions,
             copy_attentions=copy_attentions,
             coref_attentions=coref_attentions
         )

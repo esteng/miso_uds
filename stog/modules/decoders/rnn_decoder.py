@@ -21,17 +21,17 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                  rnn_cell,
                  dropout,
                  attention_layer,
-                 copy_attention_layer=None,
+                 source_copy_attention_layer=None,
                  coref_attention_layer=None,
                  use_coverage=False):
         super(InputFeedRNNDecoder, self).__init__(rnn_cell, dropout)
         self.attention_layer = attention_layer
-        self.copy_attention_layer = copy_attention_layer
+        self.source_copy_attention_layer = source_copy_attention_layer
         self.coref_attention_layer = coref_attention_layer
         self.use_coverage = use_coverage
 
     def forward(self, inputs, memory_bank, mask, hidden_state,
-                input_feed=None, coref_inputs=None, coverage=None):
+                input_feed=None, target_copy_hidden_states=None, coverage=None):
         """
 
         :param inputs: [batch_size, decoder_seq_length, embedding_size]
@@ -39,26 +39,23 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         :param mask:  None or [batch_size, decoder_seq_length]
         :param hidden_state: a tuple of (state, memory) with shape [num_encoder_layers, batch_size, encoder_hidden_size]
         :param input_feed: None or [batch_size, 1, hidden_size]
-        :param coref_inputs: None or [batch_size, seq_length, hidden_size]
+        :param target_copy_hidden_states: None or [batch_size, seq_length, hidden_size]
         :param coverage: None or [batch_size, 1, encode_seq_length]
         :return:
         """
         batch_size, sequence_length, _ = inputs.size()
         one_step_length = [1] * batch_size
-        std_attentions = []
-        copy_attentions = []
-        coref_attentions = []
+        source_copy_attentions = []
+        target_copy_attentions = []
         coverage_records = []
-        output_sequences = []
-        rnn_output_sequences = []
+        decoder_hidden_states = []
+        rnn_hidden_states = []
 
         if input_feed is None:
             input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
 
-        if coref_inputs is None:
-            coref_inputs = []
-        else:
-            coref_inputs = list(coref_inputs.split(1, dim=1))
+        if target_copy_hidden_states is None:
+            target_copy_hidden_states = []
 
         if self.use_coverage and coverage is None:
             coverage = inputs.new_zeros(batch_size, 1, memory_bank.size(1))
@@ -72,7 +69,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             packed_output, hidden_state = self.rnn_cell(packed_input, hidden_state)
             # output: [batch_size, 1, hidden_size]
             output, _ = pad_packed_sequence(packed_output, batch_first=True)
-            rnn_output_sequences.append(output)
+            rnn_hidden_states.append(output)
 
             coverage_records.append(coverage)
             output, std_attention, coverage = self.attention_layer(
@@ -80,54 +77,55 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
             output = self.dropout(output)
             input_feed = output
-            coref_input = output  # clone()
 
-            if self.copy_attention_layer is not None:
-                _, copy_attention = self.copy_attention_layer(
+            if self.source_copy_attention_layer is not None:
+                _, source_copy_attention = self.source_copy_attention_layer(
                     output, memory_bank, mask)
-                copy_attentions.append(copy_attention)
+                source_copy_attentions.append(source_copy_attention)
             else:
-                copy_attentions.append(std_attention)
+                source_copy_attentions.append(std_attention)
 
             if self.coref_attention_layer is not None:
-                if len(coref_inputs) == 0:
-                    coref_attention = inputs.new_zeros(batch_size, 1, sequence_length)
+                if len(target_copy_hidden_states) == 0:
+                    target_copy_attention = inputs.new_zeros(batch_size, 1, sequence_length)
 
                 else:
-                    coref_mem_bank = torch.cat(coref_inputs, 1)
+                    target_copy_memory = torch.cat(target_copy_hidden_states, 1)
 
                     if sequence_length == 1:
-                        _, coref_attention, _ = self.coref_attention_layer(
-                            coref_input, coref_mem_bank)
+                        _, target_copy_attention, _ = self.coref_attention_layer(
+                            output, target_copy_memory)
                     else:
-                        _, coref_attention, _ = self.coref_attention_layer(
-                            coref_input, coref_mem_bank)
-                        coref_attention = torch.nn.functional.pad(
-                            coref_attention, (0, sequence_length - step_i), 'constant', 0
+                        _, target_copy_attention, _ = self.coref_attention_layer(
+                            output, target_copy_memory)
+                        target_copy_attention = torch.nn.functional.pad(
+                            target_copy_attention, (0, sequence_length - step_i), 'constant', 0
                         )
 
-                coref_attentions.append(coref_attention)
+                target_copy_attentions.append(target_copy_attention)
 
-            coref_inputs.append(coref_input)
-            output_sequences.append(output)
-            std_attentions.append(std_attention)
+            target_copy_hidden_states.append(output)
+            decoder_hidden_states.append(output)
 
-        output_sequences = torch.cat(output_sequences, 1)
-        rnn_output_sequences = torch.cat(rnn_output_sequences, 1)
-        std_attentions = torch.cat(std_attentions, 1)
-        copy_attentions = torch.cat(copy_attentions, 1)
-        coref_attentions = torch.cat(coref_attentions, 1) if len(coref_attentions) else None
-        coref_inputs = torch.cat(coref_inputs, 1)
-        coverage_records = torch.cat(coverage_records, 1) if self.use_coverage else None
+        decoder_hidden_states = torch.cat(decoder_hidden_states, 1)
+        rnn_hidden_states = torch.cat(rnn_hidden_states, 1)
+        source_copy_attentions = torch.cat(source_copy_attentions, 1)
+        if len(target_copy_attentions):
+            target_copy_attentions = torch.cat(target_copy_attentions, 1)
+        else:
+            target_copy_attentions = None
+        if self.use_coverage:
+            coverage_records = torch.cat(coverage_records, 1)
+        else:
+            coverage_records = None
+
         return dict(
-            output_sequences=output_sequences,
-            rnn_output_sequences=rnn_output_sequences,
-            coref_inputs=coref_inputs,
-            std_attentions=std_attentions,
-            copy_attentions=copy_attentions,
-            coref_attentions=coref_attentions,
+            decoder_hidden_states=decoder_hidden_states,
+            rnn_hidden_states=rnn_hidden_states,
+            source_copy_attentions=source_copy_attentions,
+            target_copy_attentions=target_copy_attentions,
             coverage_records=coverage_records,
-            hidden_state=hidden_state,
+            last_hidden_state=hidden_state,
             input_feed=input_feed,
             coverage=coverage
         )
