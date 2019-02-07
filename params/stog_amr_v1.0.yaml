@@ -8,7 +8,7 @@ glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
 # Model parameters
 model:
   model_type: STOG
-  use_bert: True
+  use_bert: False
   use_must_copy_embedding: True
   use_char_cnn: True
   use_coverage: True
@@ -60,6 +60,7 @@ model:
     padding_index: 0
     dropout: 0.33
     pretrained_file: *glove
+    data_type: AMR
 
   decoder_pos_embedding:
     num_embeddings:
@@ -139,8 +140,8 @@ vocab:
       encoder_token_ids: 1
       decoder_token_ids: 1
   max_vocab_size:
-      encoder_token_ids: 9500
-      decoder_token_ids: 7600
+      encoder_token_ids: 9700
+      decoder_token_ids: 7900
 
 
 # Data parameters
@@ -165,7 +166,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir stog-bert-ckpt
+  serialization_dir: &serialization_dir stog-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0
