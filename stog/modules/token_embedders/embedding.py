@@ -289,16 +289,12 @@ def _read_embeddings_from_text_file(file_uri: str,
 
     The remainder of the docstring is identical to ``_read_pretrained_embeddings_file``.
     """
-    tokens_to_keep = set(vocab.get_index_to_token_vocabulary(namespace).values())
-
-    tokens_to_find_dict = {}
-    for token in tokens_to_keep:
+    tokens_to_keep = set()
+    for token in vocab.get_token_to_index_vocabulary(namespace):
         # TODO: Is there a better way to do this? Currently we have a very specific 'amr' param.
-        if amr and re.match("[a-zA-Z]+-[0-9]+", token):
-            key = token.split('-')[0]
-        else:
-            key = token
-        tokens_to_find_dict[key] = token
+        if amr:
+            token = re.sub(r'-\d\d$', '', token)
+        tokens_to_keep.add(token)
 
     vocab_size = vocab.get_vocab_size(namespace)
 
@@ -310,7 +306,7 @@ def _read_embeddings_from_text_file(file_uri: str,
     with EmbeddingsTextFile(file_uri) as embeddings_file:
         for line in Tqdm.tqdm(embeddings_file):
             token = line.split(' ', 1)[0]
-            if token in tokens_to_find_dict:
+            if token in tokens_to_keep:
                 fields = line.rstrip().split(' ')
                 if len(fields) - 1 != embedding_dim:
                     # Sometimes there are funny unicode parsing problems that lead to different
@@ -325,7 +321,7 @@ def _read_embeddings_from_text_file(file_uri: str,
                     continue
 
                 vector = numpy.asarray(fields[1:], dtype='float32')
-                embeddings[tokens_to_find_dict[token]] = vector
+                embeddings[token] = vector
 
     if not embeddings:
         raise ConfigurationError("No embeddings of correct dimension found; you probably "
@@ -351,6 +347,11 @@ def _read_embeddings_from_text_file(file_uri: str,
             embedding_matrix[i] = torch.FloatTensor(embeddings[token])
             num_tokens_found += 1
         else:
+            if amr:
+                normalized_token = re.sub(r'-\d\d$', '', token)
+                if normalized_token in embeddings:
+                    embedding_matrix[i] = torch.FloatTensor(embeddings[normalized_token])
+                    num_tokens_found += 1
             logger.debug("Token %s was not found in the embedding file. Initialising randomly.", token)
 
     logger.info("Pretrained embeddings were found for %d out of %d tokens",
