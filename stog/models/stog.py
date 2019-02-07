@@ -150,8 +150,10 @@ class STOG(Model):
         return metrics
 
     def mimick_test(self):
-        dataset_reader = load_dataset_reader(
-            'AMR', word_splitter=self.test_config.get('word_splitter', None))
+        word_splitter = None
+        if self.use_bert:
+            word_splitter = self.test_config.get('word_splitter', None)
+        dataset_reader = load_dataset_reader('AMR', word_splitter=word_splitter)
         dataset_reader.set_evaluation()
         predictor = Predictor.by_name('STOG')(self, dataset_reader)
         manager = _PredictManager(
