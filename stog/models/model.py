@@ -207,7 +207,7 @@ class Model(torch.nn.Module):
         if len(devices) > 1:
             devices_string = ", ".join(str(x) for x in devices)
             raise ConfigurationError(f"Parameters have mismatching cuda_devices: {devices_string}")
-        elif len(devices) == 1:
+        elif len(devices) == 1 and all(i >= 0 for i in devices):
             device = torch.device('cuda:{}'.format(devices.pop()))
         else:
             device = torch.device('cpu')
