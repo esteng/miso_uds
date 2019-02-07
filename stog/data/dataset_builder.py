@@ -11,6 +11,7 @@ ROOT_TOKEN="<root>"
 ROOT_CHAR="<r>"
 logger = logging.init_logger()
 
+
 def load_dataset_reader(dataset_type, *args, **kwargs):
     if dataset_type == "UD":
         dataset_reader = UniversalDependenciesDatasetReader(
@@ -43,8 +44,10 @@ def load_dataset_reader(dataset_type, *args, **kwargs):
 
     return dataset_reader
 
+
 def load_dataset(path, dataset_type, *args, **kwargs):
     return load_dataset_reader(dataset_type, *args, **kwargs).read(path)
+
 
 def dataset_from_params(params):
 
@@ -72,6 +75,7 @@ def dataset_from_params(params):
         dev=dev_data,
         test=test_data
     )
+
 
 def iterator_from_params(vocab, params):
     # TODO: There are some other options for iterator, I think we consider about it later.
