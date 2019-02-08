@@ -489,7 +489,7 @@ class STOG(Model):
         batch_size = memory_bank.size(0)
         beam_size = self.beam_size
         #  new_order is used to replicate tensors for different beam
-        new_order = torch.arange(batch_size).view(-1, 1).repeat(1, beam_size).view(-1)
+        new_order = torch.arange(batch_size).view(-1, 1).repeat(1, beam_size).view(-1).type_as(mask)
 
         # special token indices
         bos_token = self.vocab.get_token_index(START_SYMBOL, "decoder_token_ids")
@@ -533,7 +533,7 @@ class STOG(Model):
         beam_buffer["copy_attentions"] = []
         beam_buffer["coref_attentions"] = []
 
-        beam_buffer["scores"] = torch.zeros(batch_size, beam_size, 1)
+        beam_buffer["scores"] = memory_bank.new_zeros(batch_size, beam_size, 1)
 
         def update_tensor_buff(key, step, tensor):
             if step == 0 and beam_buffer[key] is None:
@@ -580,7 +580,7 @@ class STOG(Model):
 
         variables["input_feed"] = None
         variables["coref_inputs"] = None
-        variables["prev_tokens"] = torch.ones(batch_size * beam_size, 1) * bos_token
+        variables["prev_tokens"] = mask.new_ones(batch_size * beam_size, 1) * bos_token
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
         # Here the maximum size of the dynamic vocab is just max_decode_length.
@@ -649,8 +649,12 @@ class STOG(Model):
             # find active hypos
             active_mask = fold(variables["prev_tokens"] != eos_token).float()
 
+            # This step id to prevent 0 * -inf -> nan
+            word_lprobs_mask = word_lprobs * active_mask
+            word_lprobs_mask[word_lprobs_mask != word_lprobs_mask] = 0
+
             # unnormalized scores
-            new_all_scores_unormalized = word_lprobs * active_mask + beam_buffer["scores"]
+            new_all_scores_unormalized = word_lprobs_mask + beam_buffer["scores"]
 
             # length of all possible lengths right now, 0 is pad
             hypo_lengths = torch.sum(
@@ -669,7 +673,7 @@ class STOG(Model):
 
             # top beam_size hypos
             new_hypo_scores, new_hypo_indices = torch.topk(
-                new_all_scores.view(batch_size, -1),
+                new_all_scores.view(batch_size, -1).contiguous(),
                 beam_size,
                 dim=-1
             )
@@ -714,7 +718,6 @@ class STOG(Model):
                 repeat_list_item(tag_luts, beam_size)
             )
 
-            beam_buffer["scores"] = new_hypo_scores * hypo_lengths.squeeze(2)
 
             for key, value in beam_buffer.items():
                 if value is not None and type(value) is not list:
@@ -724,6 +727,8 @@ class STOG(Model):
                             new_order * beam_size + beam_indices.view(batch_size * beam_size)
                         )
                     )
+            
+            beam_buffer["scores"] = new_hypo_scores.unsqueeze(2) * hypo_lengths
 
 
             update_tensor_buff("decoder_inputs", step, decoder_inputs)
