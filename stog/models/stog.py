@@ -19,13 +19,14 @@ from stog.modules.decoders.pointer_generator import PointerGenerator
 from stog.modules.decoders.deep_biaffine_graph_decoder import DeepBiaffineGraphDecoder
 from stog.utils.nn import get_text_field_mask
 from stog.utils.string import START_SYMBOL, END_SYMBOL, find_similar_token
-from stog.data.vocabulary import DEFAULT_OOV_TOKEN
+from stog.data.vocabulary import DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN
 from stog.data.tokenizers.character_tokenizer import CharacterTokenizer
 # The following imports are added for mimick testing.
 from stog.data.dataset_builder import load_dataset_reader
 from stog.predictors.predictor import Predictor
 from stog.commands.predict import _PredictManager
 import subprocess
+import math
 
 
 logger = init_logger()
@@ -47,7 +48,7 @@ def character_tensor_from_token_tensor(
             token_indices[char_i] = index
         indices.append(token_indices)
 
-    return torch.tensor(indices).view(token_tensor.size(0), 1, -1).type_as(token_tensor)
+    return torch.tensor(indices).view(token_tensor.size(0), token_tensor.size(1), -1).type_as(token_tensor)
 
 
 class STOG(Model):
@@ -466,20 +467,323 @@ class STOG(Model):
         if self.beam_size == 1:
             generator_outputs = self.decode_with_pointer_generator(
                 memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
-            parser_outputs = self.decode_with_graph_parser(
-                generator_outputs['decoder_inputs'],
-                generator_outputs['decoder_rnn_memory_bank'],
-                generator_outputs['coref_indexes'],
-                generator_outputs['decoder_mask']
-            )
-            return dict(
-                nodes=generator_outputs['predictions'],
-                heads=parser_outputs['edge_heads'],
-                head_labels=parser_outputs['edge_labels'],
-                corefs=generator_outputs['coref_indexes'],
-            )
         else:
-            raise NotImplementedError
+            generator_outputs = self.beam_search_with_pointer_generator(
+                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
+
+        parser_outputs = self.decode_with_graph_parser(
+            generator_outputs['decoder_inputs'],
+            generator_outputs['decoder_rnn_memory_bank'],
+            generator_outputs['coref_indexes'],
+            generator_outputs['decoder_mask']
+        )
+        return dict(
+            nodes=generator_outputs['predictions'],
+            heads=parser_outputs['edge_heads'],
+            head_labels=parser_outputs['edge_labels'],
+            corefs=generator_outputs['coref_indexes'],
+        )
+
+    def beam_search_with_pointer_generator(
+            self, memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts):
+        batch_size = memory_bank.size(0)
+        beam_size = self.beam_size
+        #  new_order is used to replicate tensors for different beam
+        new_order = torch.arange(batch_size).view(-1, 1).repeat(1, beam_size).view(-1)
+
+        # special token indices
+        bos_token = self.vocab.get_token_index(START_SYMBOL, "decoder_token_ids")
+        eos_token = self.vocab.get_token_index(END_SYMBOL, "decoder_token_ids")
+        pad_token = self.vocab.get_token_index(DEFAULT_PADDING_TOKEN, "decoder_token_ids")
+
+        def flatten(tensor):
+            sizes = list(tensor.size())
+            assert len(sizes) >= 2
+            assert sizes[0] == batch_size and sizes[1] == beam_size
+
+            if len(sizes) == 2:
+                new_sizes = [sizes[0] * sizes[1], 1]
+            else:
+                new_sizes = [sizes[0] * sizes[1]] + sizes[2:]
+
+            return tensor.view(new_sizes)
+
+        def fold(tensor):
+            sizes = list(tensor.size())
+            new_sizes = [batch_size, beam_size]
+            if len(sizes) >= 2:
+                new_sizes = [batch_size, beam_size] + sizes[1:]
+            return tensor.view(new_sizes)
+
+
+        beam_buffer = {}
+        beam_buffer["predictions"] = mask.new_ones(batch_size, beam_size, self.max_decode_length) * pad_token
+        beam_buffer["predictions"][:, :, 0] = bos_token
+
+
+        beam_buffer["coref_indexes"] = memory_bank.new_zeros(batch_size, beam_size, self.max_decode_length)
+        beam_buffer["decoder_mask"] = memory_bank.new_ones(batch_size, beam_size, self.max_decode_length)
+
+
+        beam_buffer["decoder_inputs"] = None
+        beam_buffer["decoder_memory_bank"] = None
+        beam_buffer["decoder_rnn_memory_bank"] = None
+
+        beam_buffer["source_attentions"] = None
+        beam_buffer["copy_attentions"] = []
+        beam_buffer["coref_attentions"] = []
+
+        beam_buffer["scores"] = torch.zeros(batch_size, beam_size, 1)
+
+        def update_tensor_buff(key, step, tensor):
+            if step == 0 and beam_buffer[key] is None:
+                beam_buffer[key] = tensor.new_zeros(
+                    batch_size,
+                    beam_size,
+                    self.max_decode_length,
+                    tensor.size(-1)
+                )
+
+            beam_buffer[key][:, :, step] = fold(tensor.squeeze(1))
+
+
+        def get_decoder_input(tokens, pos_tags, corefs):
+            token_embeddings = self.decoder_token_embedding(tokens)
+            pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
+            coref_embeddings = self.decoder_coref_embedding(corefs)
+
+            if self.use_char_cnn:
+                # TODO: get chars from tokens.
+                # [batch_size, 1, num_chars]
+                chars = character_tensor_from_token_tensor(
+                    tokens,
+                    self.vocab,
+                    self.character_tokenizer
+                )
+
+                char_cnn_output = self._get_decoder_char_cnn_output(chars)
+                decoder_inputs = torch.cat(
+                    [token_embeddings, pos_tag_embeddings,
+                     coref_embeddings, char_cnn_output], 2)
+            else:
+                decoder_inputs = torch.cat(
+                    [token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
+
+            return self.decoder_embedding_dropout(decoder_inputs)
+
+        # inter media variables
+        variables = {}
+
+        variables["input_tokens"] = beam_buffer["predictions"].new_ones(batch_size * beam_size, 1) * bos_token
+        variables["pos_tags"] = mask.new_ones(batch_size * beam_size, 1) * self.vocab.get_token_index(DEFAULT_OOV_TOKEN, "pos_tags")
+        variables["corefs"] = mask.new_zeros(batch_size * beam_size, 1)
+
+        variables["input_feed"] = None
+        variables["coref_inputs"] = None
+        variables["prev_tokens"] = torch.ones(batch_size * beam_size, 1) * bos_token
+
+        # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
+        # Here the maximum size of the dynamic vocab is just max_decode_length.
+        variables["coref_attention_maps"] = memory_bank.new_zeros(
+            batch_size * beam_size, self.max_decode_length, self.max_decode_length + 1
+        )
+        # A matrix D where the element D_{ij} is for instance i the real vocab index of
+        # the generated node at the decoding step `i'.
+        variables["coref_vocab_maps"] = mask.new_zeros(batch_size * beam_size, self.max_decode_length + 1)
+
+        variables["coverage"] = None
+        if self.use_coverage:
+            variables["coverage"] = memory_bank.new_zeros(batch_size * beam_size, 1, memory_bank.size(1))
+
+
+
+        for step in range(self.max_decode_length - 1):  # one extra step for EOS marker
+            # 1. Decoder inputs
+            # decoder_inputs : [ batch_size * beam_size, model_dim]
+            decoder_inputs = get_decoder_input(
+                variables["input_tokens"],
+                variables["pos_tags"],
+                variables["corefs"]
+            )
+
+            # 2. Decode one stepi.
+            decoder_output_dict = self.decoder(
+                decoder_inputs,
+                memory_bank.index_select(0, new_order),
+                mask.index_select(0, new_order),
+                [item.index_select(1, new_order) for item in states],
+                variables["input_feed"],
+                variables["coref_inputs"],
+                variables["coverage"]
+            )
+
+
+            _decoder_outputs = decoder_output_dict['output_sequences']
+            _rnn_outputs = decoder_output_dict['rnn_output_sequences']
+            coref_inputs = decoder_output_dict['coref_inputs']
+            _source_attentions = decoder_output_dict['std_attentions']
+            _copy_attentions = decoder_output_dict['copy_attentions']
+            _coref_attentions = decoder_output_dict['coref_attentions']
+            states = decoder_output_dict['hidden_state']
+            input_feed = decoder_output_dict['input_feed']
+            coverage = decoder_output_dict['coverage']
+
+            # 3. Run pointer/generator.instance.fields['src_copy_vocab'].metadata
+            if step == 0:
+                _coref_attention_maps = variables["coref_attention_maps"][:, :step+ 1]
+            else:
+                _coref_attention_maps = variables["coref_attention_maps"][:, :step]
+
+            generator_output = self.generator(
+                _decoder_outputs,
+                _copy_attentions,
+                copy_attention_maps.index_select(0, new_order),
+                _coref_attentions,
+                _coref_attention_maps
+            )
+            _predictions = generator_output['predictions']
+
+            # new word probs
+            word_lprobs = fold(torch.log(generator_output['probs'].squeeze(1)))
+
+            # find active hypos
+            active_mask = fold(variables["prev_tokens"] != eos_token).float()
+
+            # unnormalized scores
+            new_all_scores_unormalized = word_lprobs * active_mask + beam_buffer["scores"]
+
+            # length of all possible lengths right now, 0 is pad
+            hypo_lengths = torch.sum(
+                (beam_buffer["predictions"] != pad_token),
+                dim=2,
+                keepdim=True
+            ).type_as(active_mask)
+
+            hypo_lengths = hypo_lengths + active_mask
+
+            # normalize by lengths
+            new_all_scores = torch.div(
+                new_all_scores_unormalized,
+                hypo_lengths
+            )
+
+            # top beam_size hypos
+            new_hypo_scores, new_hypo_indices = torch.topk(
+                new_all_scores.view(batch_size, -1),
+                beam_size,
+                dim=-1
+            )
+
+            # find out which beam the new hypo came from and what is the new token
+            if step > 0:
+                beam_indices = torch.div(new_hypo_indices, word_lprobs.size(-1))
+            else:
+                # only keep the first hypo in first step
+                beam_indices = torch.zeros(new_hypo_indices.size()).type_as(new_hypo_indices)
+                new_hypo_scores[:, 1:] = - float('inf')
+
+            new_token_indices = torch.fmod(new_hypo_indices, word_lprobs.size(-1))
+
+            active_mask = active_mask.type_as(mask).squeeze(2)
+            variables["prev_tokens"] = flatten(
+                new_token_indices * active_mask + (1 - active_mask) * eos_token
+            )
+
+
+
+            def repeat_list_item(input_list, n):
+                new_list = []
+                for item in input_list:
+                    new_list += [item] * n
+                return new_list
+
+
+            if step == 0:
+                decoder_mask_input = []
+            else:
+                decoder_mask_input = beam_buffer["decoder_mask"].view(batch_size * beam_size, -1)[:, :step].split(1, 1)
+
+            input_tokens, _predictions, pos_tags, corefs, _mask = self._update_maps_and_get_next_input(
+                step,
+                flatten(new_token_indices).squeeze(1),
+                generator_output['source_dynamic_vocab_size'],
+                variables["coref_attention_maps"],
+                variables["coref_vocab_maps"],
+                repeat_list_item(copy_vocabs, beam_size),
+                decoder_mask_input,
+                repeat_list_item(tag_luts, beam_size)
+            )
+
+            beam_buffer["scores"] = new_hypo_scores * hypo_lengths.squeeze(2)
+
+            for key, value in beam_buffer.items():
+                if value is not None and type(value) is not list:
+                    beam_buffer[key] = fold(
+                        flatten(value).index_select(
+                            0,
+                            new_order * beam_size + beam_indices.view(batch_size * beam_size)
+                        )
+                    )
+
+
+            update_tensor_buff("decoder_inputs", step, decoder_inputs)
+            update_tensor_buff("decoder_memory_bank", step, _decoder_outputs)
+            update_tensor_buff("decoder_rnn_memory_bank", step, _rnn_outputs)
+
+            update_tensor_buff("source_attentions", step, _source_attentions)
+            #update_tensor_buff("copy_attentions", step, _copy_attentions)
+            #update_tensor_buff("coref_attentions", step, _coref_attentions)
+            beam_buffer["copy_attentions"].append(_copy_attentions)
+            beam_buffer["coref_attentions"].append(_coref_attentions)
+
+            update_tensor_buff("predictions", step, _predictions)
+            update_tensor_buff("coref_indexes", step, corefs)
+            update_tensor_buff("decoder_mask", step,  _mask)
+
+            variables["input_tokens"] = input_tokens
+            variables["pos_tags"] = pos_tags
+            variables["corefs"] = corefs
+
+            variables["input_feed"] = input_feed.index_select(
+                0, new_order * beam_size + beam_indices.view(batch_size * beam_size)
+            )
+
+            variables["coref_inputs"] = coref_inputs.index_select(
+                0, new_order * beam_size + beam_indices.view(batch_size * beam_size)
+            )
+
+
+            variables["coverage"] = coverage.index_select(
+                0, new_order * beam_size + beam_indices.view(batch_size * beam_size)
+            )
+
+            if torch.sum(variables["prev_tokens"] == eos_token) == batch_size * beam_size:
+                break
+
+
+
+        for key, value in beam_buffer.items():
+            if type(value) is list:
+                beam_buffer[key] = [item[::beam_size] for item in value]
+            else:
+                beam_buffer[key] = value.transpose(0, 1)[0]
+
+        beam_buffer["decoder_inputs"] = beam_buffer["decoder_inputs"][:, 1:, :]
+        beam_buffer["decoder_memory_bank"] = beam_buffer["decoder_memory_bank"][:, 1:, :]
+        beam_buffer["decoder_rnn_memory_bank"] = beam_buffer["decoder_rnn_memory_bank"][:, 1:, :]
+
+
+        #import pdb;pdb.set_trace()
+        beam_buffer["coref_indexes"] = beam_buffer["coref_indexes"][:, : -1]
+        beam_buffer["predictions"] = beam_buffer["predictions"][:, : -1]
+        beam_buffer["predictions"][beam_buffer["predictions"]== pad_token] = eos_token
+
+        beam_buffer["decoder_mask"] = 1 - beam_buffer["decoder_mask"].type_as(mask)[:, :-1]
+
+        return beam_buffer
+
+
+
 
     def decode_with_pointer_generator(
             self, memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts):

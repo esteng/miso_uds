@@ -1,6 +1,7 @@
 from overrides import overrides
 import re
 import json
+import sys
 from stog.utils.registrable import Registrable
 from stog.utils.checks import ConfigurationError
 from stog.utils.string import JsonDict, sanitize
@@ -8,6 +9,9 @@ from stog.data import DatasetReader, Instance
 from stog.predictors.predictor import Predictor
 from stog.utils.string import START_SYMBOL, END_SYMBOL
 from stog.data.dataset_readers.amr_parsing.amr import AMRGraph
+from stog.utils.exception_hook import ExceptionHook
+
+sys.excepthook = ExceptionHook()
 
 
 @Predictor.register('STOG')

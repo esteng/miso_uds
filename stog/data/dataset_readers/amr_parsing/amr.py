@@ -672,7 +672,7 @@ class AMRGraph(penman.Graph):
 
         nodes = [normalize_number(n) for n in prediction['nodes']]
         heads = correct_multiroot(prediction['heads'])
-        corefs = prediction['corefs']
+        corefs = [int(x) for x in prediction['corefs']]
         head_labels = prediction['head_labels']
 
         triples = []
