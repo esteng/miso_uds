@@ -464,7 +464,7 @@ class STOG(Model):
         copy_vocabs = input_dict['copy_vocabs']
         tag_luts = input_dict['tag_luts']
 
-        if self.beam_size == 1:
+        if self.beam_size == 0:
             generator_outputs = self.decode_with_pointer_generator(
                 memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
         else:
@@ -792,7 +792,16 @@ class STOG(Model):
                 break
 
 
+        for batch_idx, item in enumerate(bucket):
+            if len(item) == 0:
+                bucket[batch_idx].append(
+                    {
+                        key: tensor[batch_idx, 0].unsqueeze(0) for key, tensor in beam_buffer.items()
+                    }
+                )
+
         return_dict = {}
+        #import pdb;pdb.set_trace()
         for key in bucket[0][-1].keys():
             return_dict[key] = torch.cat(
                 [hypos[-1][key] for hypos in bucket],
