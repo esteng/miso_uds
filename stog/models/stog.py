@@ -464,7 +464,7 @@ class STOG(Model):
         copy_vocabs = input_dict['copy_vocabs']
         tag_luts = input_dict['tag_luts']
 
-        if self.beam_size == 1:
+        if self.beam_size == 0:
             generator_outputs = self.decode_with_pointer_generator(
                 memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
         else:
@@ -537,7 +537,7 @@ class STOG(Model):
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
                 # [batch_size, 1, num_chars]
-                chars = character_tensor_from_token_tensor(
+                chars = (
                     tokens,
                     self.vocab,
                     self.character_tokenizer
@@ -582,6 +582,7 @@ class STOG(Model):
 
         variables["input_feed"] = None
         variables["coref_inputs"] = None
+        variables["states"] = [item.index_select(1, new_order) for item in states]
         variables["prev_tokens"] = mask.new_ones(batch_size * beam_size, 1) * bos_token
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
@@ -613,7 +614,7 @@ class STOG(Model):
                 decoder_inputs,
                 memory_bank.index_select(0, new_order),
                 mask.index_select(0, new_order),
-                [item.index_select(1, new_order) for item in states],
+                variables["states"],
                 variables["input_feed"],
                 variables["coref_inputs"],
                 variables["coverage"]
@@ -663,8 +664,6 @@ class STOG(Model):
 
 
             new_token_indices = torch.fmod(new_hypo_indices, word_lprobs.size(-1))
-            #print(new_token_indices)
-            #import pdb;pdb.set_trace()
 
             eos_token_mask = new_token_indices.eq(eos_token)
 
@@ -774,6 +773,7 @@ class STOG(Model):
             variables["input_tokens"] = input_tokens
             variables["pos_tags"] = pos_tags
             variables["corefs"] = corefs
+            variables["states"] = states
 
             variables["input_feed"] = input_feed.index_select(
                 0, new_order * beam_size + beam_indices.view(batch_size * beam_size)
@@ -808,7 +808,6 @@ class STOG(Model):
         return_dict["predictions"] = return_dict["predictions"][:, :-1]
         return_dict["coref_indexes"] = return_dict["coref_indexes"][:, :-1]
         return_dict["decoder_mask"] = return_dict["decoder_mask"][:, :-1]
-        #import pdb;pdb.set_trace()
 
         return return_dict
 
@@ -884,9 +883,6 @@ class STOG(Model):
             _source_attentions = decoder_output_dict['std_attentions']
             _copy_attentions = decoder_output_dict['copy_attentions']
             _coref_attentions = decoder_output_dict['coref_attentions']
-            states = decoder_output_dict['hidden_state']
-            input_feed = decoder_output_dict['input_feed']
-            coverage = decoder_output_dict['coverage']
 
             # 3. Run pointer/generator.
             if step_i == 0:
@@ -899,6 +895,12 @@ class STOG(Model):
             _predictions = generator_output['predictions']
 
             # 4. Update maps and get the next token input.
+            print(generator_output['predictions'])
+            import pdb;pdb.set_trace()
+            states = decoder_output_dict['hidden_state']
+            input_feed = decoder_output_dict['input_feed']
+            coverage = decoder_output_dict['coverage']
+
             tokens, _predictions, pos_tags, corefs, _mask = self._update_maps_and_get_next_input(
                 step_i,
                 generator_output['predictions'].squeeze(1),
