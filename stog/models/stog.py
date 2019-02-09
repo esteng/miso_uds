@@ -537,7 +537,7 @@ class STOG(Model):
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
                 # [batch_size, 1, num_chars]
-                chars = (
+                chars = character_tensor_from_token_tensor(
                     tokens,
                     self.vocab,
                     self.character_tokenizer
@@ -680,7 +680,7 @@ class STOG(Model):
                     eos_batch_idx = int(index / beam_size)
                     eos_beam_idx = index % beam_size
                     hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx])
-                    if step > 0 and hypo_score > bucket_max_score[eos_batch_idx]:
+                    if step > 0 and hypo_score > bucket_max_score[eos_batch_idx] and eos_beam_idx == 0:
                         bucket_max_score[eos_batch_idx] = hypo_score / (step + 1)
                         eos_batch_idx
                         bucket[eos_batch_idx].append(
