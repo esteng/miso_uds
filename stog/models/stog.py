@@ -555,7 +555,7 @@ class STOG(Model):
 
 
         beam_buffer = {}
-        beam_buffer["predictions"] = mask.new_ones(batch_size, beam_size, self.max_decode_length) * pad_token
+        beam_buffer["predictions"] = mask.new_ones(batch_size, beam_size, self.max_decode_length) * eos_token
         beam_buffer["predictions"][:, :, 0] = bos_token
 
 
@@ -681,14 +681,12 @@ class STOG(Model):
                     eos_batch_idx = int(index / beam_size)
                     eos_beam_idx = index % beam_size
                     hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx])
-                    print(bucket_max_score[eos_batch_idx], hypo_score, hypo_score / (step + 1))
                     if step > 0 and hypo_score > bucket_max_score[eos_batch_idx]:
                         bucket_max_score[eos_batch_idx] = hypo_score / (step + 1)
+                        eos_batch_idx
                         bucket[eos_batch_idx].append(
                             {
-                                key: tensor.index_select(
-                                    0, torch.tensor([eos_batch_idx])
-                                )[:, eos_beam_idx] for key, tensor in beam_buffer.items()
+                                key: tensor[eos_batch_idx, eos_beam_idx].unsqueeze(0) for key, tensor in beam_buffer.items()
                             }
                         )
 
@@ -699,7 +697,9 @@ class STOG(Model):
                 )
 
                 active_sort_indices_offset = active_sort_indices \
-                    + 2 * beam_size * torch.arange(batch_size).unsqueeze(1).expand_as(active_sort_indices)
+                    + 2 * beam_size * torch.arange(
+                        batch_size
+                    ).unsqueeze(1).expand_as(active_sort_indices).type_as(active_sort_indices)
                 active_hypo_indices = new_hypo_indices.view(batch_size * beam_size * 2)[
                     active_sort_indices_offset.view(batch_size * beam_size * 2)
                 ].view(batch_size, -1)
@@ -798,6 +798,16 @@ class STOG(Model):
                 [hypos[-1][key] for hypos in bucket],
                 dim=0
             )
+
+        return_dict["decoder_mask"] = 1 - return_dict["decoder_mask"]
+
+        return_dict["decoder_inputs"] = return_dict["decoder_inputs"][:, 1:]
+        return_dict["decoder_memory_bank"] = return_dict["decoder_memory_bank"][:, 1:]
+        return_dict["decoder_rnn_memory_bank"] = return_dict["decoder_rnn_memory_bank"][:, 1:]
+
+        return_dict["predictions"] = return_dict["predictions"][:, :-1]
+        return_dict["coref_indexes"] = return_dict["coref_indexes"][:, :-1]
+        return_dict["decoder_mask"] = return_dict["decoder_mask"][:, :-1]
         #import pdb;pdb.set_trace()
 
         return return_dict
