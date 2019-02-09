@@ -178,21 +178,24 @@ class Quantity:
         groups, representatives = zip(*sorted(
             zip(groups, representatives), key=lambda x: (x[1].begin, x[1].end)))
         for i, alignment in enumerate(representatives):
-            span = [index - offset for index in alignment.span]
-            offset += len(span) - 1
-            self.amr.replace_span(span, [str(alignment.value)], ['CD'], ['QUANTITY'])
-            count += len(groups[i])
-            # abstract = 'QUANTITY_{}'.format(i + 1)
             # span = [index - offset for index in alignment.span]
             # offset += len(span) - 1
-            # self.amr.abstract_map[abstract] = dict(type='quantity', value=alignment.value)
-            # self.amr.replace_span(span, [abstract], ['CD'], ['NUMBER'])
-            # for a in groups[i]:
-            #     count += 1
-            #     try:
-            #         self.amr.graph.replace_node_attribute(a.node, a.attr, a.value, abstract)#
-            #     except:
-            #         import pdb; pdb.set_trace()
+            # self.amr.replace_span(span, [str(alignment.value)], ['CD'], ['QUANTITY'])
+            # count += len(groups[i])
+            abstract = '10{}'.format(i + 1)
+            span = [index - offset for index in alignment.span]
+            offset += len(span) - 1
+            self.amr.abstract_map[abstract] = dict(type='quantity', value=alignment.value)
+            pos_tag = self.amr.pos_tags[span[0]]
+            if pos_tag in ('0', 'O'):
+                pos_tag = 'CD'
+            self.amr.replace_span(span, [abstract], [pos_tag], ['NUMBER'])
+            for a in groups[i]:
+                count += 1
+                try:
+                    self.amr.graph.replace_node_attribute(a.node, a.attr, a.value, abstract)#
+                except:
+                    import pdb; pdb.set_trace()
         return count
 
     def get_alignment(self, tokens, node_position, node, attr, value):
@@ -213,7 +216,7 @@ class Quantity:
 
     def get_node_position(self, node):
         lemmas = self.amr.lemmas
-        node_lemma = re.sub(r'-\d+$', '', node.instance)
+        node_lemma = re.sub(r'-\d+$', '', str(node.instance))
         position = -1
         if node_lemma in lemmas:
             position = lemmas.index(node_lemma)
@@ -291,9 +294,11 @@ if __name__ == '__main__':
 
     total, correct = 0, 0
     for file_path in args.amr_files:
-        for i, amr in enumerate(AMRIO.read(file_path), 1):
-            q = Quantity(amr)
-            q.i = i
-            correct += q.abstract()
-            total += q.quant_count
+        with open('temp.txt', 'w', encoding='utf-8') as f:
+            for i, amr in enumerate(AMRIO.read(file_path), 1):
+                q = Quantity(amr)
+                q.i = i
+                correct += q.abstract()
+                total += q.quant_count
+                f.write(str(amr) + '\n\n')
     print('{}/{}'.format(correct, total))

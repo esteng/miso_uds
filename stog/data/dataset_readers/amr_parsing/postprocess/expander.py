@@ -96,7 +96,7 @@ class Expander:
                         self.ordinal_node_expand_count += 1
 
                 for attr, value in node.attributes[:]:
-                    if value == abstract:
+                    if str(value) == abstract:
                         if abstract_type == 'quantity':
                             graph.replace_node_attribute(node, attr, value, saved_dict['value'])
                             self.quantity_expand_count += 1
