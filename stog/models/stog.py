@@ -792,7 +792,16 @@ class STOG(Model):
                 break
 
 
+        for batch_idx, item in enumerate(bucket):
+            if len(item) == 0:
+                bucket[batch_idx].append(
+                    {
+                        key: tensor[batch_idx, 0].unsqueeze(0) for key, tensor in beam_buffer.items()
+                    }
+                )
+
         return_dict = {}
+        #import pdb;pdb.set_trace()
         for key in bucket[0][-1].keys():
             return_dict[key] = torch.cat(
                 [hypos[-1][key] for hypos in bucket],
