@@ -687,6 +687,7 @@ class STOG(Model):
                                 key: tensor[eos_batch_idx, eos_beam_idx].unsqueeze(0) for key, tensor in beam_buffer.items()
                             }
                         )
+                        bucket[eos_batch_idx] = bucket[eos_batch_idx][-1:]
 
                 eos_token_mask = eos_token_mask.type_as(new_hypo_scores)
                 active_hypo_scores, active_sort_indices = torch.sort(
@@ -818,7 +819,6 @@ class STOG(Model):
         return_dict["coref_indexes"] = return_dict["coref_indexes"][:, :-1]
         return_dict["decoder_mask"] = return_dict["decoder_mask"][:, :-1]
 
-        import pdb;pdb.set_trace()
         return return_dict
 
 
