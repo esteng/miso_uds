@@ -679,10 +679,9 @@ class STOG(Model):
                 for index in eos_beam_indices_offset.tolist():
                     eos_batch_idx = int(index / beam_size)
                     eos_beam_idx = index % beam_size
-                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx])
-                    if step > 0 and hypo_score > bucket_max_score[eos_batch_idx] and eos_beam_idx == 0:
-                        bucket_max_score[eos_batch_idx] = hypo_score / (step + 1)
-                        eos_batch_idx
+                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / (step + 1)
+                    if step > 0 and hypo_score > bucket_max_score[eos_batch_idx]:
+                        bucket_max_score[eos_batch_idx] = hypo_score
                         bucket[eos_batch_idx].append(
                             {
                                 key: tensor[eos_batch_idx, eos_beam_idx].unsqueeze(0) for key, tensor in beam_buffer.items()
@@ -703,9 +702,9 @@ class STOG(Model):
                     active_sort_indices_offset.view(batch_size * beam_size * 2)
                 ].view(batch_size, -1)
 
-                new_hypo_scores = active_hypo_scores
-                new_hypo_indices = active_hypo_indices
-                new_token_indices = torch.fmod(new_hypo_indices, word_lprobs.size(-1))
+                #new_hypo_scores = active_hypo_scores
+                #new_hypo_indices = active_hypo_indices
+                #new_token_indices = torch.fmod(new_hypo_indices, word_lprobs.size(-1))
 
             # find out which beam the new hypo came from and what is the new token
             if step > 0:
@@ -715,6 +714,7 @@ class STOG(Model):
                 beam_indices = torch.zeros(new_hypo_indices[:, :beam_size].size()).type_as(new_hypo_indices)
                 new_hypo_scores[:, 1:] = - float('inf')
 
+            new_hypo_indices = new_hypo_indices[:, :beam_size]
             new_hypo_scores = new_hypo_scores[:, :beam_size]
             new_token_indices = new_token_indices[:, :beam_size]
 
@@ -801,7 +801,7 @@ class STOG(Model):
                 )
 
         return_dict = {}
-        #import pdb;pdb.set_trace()
+
         for key in bucket[0][-1].keys():
             return_dict[key] = torch.cat(
                 [hypos[-1][key] for hypos in bucket],
@@ -818,6 +818,7 @@ class STOG(Model):
         return_dict["coref_indexes"] = return_dict["coref_indexes"][:, :-1]
         return_dict["decoder_mask"] = return_dict["decoder_mask"][:, :-1]
 
+        import pdb;pdb.set_trace()
         return return_dict
 
 
@@ -904,8 +905,6 @@ class STOG(Model):
             _predictions = generator_output['predictions']
 
             # 4. Update maps and get the next token input.
-            print(generator_output['predictions'])
-            import pdb;pdb.set_trace()
             states = decoder_output_dict['hidden_state']
             input_feed = decoder_output_dict['input_feed']
             coverage = decoder_output_dict['coverage']
