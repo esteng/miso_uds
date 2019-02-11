@@ -551,11 +551,13 @@ class STOG(Model):
                     tensor.size(-1)
                 )
 
-            beam_buffer[key][:, :, step] = fold(tensor.squeeze(1))
+            if key not in ["predictions"]:
+                beam_buffer[key][:, :, step] = fold(tensor.squeeze(1))
+                beam_buffer[key] = index_select_2d(beam_buffer[key], beam_indices)
+            else:
+                beam_buffer[key] = index_select_2d(beam_buffer[key], beam_indices)
+                beam_buffer[key][:, :, step] = fold(tensor.squeeze(1))
 
-            #print(step)
-            #import pdb;pdb.set_trace()
-            beam_buffer[key] = index_select_2d(beam_buffer[key], beam_indices)
 
         def get_decoder_input(tokens, pos_tags, corefs):
             token_embeddings = self.decoder_token_embedding(tokens)
@@ -593,12 +595,14 @@ class STOG(Model):
 
 
         beam_buffer = {}
-        beam_buffer["predictions"] = mask.new_ones(batch_size, beam_size, self.max_decode_length) * pad_token
-        #beam_buffer["predictions"][:, :, 0] = bos_token
+        beam_buffer["predictions"] = mask.new_full(
+            (batch_size, beam_size, self.max_decode_length), pad_token)
 
+        beam_buffer["coref_indexes"] = memory_bank.new_zeros(
+            batch_size, beam_size, self.max_decode_length)
 
-        beam_buffer["coref_indexes"] = memory_bank.new_zeros(batch_size, beam_size, self.max_decode_length)
-        beam_buffer["decoder_mask"] = memory_bank.new_ones(batch_size, beam_size, self.max_decode_length)
+        beam_buffer["decoder_mask"] = memory_bank.new_ones(
+            batch_size, beam_size, self.max_decode_length)
 
 
         beam_buffer["decoder_inputs"] = None
@@ -614,14 +618,20 @@ class STOG(Model):
         # inter media variables
         variables = {}
 
-        variables["input_tokens"] = beam_buffer["predictions"].new_ones(batch_size * beam_size, 1) * bos_token
-        variables["pos_tags"] = mask.new_ones(batch_size * beam_size, 1) * self.vocab.get_token_index(DEFAULT_OOV_TOKEN, "pos_tags")
+        variables["input_tokens"] = beam_buffer["predictions"].new_full(
+            (batch_size * beam_size, 1), bos_token)
+
+        variables["pos_tags"] = mask.new_full(
+            (batch_size * beam_size, 1), self.vocab.get_token_index(DEFAULT_OOV_TOKEN, "pos_tags"))
+
         variables["corefs"] = mask.new_zeros(batch_size * beam_size, 1)
 
         variables["input_feed"] = None
         variables["coref_inputs"] = None
         variables["states"] = [item.index_select(1, new_order) for item in states]
-        variables["prev_tokens"] = mask.new_ones(batch_size * beam_size, 1) * bos_token
+
+        variables["prev_tokens"] = mask.new_full(
+            (batch_size * beam_size, 1), bos_token)
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
         # Here the maximum size of the dynamic vocab is just max_decode_length.
@@ -671,7 +681,7 @@ class STOG(Model):
 
             # 3. Run pointer/generator.instance.fields['src_copy_vocab'].metadata
             if step == 0:
-                _coref_attention_maps = variables["coref_attention_maps"][:, :step+ 1]
+                _coref_attention_maps = variables["coref_attention_maps"][:, :step + 1]
             else:
                 _coref_attention_maps = variables["coref_attention_maps"][:, :step]
 
@@ -687,10 +697,8 @@ class STOG(Model):
             # new word probs
             word_lprobs = fold(torch.log(generator_output['probs'].squeeze(1)))
 
-            # This step id to prevent 0 * -inf -> nan
             # unnormalized scores
             new_all_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs)
-
 
             # top beam_size hypos
             # new_hypo_indices : [batch_size, beam_size * 2]
@@ -699,7 +707,6 @@ class STOG(Model):
                 beam_size * 2,
                 dim=-1
             )
-
 
             new_token_indices = torch.fmod(new_hypo_indices, word_lprobs.size(-1))
 
@@ -725,10 +732,10 @@ class STOG(Model):
                                 key: tensor[eos_batch_idx, eos_beam_idx].unsqueeze(0) for key, tensor in beam_buffer.items()
                             }
                         ]
-                        bucket[eos_batch_idx][-1]['decoder_inputs'][0, step] = decoder_inputs.squeeze(1)[eos_batch_idx]
-                        bucket[eos_batch_idx][-1]['decoder_rnn_memory_bank'][0, step] = _rnn_outputs.squeeze(1)[eos_batch_idx]
-                        bucket[eos_batch_idx][-1]['decoder_memory_bank'][0, step] = _decoder_outputs.squeeze(1)[eos_batch_idx]
-                        #bucket[eos_batch_idx] = bucket[eos_batch_idx][-1:]
+                        import pdb;pdb.set_trace()
+                        bucket[eos_batch_idx][-1]['decoder_inputs'][0, step] = decoder_inputs[index, 0]
+                        bucket[eos_batch_idx][-1]['decoder_rnn_memory_bank'][0, step] = _rnn_outputs[index, 0]
+                        bucket[eos_batch_idx][-1]['decoder_memory_bank'][0, step] = _decoder_outputs[index, 0]
 
                 eos_token_mask = eos_token_mask.type_as(new_hypo_scores)
                 active_hypo_scores, active_sort_indices = torch.sort(
