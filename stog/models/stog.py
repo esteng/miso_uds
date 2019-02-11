@@ -477,6 +477,7 @@ class STOG(Model):
             generator_outputs['coref_indexes'],
             generator_outputs['decoder_mask']
         )
+        #import pdb;pdb.set_trace()
         return dict(
             nodes=generator_outputs['predictions'],
             heads=parser_outputs['edge_heads'],
@@ -518,7 +519,7 @@ class STOG(Model):
                 new_sizes = [batch_size, beam_size] + sizes[1:]
             return tensor.view(new_sizes)
 
-        def update_tensor_buff(key, step, tensor):
+        def update_tensor_buff(key, step, beam_indices, tensor):
             if step == 0 and beam_buffer[key] is None:
                 beam_buffer[key] = tensor.new_zeros(
                     batch_size,
@@ -528,6 +529,15 @@ class STOG(Model):
                 )
 
             beam_buffer[key][:, :, step] = fold(tensor.squeeze(1))
+
+            #print(step)
+            #import pdb;pdb.set_trace()
+            beam_buffer[key] = fold(
+                flatten(beam_buffer[key]).index_select( 
+                    0, 
+                    new_order * beam_size + beam_indices.view(batch_size * beam_size) 
+                )
+            )
 
         def get_decoder_input(tokens, pos_tags, corefs):
             token_embeddings = self.decoder_token_embedding(tokens)
@@ -555,11 +565,11 @@ class STOG(Model):
 
 
         beam_buffer = {}
-        beam_buffer["predictions"] = mask.new_ones(batch_size, beam_size, self.max_decode_length) * eos_token
-        beam_buffer["predictions"][:, :, 0] = bos_token
+        beam_buffer["predictions"] = mask.new_ones(batch_size, beam_size, self.max_decode_length) * pad_token
+        #beam_buffer["predictions"][:, :, 0] = bos_token
 
 
-        beam_buffer["coref_indexes"] = memory_bank.new_zeros(batch_size, beam_size, self.max_decode_length )
+        beam_buffer["coref_indexes"] = memory_bank.new_zeros(batch_size, beam_size, self.max_decode_length)
         beam_buffer["decoder_mask"] = memory_bank.new_ones(batch_size, beam_size, self.max_decode_length)
 
 
@@ -567,7 +577,7 @@ class STOG(Model):
         beam_buffer["decoder_memory_bank"] = None
         beam_buffer["decoder_rnn_memory_bank"] = None
 
-        beam_buffer["source_attentions"] = None
+        #beam_buffer["source_attentions"] = None
         #beam_buffer["copy_attentions"] = []
         #beam_buffer["coref_attentions"] = []
 
@@ -600,7 +610,7 @@ class STOG(Model):
 
 
 
-        for step in range(self.max_decode_length - 1):  # one extra step for EOS marker
+        for step in range(self.max_decode_length):  # one extra step for EOS marker
             # 1. Decoder inputs
             # decoder_inputs : [ batch_size * beam_size, model_dim]
             decoder_inputs = get_decoder_input(
@@ -682,12 +692,12 @@ class STOG(Model):
                     hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / (step + 1)
                     if step > 0 and hypo_score > bucket_max_score[eos_batch_idx]:
                         bucket_max_score[eos_batch_idx] = hypo_score
-                        bucket[eos_batch_idx].append(
+                        bucket[eos_batch_idx] = [
                             {
                                 key: tensor[eos_batch_idx, eos_beam_idx].unsqueeze(0) for key, tensor in beam_buffer.items()
                             }
-                        )
-                        bucket[eos_batch_idx] = bucket[eos_batch_idx][-1:]
+                        ]
+                        #bucket[eos_batch_idx] = bucket[eos_batch_idx][-1:]
 
                 eos_token_mask = eos_token_mask.type_as(new_hypo_scores)
                 active_hypo_scores, active_sort_indices = torch.sort(
@@ -703,9 +713,9 @@ class STOG(Model):
                     active_sort_indices_offset.view(batch_size * beam_size * 2)
                 ].view(batch_size, -1)
 
-                #new_hypo_scores = active_hypo_scores
-                #new_hypo_indices = active_hypo_indices
-                #new_token_indices = torch.fmod(new_hypo_indices, word_lprobs.size(-1))
+                new_hypo_scores = active_hypo_scores
+                new_hypo_indices = active_hypo_indices
+                new_token_indices = torch.fmod(new_hypo_indices, word_lprobs.size(-1))
 
             # find out which beam the new hypo came from and what is the new token
             if step > 0:
@@ -757,19 +767,19 @@ class STOG(Model):
             beam_buffer["scores"] = new_hypo_scores.unsqueeze(2)
 
 
-            update_tensor_buff("decoder_inputs", step, decoder_inputs)
-            update_tensor_buff("decoder_memory_bank", step, _decoder_outputs)
-            update_tensor_buff("decoder_rnn_memory_bank", step, _rnn_outputs)
+            update_tensor_buff("decoder_inputs", step, beam_indices, decoder_inputs)
+            update_tensor_buff("decoder_memory_bank", step, beam_indices, _decoder_outputs)
+            update_tensor_buff("decoder_rnn_memory_bank", step, beam_indices, _rnn_outputs)
 
-            update_tensor_buff("source_attentions", step, _source_attentions)
+            #update_tensor_buff("source_attentions", step, _source_attentions)
             #update_tensor_buff("copy_attentions", step, _copy_attentions)
             #update_tensor_buff("coref_attentions", step, _coref_attentions)
             #beam_buffer["copy_attentions"].append(_copy_attentions)
             #beam_buffer["coref_attentions"].append(_coref_attentions)
 
-            update_tensor_buff("predictions", step, _predictions)
-            update_tensor_buff("coref_indexes", step, corefs)
-            update_tensor_buff("decoder_mask", step,  _mask)
+            update_tensor_buff("predictions", step, beam_indices,_predictions)
+            update_tensor_buff("coref_indexes", step, beam_indices, corefs)
+            update_tensor_buff("decoder_mask", step, beam_indices, _mask)
 
             variables["input_tokens"] = input_tokens
             variables["pos_tags"] = pos_tags
@@ -789,8 +799,8 @@ class STOG(Model):
                 0, new_order * beam_size + beam_indices.view(batch_size * beam_size)
             )
 
-            if torch.sum(variables["prev_tokens"] == eos_token) == batch_size * beam_size:
-                break
+            #if torch.sum(variables["prev_tokens"] == eos_token) == batch_size * beam_size:
+            #    break
 
 
         for batch_idx, item in enumerate(bucket):
@@ -816,6 +826,7 @@ class STOG(Model):
         return_dict["decoder_rnn_memory_bank"] = return_dict["decoder_rnn_memory_bank"][:, 1:]
 
         return_dict["predictions"] = return_dict["predictions"][:, :-1]
+        return_dict["predictions"][return_dict["predictions"] == pad_token] = eos_token
         return_dict["coref_indexes"] = return_dict["coref_indexes"][:, :-1]
         return_dict["decoder_mask"] = return_dict["decoder_mask"][:, :-1]
 
