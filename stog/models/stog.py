@@ -695,7 +695,7 @@ class STOG(Model):
             _predictions = generator_output['predictions']
 
             # new word probs
-            word_lprobs = fold(torch.log(generator_output['probs'].squeeze(1)))
+            word_lprobs = fold(torch.log(1e-8 + generator_output['probs'].squeeze(1)))
 
             # unnormalized scores
             new_all_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs)
@@ -724,18 +724,19 @@ class STOG(Model):
                 for index in eos_beam_indices_offset.tolist():
                     eos_batch_idx = int(index / beam_size)
                     eos_beam_idx = index % beam_size
-                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / (step + 1)
+                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / (step + 2)
+                    #import pdb;pdb.set_trace()
                     if step > 0 and hypo_score > bucket_max_score[eos_batch_idx]:
                         bucket_max_score[eos_batch_idx] = hypo_score
-                        bucket[eos_batch_idx] = [
+                        bucket[eos_batch_idx] += [
                             {
                                 key: tensor[eos_batch_idx, eos_beam_idx].unsqueeze(0) for key, tensor in beam_buffer.items()
                             }
                         ]
-                        import pdb;pdb.set_trace()
                         bucket[eos_batch_idx][-1]['decoder_inputs'][0, step] = decoder_inputs[index, 0]
                         bucket[eos_batch_idx][-1]['decoder_rnn_memory_bank'][0, step] = _rnn_outputs[index, 0]
                         bucket[eos_batch_idx][-1]['decoder_memory_bank'][0, step] = _decoder_outputs[index, 0]
+                        bucket[eos_batch_idx][-1]['decoder_mask'][0, step] = 1
 
                 eos_token_mask = eos_token_mask.type_as(new_hypo_scores)
                 active_hypo_scores, active_sort_indices = torch.sort(
@@ -761,11 +762,16 @@ class STOG(Model):
             else:
                 # only keep the first hypo in first step
                 beam_indices = torch.zeros(new_hypo_indices[:, :beam_size].size()).type_as(new_hypo_indices)
-                new_hypo_scores[:, 1:] = - float('inf')
+                new_hypo_scores[:, 1:] = - float(1e8)
 
             new_hypo_indices = new_hypo_indices[:, :beam_size]
             new_hypo_scores = new_hypo_scores[:, :beam_size]
             new_token_indices = new_token_indices[:, :beam_size]
+            #print(new_token_indices[1])
+            #print(beam_buffer["predictions"][1])
+            #print(new_hypo_scores[1])
+            #print(beam_indices[1])
+            #import pdb;pdb.set_trace()
 
             variables["prev_tokens"] = flatten(new_token_indices)
 
@@ -793,17 +799,7 @@ class STOG(Model):
             )
 
 
-            for key, value in beam_buffer.items():
-                if value is not None and type(value) is not list:
-                    beam_buffer[key] = fold(
-                        flatten(value).index_select(
-                            0,
-                            new_order * beam_size + beam_indices.view(batch_size * beam_size)
-                        )
-                    )
-            
             beam_buffer["scores"] = new_hypo_scores.unsqueeze(2)
-
 
             update_tensor_buff("decoder_inputs", step, beam_indices, decoder_inputs)
             update_tensor_buff("decoder_memory_bank", step, beam_indices, _decoder_outputs)
@@ -867,7 +863,8 @@ class STOG(Model):
         return_dict["predictions"] = return_dict["predictions"][:, :-1]
         return_dict["predictions"][return_dict["predictions"] == pad_token] = eos_token
         return_dict["coref_indexes"] = return_dict["coref_indexes"][:, :-1]
-        return_dict["decoder_mask"] = return_dict["decoder_mask"][:, :-1]
+        return_dict["decoder_mask"] = return_dict["predictions"] != eos_token#return_dict["decoder_mask"][:, :-1]
+        #import pdb;pdb.set_trace()
 
         return return_dict
 
