@@ -552,6 +552,16 @@ class STOG(Model):
                     self.vocab,
                     self.character_tokenizer
                 )
+                if chars.size(-1) < 3:
+                    chars = torch.cat(
+                        (
+                            chars,
+                            chars.new_zeros(
+                                [chars.size(0), chars.size(1), 3 - chars.size(2)]
+                            )
+                        ),
+                        2
+                    )
 
                 char_cnn_output = self._get_decoder_char_cnn_output(chars)
                 decoder_inputs = torch.cat(
@@ -697,6 +707,9 @@ class STOG(Model):
                                 key: tensor[eos_batch_idx, eos_beam_idx].unsqueeze(0) for key, tensor in beam_buffer.items()
                             }
                         ]
+                        bucket[eos_batch_idx][-1]['decoder_inputs'][0, step] = decoder_inputs.squeeze(1)[eos_batch_idx]
+                        bucket[eos_batch_idx][-1]['decoder_rnn_memory_bank'][0, step] = _rnn_outputs.squeeze(1)[eos_batch_idx]
+                        bucket[eos_batch_idx][-1]['decoder_memory_bank'][0, step] = _decoder_outputs.squeeze(1)[eos_batch_idx]
                         #bucket[eos_batch_idx] = bucket[eos_batch_idx][-1:]
 
                 eos_token_mask = eos_token_mask.type_as(new_hypo_scores)
@@ -798,7 +811,8 @@ class STOG(Model):
             variables["coverage"] = coverage.index_select(
                 0, new_order * beam_size + beam_indices.view(batch_size * beam_size)
             )
-
+            #print(_predictions)
+            #import pdb;pdb.set_trace()
             #if torch.sum(variables["prev_tokens"] == eos_token) == batch_size * beam_size:
             #    break
 
