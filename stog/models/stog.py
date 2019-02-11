@@ -487,8 +487,10 @@ class STOG(Model):
 
     def beam_search_with_pointer_generator(
             self, memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts):
+
         batch_size = memory_bank.size(0)
         beam_size = self.beam_size
+
         #  new_order is used to replicate tensors for different beam
         new_order = torch.arange(batch_size).view(-1, 1).repeat(1, beam_size).view(-1).type_as(mask)
 
@@ -519,6 +521,27 @@ class STOG(Model):
                 new_sizes = [batch_size, beam_size] + sizes[1:]
             return tensor.view(new_sizes)
 
+        def index_select_2d(input, indices):
+            # input [batch_size, beam_size, ......]
+            # indices [batch_size, beam_size]
+            input_size = list(input.size())
+            indices_size = list(indices.size())
+            assert len(indices_size) == 2
+            assert len(input_size) >= 2
+            assert input_size[0] == indices_size[0]
+            assert input_size[1] == indices_size[1]
+
+            return input.view(
+                [input_size[0] * input_size[1]] + input_size[2:]
+            ).index_select(
+                0,
+                (
+                        torch.arange(
+                            indices_size[0]
+                        ).unsqueeze(1).expand_as(indices).type_as(indices) * indices_size[1] + indices
+                ).view(-1)
+            ).view(input_size)
+
         def update_tensor_buff(key, step, beam_indices, tensor):
             if step == 0 and beam_buffer[key] is None:
                 beam_buffer[key] = tensor.new_zeros(
@@ -532,12 +555,7 @@ class STOG(Model):
 
             #print(step)
             #import pdb;pdb.set_trace()
-            beam_buffer[key] = fold(
-                flatten(beam_buffer[key]).index_select( 
-                    0, 
-                    new_order * beam_size + beam_indices.view(batch_size * beam_size) 
-                )
-            )
+            beam_buffer[key] = index_select_2d(beam_buffer[key], beam_indices)
 
         def get_decoder_input(tokens, pos_tags, corefs):
             token_embeddings = self.decoder_token_embedding(tokens)
