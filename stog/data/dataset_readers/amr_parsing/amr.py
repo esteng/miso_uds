@@ -588,7 +588,7 @@ class AMRGraph(penman.Graph):
         tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(src_tokens, src_pos_tags)
 
         if bert_tokenizer is not None:
-            src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens)
+            src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens, True)
 
         src_must_copy_tags = [1 if is_abstract_token(t) else 0 for t in src_tokens]
         src_copy_invalid_ids = set(src_copy_vocab.index_sequence(

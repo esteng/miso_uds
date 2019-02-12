@@ -27,7 +27,7 @@ class Seq2SeqBertEncoder(BertModel):
         if token_subword_index is None:
             return encoded_layers, pooled_output
         else:
-            return self.max_pooling(encoded_layers, token_subword_index), pooled_output
+            return self.average_pooling(encoded_layers, token_subword_index), pooled_output
 
     def average_pooling(self, encoded_layers, token_subword_index):
         batch_size, num_tokens, num_subwords = token_subword_index.size()
