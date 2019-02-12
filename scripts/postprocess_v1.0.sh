@@ -4,7 +4,7 @@
 util_dir=data/amr_v1.0_utils
 
 # AMR data with **features**
-data_dir=data/amr_v1.0
+data_dir=data/amr_exp_v1.0
 # test_data=${data_dir}/test_amr.txt.features.preproc
 test_data=testv1.best.txt
 

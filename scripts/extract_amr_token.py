@@ -10,6 +10,7 @@ parser.add_argument('--show_stats', action='store_true')
 args = parser.parse_args()
 
 dataset_reader = AbstractMeaningRepresentationDatasetReader(skip_first_line=False)
+dataset_reader.set_evaluation()
 
 num_token_list = []
 for instance in dataset_reader._read(args.file_path):
