@@ -77,6 +77,32 @@ class Alignment:
         return any(p.snt_token_index in index_list1 for p in other.aligned_pairs)
 
 
+class QuantityCounter:
+
+    def __init__(self):
+        self.one = 0
+        self.ten = 0
+        self.hundred = 0
+        self.thousand = 0
+
+    def get_count(self, value):
+        value = float(quantify(value))
+        if 0 <= value < 10:
+            self.one += 1
+            return self.one
+        elif 10 <= value < 100:
+            self.ten += 10
+            return self.ten
+        elif 100 <= value < 1000:
+            self.hundred += 100
+            return self.hundred
+        elif value >= 1000:
+            self.thousand += 1000
+            return self.thousand
+        else:
+            value
+
+
 class Quantity:
 
     normalize_dict = {
@@ -174,6 +200,7 @@ class Quantity:
         if len(groups) == 0:
             return 0
         count, offset = 0, 0
+        counter = QuantityCounter()
         representatives = [max(g, key=lambda x: x.end - x.begin) for g in groups]
         groups, representatives = zip(*sorted(
             zip(groups, representatives), key=lambda x: (x[1].begin, x[1].end)))
@@ -182,7 +209,7 @@ class Quantity:
             # offset += len(span) - 1
             # self.amr.replace_span(span, [str(alignment.value)], ['CD'], ['QUANTITY'])
             # count += len(groups[i])
-            abstract = '10{}'.format(i + 1)
+            abstract = str(counter.get_count(alignment.value))
             span = [index - offset for index in alignment.span]
             offset += len(span) - 1
             self.amr.abstract_map[abstract] = dict(type='quantity', value=alignment.value)
@@ -269,7 +296,8 @@ class Quantity:
             return 8
         if lemma == 'per' and token == '1':
             return 8
-        if lemma in ('a', 'each', 'once', 'firstly') and token == '1':
+        # if lemma in ('a', 'each', 'once', 'firstly') and token == '1':
+        if lemma in ('firstly',) and token == '1':
             return 5
         if lemma == 'minus' and token == '-':
             return 8
