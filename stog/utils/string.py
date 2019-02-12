@@ -13,7 +13,7 @@ END_SYMBOL = '@end@'
 
 
 def is_abstract_token(token):
-    return re.search(r'^([A-Z]+_)+\d+$', token)
+    return re.search(r'^([A-Z]+_)+\d+$', token) or re.search(r'^\d0*$', token)
 
 
 def is_english_punct(c):
