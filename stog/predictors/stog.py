@@ -81,7 +81,16 @@ class STOGPredictor(Predictor):
     @overrides
     def dump_line(self, output):
         # return ' '.join(output['nodes']) + '\n'
-        amr_graph = AMRGraph.from_prediction(output)
+        pred_graph = AMRGraph.from_prediction(output)
         amr = output['gold_amr']
-        amr.graph = amr_graph
-        return str(amr) + '\n\n'
+        gold_graph = amr.graph
+        amr.graph = pred_graph
+
+        string_to_print = str(amr).replace(
+            "# ::save-date", "# ::tgt_ref {}\n# ::tgt_pred {}\n# ::save-date".format(
+                " ".join(output["nodes"]),
+                " ".join(gold_graph.get_tgt_tokens()
+                         )
+            )
+        )
+        return string_to_print + '\n\n'
