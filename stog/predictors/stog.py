@@ -1,6 +1,7 @@
 from overrides import overrides
 import re
 import json
+import sys
 from stog.utils.registrable import Registrable
 from stog.utils.checks import ConfigurationError
 from stog.utils.string import JsonDict, sanitize
@@ -8,6 +9,9 @@ from stog.data import DatasetReader, Instance
 from stog.predictors.predictor import Predictor
 from stog.utils.string import START_SYMBOL, END_SYMBOL
 from stog.data.dataset_readers.amr_parsing.amr import AMRGraph
+from stog.utils.exception_hook import ExceptionHook
+
+sys.excepthook = ExceptionHook()
 
 
 @Predictor.register('STOG')
@@ -77,7 +81,16 @@ class STOGPredictor(Predictor):
     @overrides
     def dump_line(self, output):
         # return ' '.join(output['nodes']) + '\n'
-        amr_graph = AMRGraph.from_prediction(output)
+        pred_graph = AMRGraph.from_prediction(output)
         amr = output['gold_amr']
-        amr.graph = amr_graph
-        return str(amr) + '\n\n'
+        gold_graph = amr.graph
+        amr.graph = pred_graph
+
+        string_to_print = str(amr).replace(
+            "# ::save-date", "# ::tgt_ref {}\n# ::tgt_pred {}\n# ::save-date".format(
+                " ".join(output["nodes"]),
+                " ".join(gold_graph.get_tgt_tokens()
+                         )
+            )
+        )
+        return string_to_print + '\n\n'

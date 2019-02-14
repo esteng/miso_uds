@@ -476,7 +476,29 @@ class AMRGraph(penman.Graph):
     def sort_edges(self, edges):
         return edges
 
-    def get_list_data(self, amr, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None):
+    def get_tgt_tokens(self):
+        node_list = self.get_list_node()
+
+        tgt_token = []
+        visited = defaultdict(int)
+
+        for node, relation, parent_node in node_list:
+            instance = [attr[1] for attr in node.attributes if attr[0] == "instance"]
+            assert len(instance) == 1
+            tgt_token.append(str(instance[0]))
+
+            if len(node.attributes) > 1 and visited[node] == 0:
+                for attr in node.attributes:
+                    if attr[0] != "instance":
+                        tgt_token.append(str(attr[1]))
+
+            visited[node] = 1
+
+        return tgt_token
+
+
+
+    def get_list_data(self, amr, bos=None, eos=None, bert_tokenizer=None):
         node_list = self.get_list_node()
 
         tgt_tokens = []
@@ -678,7 +700,7 @@ class AMRGraph(penman.Graph):
 
         nodes = [normalize_number(n) for n in prediction['nodes']]
         heads = correct_multiroot(prediction['heads'])
-        corefs = prediction['corefs']
+        corefs = [int(x) for x in prediction['corefs']]
         head_labels = prediction['head_labels']
 
         triples = []

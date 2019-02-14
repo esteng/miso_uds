@@ -27,6 +27,7 @@ from stog.data.dataset_builder import load_dataset_reader
 from stog.predictors.predictor import Predictor
 from stog.commands.predict import _PredictManager
 import subprocess
+import math
 
 
 logger = init_logger()
@@ -48,7 +49,7 @@ def character_tensor_from_token_tensor(
             token_indices[char_i] = index
         indices.append(token_indices)
 
-    return torch.tensor(indices).view(token_tensor.size(0), 1, -1).type_as(token_tensor)
+    return torch.tensor(indices).view(token_tensor.size(0), token_tensor.size(1), -1).type_as(token_tensor)
 
 
 class STOG(Model):
@@ -499,23 +500,432 @@ class STOG(Model):
         tag_luts = input_dict['tag_luts']
         invalid_indexes = input_dict['invalid_indexes']
 
-        if self.beam_size == 1:
+        if self.beam_size == 0:
             generator_outputs = self.decode_with_pointer_generator(
-                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts, invalid_indexes)
-            parser_outputs = self.decode_with_graph_parser(
-                generator_outputs['decoder_inputs'],
-                generator_outputs['decoder_rnn_memory_bank'],
-                generator_outputs['coref_indexes'],
-                generator_outputs['decoder_mask']
-            )
-            return dict(
-                nodes=generator_outputs['predictions'],
-                heads=parser_outputs['edge_heads'],
-                head_labels=parser_outputs['edge_labels'],
-                corefs=generator_outputs['coref_indexes'],
-            )
+                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
         else:
-            raise NotImplementedError
+            generator_outputs = self.beam_search_with_pointer_generator(
+                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
+
+        parser_outputs = self.decode_with_graph_parser(
+            generator_outputs['decoder_inputs'],
+            generator_outputs['decoder_rnn_memory_bank'],
+            generator_outputs['coref_indexes'],
+            generator_outputs['decoder_mask']
+        )
+        #import pdb;pdb.set_trace()
+        return dict(
+            nodes=generator_outputs['predictions'],
+            heads=parser_outputs['edge_heads'],
+            head_labels=parser_outputs['edge_labels'],
+            corefs=generator_outputs['coref_indexes'],
+        )
+
+    def beam_search_with_pointer_generator(
+            self, memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts):
+
+        batch_size = memory_bank.size(0)
+        beam_size = self.beam_size
+
+        #  new_order is used to replicate tensors for different beam
+        new_order = torch.arange(batch_size).view(-1, 1).repeat(1, beam_size).view(-1).type_as(mask)
+
+        # special token indices
+        bos_token = self.vocab.get_token_index(START_SYMBOL, "decoder_token_ids")
+        eos_token = self.vocab.get_token_index(END_SYMBOL, "decoder_token_ids")
+        pad_token = self.vocab.get_token_index(DEFAULT_PADDING_TOKEN, "decoder_token_ids")
+
+        bucket = [[] for i in range(batch_size)]
+        bucket_max_score = [-1e8 for i in range(batch_size)]
+
+
+        def flatten(tensor):
+            sizes = list(tensor.size())
+            assert len(sizes) >= 2
+            assert sizes[0] == batch_size and sizes[1] == beam_size
+
+            if len(sizes) == 2:
+                new_sizes = [sizes[0] * sizes[1], 1]
+            else:
+                new_sizes = [sizes[0] * sizes[1]] + sizes[2:]
+
+            return tensor.contiguous().view(new_sizes)
+
+        def fold(tensor):
+            sizes = list(tensor.size())
+            new_sizes = [batch_size, beam_size]
+
+            if len(sizes) >= 2:
+                new_sizes = [batch_size, beam_size] + sizes[1:]
+
+            return tensor.view(new_sizes)
+
+        def beam_select_2d(input, indices):
+            # input [batch_size, beam_size, ......]
+            # indices [batch_size, beam_size]
+            input_size = list(input.size())
+            indices_size = list(indices.size())
+            assert len(indices_size) == 2
+            assert len(input_size) >= 2
+            assert input_size[0] == indices_size[0]
+            assert input_size[1] == indices_size[1]
+
+            return input.view(
+                [input_size[0] * input_size[1]] + input_size[2:]
+            ).index_select(
+                0,
+                (
+                        torch.arange(
+                            indices_size[0]
+                        ).unsqueeze(1).expand_as(indices).type_as(indices) * indices_size[1] + indices
+                ).view(-1)
+            ).view(input_size)
+
+        def beam_select_1d(input, indices):
+            input_size = list(input.size())
+            indices_size = list(indices.size())
+            assert len(indices_size) == 2
+            assert len(input_size) > 1
+            assert input_size[0] == indices_size[0] * indices_size[1]
+
+            return input.index_select(
+                0,
+                (
+                    torch.arange(
+                        indices_size[0]
+                    ).unsqueeze(1).expand_as(indices).type_as(indices) * indices_size[1] + indices
+                ).view(-1)
+            ).view(input_size)
+
+
+        def update_tensor_buff(key, step, beam_indices, tensor, select_input=True):
+            if step == 0 and beam_buffer[key] is None:
+                beam_buffer[key] = tensor.new_zeros(
+                    batch_size,
+                    beam_size,
+                    self.max_decode_length,
+                    tensor.size(-1)
+                )
+
+            if select_input:
+                beam_buffer[key][:, :, step] = fold(tensor.squeeze(1))
+                beam_buffer[key] = beam_select_2d(beam_buffer[key], beam_indices)
+            else:
+                beam_buffer[key] = beam_select_2d(beam_buffer[key], beam_indices)
+                beam_buffer[key][:, :, step] = fold(tensor.squeeze(1))
+
+
+        def get_decoder_input(tokens, pos_tags, corefs):
+            token_embeddings = self.decoder_token_embedding(tokens)
+            pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
+            coref_embeddings = self.decoder_coref_embedding(corefs)
+
+            if self.use_char_cnn:
+                # TODO: get chars from tokens.
+                # [batch_size, 1, num_chars]
+                chars = character_tensor_from_token_tensor(
+                    tokens,
+                    self.vocab,
+                    self.character_tokenizer
+                )
+                if chars.size(-1) < 3:
+                    chars = torch.cat(
+                        (
+                            chars,
+                            chars.new_zeros(
+                                (
+                                    chars.size(0), 
+                                    chars.size(1), 
+                                    3 - chars.size(2)
+                                )
+                            )
+                        ),
+                        2
+                    )
+
+                char_cnn_output = self._get_decoder_char_cnn_output(chars)
+                decoder_inputs = torch.cat(
+                    [token_embeddings, pos_tag_embeddings,
+                     coref_embeddings, char_cnn_output], 2)
+            else:
+                decoder_inputs = torch.cat(
+                    [token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
+
+            return self.decoder_embedding_dropout(decoder_inputs)
+
+        def repeat_list_item(input_list, n):
+            new_list = []
+            for item in input_list:
+                new_list += [item] * n
+            return new_list
+
+        beam_buffer = {}
+        beam_buffer["predictions"] = mask.new_full(
+            (batch_size, beam_size, self.max_decode_length), 
+            pad_token
+        )
+
+        beam_buffer["coref_indexes"] = memory_bank.new_zeros(
+            batch_size, 
+            beam_size, 
+            self.max_decode_length
+        )
+
+        beam_buffer["decoder_mask"] = memory_bank.new_ones(
+            batch_size, 
+            beam_size, 
+            self.max_decode_length
+        )
+
+        beam_buffer["decoder_inputs"] = None
+        beam_buffer["decoder_memory_bank"] = None
+        beam_buffer["decoder_rnn_memory_bank"] = None
+
+        #beam_buffer["source_attentions"] = None
+        #beam_buffer["copy_attentions"] = []
+        #beam_buffer["coref_attentions"] = []
+
+        beam_buffer["scores"] = memory_bank.new_zeros(batch_size, beam_size, 1)
+        beam_buffer["scores"][:, 1:] = -float(1e8)
+
+        # inter media variables
+        variables = {}
+
+        variables["input_tokens"] = beam_buffer["predictions"].new_full(
+            (batch_size * beam_size, 1), 
+            bos_token
+        )
+
+        variables["pos_tags"] = mask.new_full(
+            (batch_size * beam_size, 1), 
+            self.vocab.get_token_index(DEFAULT_OOV_TOKEN, "pos_tags")
+        )
+
+        variables["corefs"] = mask.new_zeros(batch_size * beam_size, 1)
+
+        variables["input_feed"] = None
+        variables["coref_inputs"] = None
+        variables["states"] = [item.index_select(1, new_order) for item in states]
+
+        variables["prev_tokens"] = mask.new_full(
+            (batch_size * beam_size, 1), bos_token)
+
+        # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
+        # Here the maximum size of the dynamic vocab is just max_decode_length.
+        variables["coref_attention_maps"] = memory_bank.new_zeros(
+            batch_size * beam_size, self.max_decode_length, self.max_decode_length + 1
+        )
+        # A matrix D where the element D_{ij} is for instance i the real vocab index of
+        # the generated node at the decoding step `i'.
+        variables["coref_vocab_maps"] = mask.new_zeros(batch_size * beam_size, self.max_decode_length + 1)
+
+        variables["coverage"] = None
+        if self.use_coverage:
+            variables["coverage"] = memory_bank.new_zeros(batch_size * beam_size, 1, memory_bank.size(1))
+
+        for step in range(self.max_decode_length):  # one extra step for EOS marker
+            # 1. Decoder inputs
+            # decoder_inputs : [ batch_size * beam_size, model_dim]
+            decoder_inputs = get_decoder_input(
+                variables["input_tokens"],
+                variables["pos_tags"],
+                variables["corefs"]
+            )
+
+            # 2. Decode one stepi.
+            decoder_output_dict = self.decoder(
+                decoder_inputs,
+                memory_bank.index_select(0, new_order),
+                mask.index_select(0, new_order),
+                variables["states"],
+                variables["input_feed"],
+                variables["coref_inputs"],
+                variables["coverage"]
+            )
+
+
+            _decoder_outputs = decoder_output_dict['output_sequences']
+            _rnn_outputs = decoder_output_dict['rnn_output_sequences']
+            coref_inputs = decoder_output_dict['coref_inputs']
+            _source_attentions = decoder_output_dict['std_attentions']
+            _copy_attentions = decoder_output_dict['copy_attentions']
+            _coref_attentions = decoder_output_dict['coref_attentions']
+            states = decoder_output_dict['hidden_state']
+            input_feed = decoder_output_dict['input_feed']
+            coverage = decoder_output_dict['coverage']
+            coverage_records = decoder_output_dict['coverage_records']
+
+            # 3. Run pointer/generator.instance.fields['src_copy_vocab'].metadata
+            if step == 0:
+                _coref_attention_maps = variables["coref_attention_maps"][:, :step + 1]
+            else:
+                _coref_attention_maps = variables["coref_attention_maps"][:, :step]
+
+            generator_output = self.generator(
+                _decoder_outputs,
+                _copy_attentions,
+                copy_attention_maps.index_select(0, new_order),
+                _coref_attentions,
+                _coref_attention_maps
+            )
+
+            # new word probs
+            word_lprobs = fold(torch.log(1e-8 + generator_output['probs'].squeeze(1)))
+
+
+            coverage_loss = torch.sum(
+                torch.min(coverage, _copy_attentions),
+                dim=2
+            )
+
+            new_words_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs)
+            new_all_scores = \
+                word_lprobs \
+                + beam_buffer["scores"].expand_as(word_lprobs) \
+                - coverage_loss.view(batch_size, beam_size, 1).expand_as(word_lprobs)
+
+            # top beam_size hypos
+            # new_hypo_indices : [batch_size, beam_size * 2]
+            new_hypo_scores, new_hypo_indices = torch.topk(
+                new_all_scores.view(batch_size, -1).contiguous(),
+                beam_size * 2,
+                dim=-1
+            )
+
+            new_token_indices = torch.fmod(new_hypo_indices, word_lprobs.size(-1))
+
+            eos_token_mask = new_token_indices.eq(eos_token)
+
+            eos_beam_indices_offset = torch.div(
+                new_hypo_indices,
+                word_lprobs.size(-1)
+            )[:, :beam_size] + new_order.view(batch_size, beam_size) * beam_size
+
+            eos_beam_indices_offset = eos_beam_indices_offset.masked_select(eos_token_mask[:, :beam_size])
+
+            if eos_beam_indices_offset.numel() > 0:
+                for index in eos_beam_indices_offset.tolist():
+                    eos_batch_idx = int(index / beam_size)
+                    eos_beam_idx = index % beam_size
+                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / (step + 1)
+                    if step > 0 and hypo_score > bucket_max_score[eos_batch_idx] and eos_beam_idx == 0:
+                        bucket_max_score[eos_batch_idx] = hypo_score
+                        bucket[eos_batch_idx] += [
+                            {
+                                key: tensor[eos_batch_idx, eos_beam_idx].unsqueeze(0) for key, tensor in beam_buffer.items()
+                            }
+                        ]
+                        #bucket[eos_batch_idx][-1]['decoder_inputs'][0, step] = decoder_inputs[index, 0]
+                        #bucket[eos_batch_idx][-1]['decoder_rnn_memory_bank'][0, step] = _rnn_outputs[index, 0]
+                        #bucket[eos_batch_idx][-1]['decoder_memory_bank'][0, step] = _decoder_outputs[index, 0]
+                        #bucket[eos_batch_idx][-1]['decoder_mask'][0, step] = 1
+
+                eos_token_mask = eos_token_mask.type_as(new_hypo_scores)
+                active_hypo_scores, active_sort_indices = torch.sort(
+                    (1 - eos_token_mask) * new_hypo_scores + eos_token_mask * - float(1e8),
+                    descending = True
+                )
+
+                active_sort_indices_offset = active_sort_indices \
+                    + 2 * beam_size * torch.arange(
+                        batch_size
+                    ).unsqueeze(1).expand_as(active_sort_indices).type_as(active_sort_indices)
+                active_hypo_indices = new_hypo_indices.view(batch_size * beam_size * 2)[
+                    active_sort_indices_offset.view(batch_size * beam_size * 2)
+                ].view(batch_size, -1)
+
+                new_hypo_scores = active_hypo_scores
+                new_hypo_indices = active_hypo_indices
+                new_token_indices = torch.fmod(new_hypo_indices, word_lprobs.size(-1))
+
+            new_hypo_indices = new_hypo_indices[:, :beam_size]
+            new_hypo_scores = new_hypo_scores[:, :beam_size]
+            new_token_indices = new_token_indices[:, :beam_size]
+
+            # find out which beam the new hypo came from and what is the new token
+            beam_indices = torch.div(new_hypo_indices, word_lprobs.size(-1))
+            if step == 0:
+                decoder_mask_input = []
+            else:
+
+                decoder_mask_input = beam_select_2d(
+                    beam_buffer["decoder_mask"],
+                    beam_indices
+                ).view(batch_size * beam_size, -1)[:, :step].split(1, 1)
+
+
+            variables["coref_attention_maps"] = beam_select_1d(variables["coref_attention_maps"], beam_indices)
+            variables["coref_vocab_maps"] = beam_select_1d(variables["coref_vocab_maps"], beam_indices)
+
+            input_tokens, _predictions, pos_tags, corefs, _mask = self._update_maps_and_get_next_input(
+                step,
+                flatten(new_token_indices).squeeze(1),
+                generator_output['source_dynamic_vocab_size'],
+                variables["coref_attention_maps"],
+                variables["coref_vocab_maps"],
+                repeat_list_item(copy_vocabs, beam_size),
+                decoder_mask_input,
+                repeat_list_item(tag_luts, beam_size)
+            )
+
+
+            beam_buffer["scores"] = new_hypo_scores.unsqueeze(2)
+
+            update_tensor_buff("decoder_inputs", step, beam_indices, decoder_inputs)
+            update_tensor_buff("decoder_memory_bank", step, beam_indices, _decoder_outputs)
+            update_tensor_buff("decoder_rnn_memory_bank", step, beam_indices, _rnn_outputs)
+
+            #update_tensor_buff("source_attentions", step, _source_attentions)
+            #update_tensor_buff("copy_attentions", step, _copy_attentions)
+            #update_tensor_buff("coref_attentions", step, _coref_attentions)
+
+            update_tensor_buff("predictions", step, beam_indices,_predictions, False)
+            update_tensor_buff("coref_indexes", step, beam_indices, corefs, False)
+            update_tensor_buff("decoder_mask", step, beam_indices, _mask, False)
+
+            variables["input_tokens"] = input_tokens
+            variables["pos_tags"] = pos_tags
+            variables["corefs"] = corefs
+
+            variables["states"] = [
+                state.index_select(1, new_order * beam_size + beam_indices.view(-1)) for state in states]
+            variables["input_feed"] = beam_select_1d(input_feed, beam_indices)
+            variables["coref_inputs"] = beam_select_1d(coref_inputs, beam_indices)
+            variables["coverage"] = beam_select_1d(coverage, beam_indices)
+
+
+        for batch_idx, item in enumerate(bucket):
+            if len(item) == 0:
+                bucket[batch_idx].append(
+                    {
+                        key: tensor[batch_idx, 0].unsqueeze(0) for key, tensor in beam_buffer.items()
+                    }
+                )
+
+        return_dict = {}
+
+        for key in bucket[0][-1].keys():
+            return_dict[key] = torch.cat(
+                [hypos[-1][key] for hypos in bucket],
+                dim=0
+            )
+
+        return_dict["decoder_mask"] = 1 - return_dict["decoder_mask"]
+
+        return_dict["decoder_inputs"] = return_dict["decoder_inputs"][:, 1:]
+        return_dict["decoder_memory_bank"] = return_dict["decoder_memory_bank"][:, 1:]
+        return_dict["decoder_rnn_memory_bank"] = return_dict["decoder_rnn_memory_bank"][:, 1:]
+
+        return_dict["predictions"] = return_dict["predictions"][:, :-1]
+        return_dict["predictions"][return_dict["predictions"] == pad_token] = eos_token
+        return_dict["coref_indexes"] = return_dict["coref_indexes"][:, :-1]
+        return_dict["decoder_mask"] = return_dict["predictions"] != eos_token#return_dict["decoder_mask"][:, :-1]
+        return_dict["scores"] = torch.div(return_dict["scores"], return_dict["decoder_mask"].sum(1, keepdim=True).type_as(return_dict["scores"]))
+
+        return return_dict
+
+
+
 
     def decode_with_pointer_generator(
             self, memory_bank, mask, states, copy_attention_maps, copy_vocabs,
