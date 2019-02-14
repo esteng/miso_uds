@@ -317,9 +317,9 @@ class Trainer:
             dev_generator_tqdm.set_description(description, refresh=False)
 
         if self._n_gpus > 1:
-            return self._model.module.get_metrics(reset=True, mimick_test=epoch > 30)
+            return self._model.module.get_metrics(reset=True, mimick_test=epoch > 50)
         else:
-            return self._model.get_metrics(reset=True, mimick_test=epoch > 30)
+            return self._model.get_metrics(reset=True, mimick_test=epoch > 50)
 
     def train(self):
         """Trains the supplied model with the supplied parameters.
@@ -429,9 +429,9 @@ class Trainer:
             return True
         else:
             if self._dev_metric_decreases:
-                return this_epoch_dev_metric < min(dev_metric_per_epoch)
+                return this_epoch_dev_metric <= min(dev_metric_per_epoch)
             else:
-                return this_epoch_dev_metric > max(dev_metric_per_epoch)
+                return this_epoch_dev_metric >= max(dev_metric_per_epoch)
 
     def _description_from_metrics(self, metrics: Dict[str, float]) -> str:
         return ', '.join(["%s: %.4f" % (name, value) for name, value in

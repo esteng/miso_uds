@@ -60,12 +60,13 @@ model:
     padding_index: 0
     dropout: 0.33
     pretrained_file: *glove
+    data_type: AMR
 
   decoder_pos_embedding:
     num_embeddings:
     vocab_namespace: 'pos_tags'
     embedding_dim: 100
-    padding_index:
+    padding_index: 0
     dropout: 0
 
   decoder_coref_embedding:
@@ -165,7 +166,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir bert-ckpt
+  serialization_dir: &serialization_dir stog-bert-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0
@@ -179,7 +180,7 @@ trainer:
   max_grad_norm: 5.0
   batch_size: *train_batch_size
   shuffle: True
-  epochs: 100
+  epochs: 120
   dev_metric: +F1
   serialization_dir: *serialization_dir
   model_save_interval:
