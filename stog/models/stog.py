@@ -861,8 +861,9 @@ class STOG(Model):
             variables["input_tokens"] = input_tokens
             variables["pos_tags"] = pos_tags
             variables["corefs"] = corefs
-            variables["states"] = states
 
+            variables["states"] = [
+                state.index_select(1, new_order * beam_size + beam_indices.view(-1)).size() for state in states]
             variables["input_feed"] = beam_select_1d(input_feed, beam_indices)
             variables["coref_inputs"] = beam_select_1d(coref_inputs, beam_indices)
             variables["coverage"] = beam_select_1d(coverage, beam_indices)
