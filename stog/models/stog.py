@@ -809,10 +809,6 @@ class STOG(Model):
             # find out which beam the new hypo came from and what is the new token
             beam_indices = torch.div(new_hypo_indices, word_lprobs.size(-1))
             if step == 0:
-                # only keep the first hypo in first step
-                #beam_indices = new_hypo_indices.new_zeros(new_hypo_indices.size())
-                #new_hypo_scores[:, 1:] = - float(1e8)
-
                 decoder_mask_input = []
             else:
 
@@ -838,11 +834,6 @@ class STOG(Model):
 
 
             beam_buffer["scores"] = new_hypo_scores.unsqueeze(2)
-            #print(beam_buffer["predictions"][1, :,:step + 1])
-            #print(_predictions[beam_size:])
-            #print(beam_indices[1])
-            #print(decoder_inputs[beam_size:, 0, :5])
-            #import pdb;pdb.set_trace()
 
             update_tensor_buff("decoder_inputs", step, beam_indices, decoder_inputs)
             update_tensor_buff("decoder_memory_bank", step, beam_indices, _decoder_outputs)
@@ -851,8 +842,6 @@ class STOG(Model):
             #update_tensor_buff("source_attentions", step, _source_attentions)
             #update_tensor_buff("copy_attentions", step, _copy_attentions)
             #update_tensor_buff("coref_attentions", step, _coref_attentions)
-            #beam_buffer["copy_attentions"].append(_copy_attentions)
-            #beam_buffer["coref_attentions"].append(_coref_attentions)
 
             update_tensor_buff("predictions", step, beam_indices,_predictions, False)
             update_tensor_buff("coref_indexes", step, beam_indices, corefs, False)
@@ -867,8 +856,6 @@ class STOG(Model):
             variables["input_feed"] = beam_select_1d(input_feed, beam_indices)
             variables["coref_inputs"] = beam_select_1d(coref_inputs, beam_indices)
             variables["coverage"] = beam_select_1d(coverage, beam_indices)
-            #if torch.sum(variables["prev_tokens"] == eos_token) == batch_size * beam_size:
-            #    break
 
 
         for batch_idx, item in enumerate(bucket):
