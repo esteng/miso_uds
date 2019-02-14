@@ -20,7 +20,7 @@ from stog.modules.decoders.pointer_generator import PointerGenerator
 from stog.modules.decoders.deep_biaffine_graph_decoder import DeepBiaffineGraphDecoder
 from stog.utils.nn import get_text_field_mask
 from stog.utils.string import START_SYMBOL, END_SYMBOL, find_similar_token, is_abstract_token
-from stog.data.vocabulary import DEFAULT_OOV_TOKEN
+from stog.data.vocabulary import DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN
 from stog.data.tokenizers.character_tokenizer import CharacterTokenizer
 # The following imports are added for mimick testing.
 from stog.data.dataset_builder import load_dataset_reader
@@ -502,10 +502,10 @@ class STOG(Model):
 
         if self.beam_size == 0:
             generator_outputs = self.decode_with_pointer_generator(
-                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
+                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts, invalid_indexes)
         else:
             generator_outputs = self.beam_search_with_pointer_generator(
-                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts)
+                memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts, invalid_indexes)
 
         parser_outputs = self.decode_with_graph_parser(
             generator_outputs['decoder_inputs'],
@@ -522,8 +522,7 @@ class STOG(Model):
         )
 
     def beam_search_with_pointer_generator(
-            self, memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts):
-
+            self, memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts, invalid_indices):
         batch_size = memory_bank.size(0)
         beam_size = self.beam_size
 
@@ -704,7 +703,7 @@ class STOG(Model):
         variables["corefs"] = mask.new_zeros(batch_size * beam_size, 1)
 
         variables["input_feed"] = None
-        variables["coref_inputs"] = None
+        variables["coref_inputs"] = []
         variables["states"] = [item.index_select(1, new_order) for item in states]
 
         variables["prev_tokens"] = mask.new_full(
@@ -722,6 +721,9 @@ class STOG(Model):
         variables["coverage"] = None
         if self.use_coverage:
             variables["coverage"] = memory_bank.new_zeros(batch_size * beam_size, 1, memory_bank.size(1))
+
+        for key in invalid_indices.keys():
+            invalid_indices[key] = repeat_list_item(invalid_indices[key], beam_size)
 
         for step in range(self.max_decode_length):  # one extra step for EOS marker
             # 1. Decoder inputs
@@ -744,13 +746,13 @@ class STOG(Model):
             )
 
 
-            _decoder_outputs = decoder_output_dict['output_sequences']
-            _rnn_outputs = decoder_output_dict['rnn_output_sequences']
-            coref_inputs = decoder_output_dict['coref_inputs']
-            _source_attentions = decoder_output_dict['std_attentions']
-            _copy_attentions = decoder_output_dict['copy_attentions']
-            _coref_attentions = decoder_output_dict['coref_attentions']
-            states = decoder_output_dict['hidden_state']
+            _decoder_outputs = decoder_output_dict['decoder_hidden_states']
+            _rnn_outputs = decoder_output_dict['rnn_hidden_states']
+            #coref_inputs = decoder_output_dict['coref_inputs']
+            #_source_attentions = decoder_output_dict['source_attentions']
+            _copy_attentions = decoder_output_dict['source_copy_attentions']
+            _coref_attentions = decoder_output_dict['target_copy_attentions']
+            states = decoder_output_dict['last_hidden_state']
             input_feed = decoder_output_dict['input_feed']
             coverage = decoder_output_dict['coverage']
             coverage_records = decoder_output_dict['coverage_records']
@@ -766,7 +768,8 @@ class STOG(Model):
                 _copy_attentions,
                 copy_attention_maps.index_select(0, new_order),
                 _coref_attentions,
-                _coref_attention_maps
+                _coref_attention_maps,
+                invalid_indices
             )
 
             # new word probs
@@ -865,7 +868,8 @@ class STOG(Model):
                 variables["coref_vocab_maps"],
                 repeat_list_item(copy_vocabs, beam_size),
                 decoder_mask_input,
-                repeat_list_item(tag_luts, beam_size)
+                repeat_list_item(tag_luts, beam_size),
+                invalid_indices
             )
 
 
@@ -890,7 +894,12 @@ class STOG(Model):
             variables["states"] = [
                 state.index_select(1, new_order * beam_size + beam_indices.view(-1)) for state in states]
             variables["input_feed"] = beam_select_1d(input_feed, beam_indices)
-            variables["coref_inputs"] = beam_select_1d(coref_inputs, beam_indices)
+            variables["coref_inputs"] = list(
+                beam_select_1d(
+                    torch.cat(variables["coref_inputs"], 1), 
+                    beam_indices
+                ).split(1, 1)
+            )
             variables["coverage"] = beam_select_1d(coverage, beam_indices)
 
 

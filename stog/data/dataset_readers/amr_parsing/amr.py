@@ -498,7 +498,7 @@ class AMRGraph(penman.Graph):
 
 
 
-    def get_list_data(self, amr, bos=None, eos=None, bert_tokenizer=None):
+    def get_list_data(self, amr, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None):
         node_list = self.get_list_node()
 
         tgt_tokens = []
