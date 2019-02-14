@@ -650,6 +650,7 @@ class STOG(Model):
         #beam_buffer["coref_attentions"] = []
 
         beam_buffer["scores"] = memory_bank.new_zeros(batch_size, beam_size, 1)
+        beam_buffer["scores"][:, 1:] = -float(1e8)
 
         # inter media variables
         variables = {}
@@ -770,7 +771,7 @@ class STOG(Model):
                 for index in eos_beam_indices_offset.tolist():
                     eos_batch_idx = int(index / beam_size)
                     eos_beam_idx = index % beam_size
-                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / (step + 1) ** 1.3
+                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / (step + 1)
                     if step > 0 and hypo_score > bucket_max_score[eos_batch_idx] and eos_beam_idx == 0:
                         bucket_max_score[eos_batch_idx] = hypo_score
                         bucket[eos_batch_idx] += [
@@ -806,14 +807,14 @@ class STOG(Model):
             new_token_indices = new_token_indices[:, :beam_size]
 
             # find out which beam the new hypo came from and what is the new token
+            beam_indices = torch.div(new_hypo_indices, word_lprobs.size(-1))
             if step == 0:
                 # only keep the first hypo in first step
-                beam_indices = new_hypo_indices.new_zeros(new_hypo_indices.size())
-                new_hypo_scores[:, 1:] = - float(1e8)
+                #beam_indices = new_hypo_indices.new_zeros(new_hypo_indices.size())
+                #new_hypo_scores[:, 1:] = - float(1e8)
 
                 decoder_mask_input = []
             else:
-                beam_indices = torch.div(new_hypo_indices, word_lprobs.size(-1))
 
                 decoder_mask_input = beam_select_2d(
                     beam_buffer["decoder_mask"],
@@ -837,6 +838,11 @@ class STOG(Model):
 
 
             beam_buffer["scores"] = new_hypo_scores.unsqueeze(2)
+            #print(beam_buffer["predictions"][1, :,:step + 1])
+            #print(_predictions[beam_size:])
+            #print(beam_indices[1])
+            #print(decoder_inputs[beam_size:, 0, :5])
+            #import pdb;pdb.set_trace()
 
             update_tensor_buff("decoder_inputs", step, beam_indices, decoder_inputs)
             update_tensor_buff("decoder_memory_bank", step, beam_indices, _decoder_outputs)
@@ -860,8 +866,6 @@ class STOG(Model):
             variables["input_feed"] = beam_select_1d(input_feed, beam_indices)
             variables["coref_inputs"] = beam_select_1d(coref_inputs, beam_indices)
             variables["coverage"] = beam_select_1d(coverage, beam_indices)
-            #print(_predictions)
-            #import pdb;pdb.set_trace()
             #if torch.sum(variables["prev_tokens"] == eos_token) == batch_size * beam_size:
             #    break
 
@@ -892,7 +896,7 @@ class STOG(Model):
         return_dict["predictions"][return_dict["predictions"] == pad_token] = eos_token
         return_dict["coref_indexes"] = return_dict["coref_indexes"][:, :-1]
         return_dict["decoder_mask"] = return_dict["predictions"] != eos_token#return_dict["decoder_mask"][:, :-1]
-        #import pdb;pdb.set_trace()
+        return_dict["scores"] = torch.div(return_dict["scores"], return_dict["decoder_mask"].sum(1, keepdim=True).type_as(return_dict["scores"]))
 
         return return_dict
 
