@@ -633,8 +633,8 @@ class STOG(Model):
                             chars,
                             chars.new_zeros(
                                 (
-                                    chars.size(0), 
-                                    chars.size(1), 
+                                    chars.size(0),
+                                    chars.size(1),
                                     3 - chars.size(2)
                                 )
                             )
@@ -660,19 +660,19 @@ class STOG(Model):
 
         beam_buffer = {}
         beam_buffer["predictions"] = mask.new_full(
-            (batch_size, beam_size, self.max_decode_length), 
+            (batch_size, beam_size, self.max_decode_length),
             pad_token
         )
 
         beam_buffer["coref_indexes"] = memory_bank.new_zeros(
-            batch_size, 
-            beam_size, 
+            batch_size,
+            beam_size,
             self.max_decode_length
         )
 
         beam_buffer["decoder_mask"] = memory_bank.new_ones(
-            batch_size, 
-            beam_size, 
+            batch_size,
+            beam_size,
             self.max_decode_length
         )
 
@@ -691,12 +691,12 @@ class STOG(Model):
         variables = {}
 
         variables["input_tokens"] = beam_buffer["predictions"].new_full(
-            (batch_size * beam_size, 1), 
+            (batch_size * beam_size, 1),
             bos_token
         )
 
         variables["pos_tags"] = mask.new_full(
-            (batch_size * beam_size, 1), 
+            (batch_size * beam_size, 1),
             self.vocab.get_token_index(DEFAULT_OOV_TOKEN, "pos_tags")
         )
 
@@ -896,7 +896,7 @@ class STOG(Model):
             variables["input_feed"] = beam_select_1d(input_feed, beam_indices)
             variables["coref_inputs"] = list(
                 beam_select_1d(
-                    torch.cat(variables["coref_inputs"], 1), 
+                    torch.cat(variables["coref_inputs"], 1),
                     beam_indices
                 ).split(1, 1)
             )
