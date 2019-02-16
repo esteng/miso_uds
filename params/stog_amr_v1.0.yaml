@@ -1,7 +1,7 @@
 # Parameters of the Seq2Seq Model
 
 # Device-sensitive parameters
-amr_data_dir: &amr_data_dir data/amr_v1.0
+amr_data_dir: &amr_data_dir data/amr_1.0
 glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
 
 
@@ -125,12 +125,12 @@ model:
     dropout: 0.33
 
   mimick_test:
-    data: data/amr_v1.0/dev_amr.txt.features.preproc
+    data: data/amr_1.0/dev_amr.txt.features.preproc
     prediction: dev.pred.txt
     batch_size: 32
     eval_script: scripts/eval_test.sh
     smatch_dir: tools/amr-evaluation-tool-enhanced
-    word_splitter: &word_splitter /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
+    word_splitter: &word_splitter null # /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
 
 
 # Vocabulary
@@ -140,8 +140,8 @@ vocab:
       encoder_token_ids: 1
       decoder_token_ids: 1
   max_vocab_size:
-      encoder_token_ids: 9700
-      decoder_token_ids: 7900
+      encoder_token_ids: 9200
+      decoder_token_ids: 7300
 
 
 # Data parameters
@@ -166,7 +166,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir stog-ckpt
+  serialization_dir: &serialization_dir stog-amr1.0-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0
