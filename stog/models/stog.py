@@ -775,17 +775,16 @@ class STOG(Model):
             # new word probs
             word_lprobs = fold(torch.log(1e-8 + generator_output['probs'].squeeze(1)))
 
-
-            coverage_loss = torch.sum(
-                torch.min(coverage, _copy_attentions),
-                dim=2
-            )
-
             new_words_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs)
-            new_all_scores = \
-                word_lprobs \
-                + beam_buffer["scores"].expand_as(word_lprobs) \
-                - coverage_loss.view(batch_size, beam_size, 1).expand_as(word_lprobs)
+            new_all_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs) 
+
+            if self.use_coverage:
+                coverage_loss = torch.sum(
+                    torch.min(coverage, _copy_attentions),
+                    dim=2
+                )
+
+                new_all_scores -= coverage_loss.view(batch_size, beam_size, 1).expand_as(word_lprobs)
 
             # top beam_size hypos
             # new_hypo_indices : [batch_size, beam_size * 2]
