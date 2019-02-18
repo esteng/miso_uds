@@ -2,20 +2,20 @@
 
 # Device-sensitive parameters
 amr_data_dir: &amr_data_dir data/amr_1.0
-glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
+glove: &glove /export/ssd/sheng/data/glove/glove.840B.300d.zip
 
 
 # Model parameters
 model:
   model_type: STOG
-  use_bert: False
   use_must_copy_embedding: True
   use_char_cnn: True
   use_coverage: True
   use_aux_encoder: False
+  use_bert: True
 
   bert:
-    pretrained_model_dir: /home/sheng/data/bert-base-cased
+    pretrained_model_dir: /export/ssd/sheng/data/bert-base-cased
     hidden_size: 768
 
   encoder_token_embedding:
@@ -72,7 +72,7 @@ model:
   decoder_coref_embedding:
     num_embeddings: 500
     embedding_dim: 50
-    padding_index:
+    padding_index: 0
     dropout: 0.33
 
   decoder_char_embedding:
@@ -89,14 +89,14 @@ model:
     ngram_filter_sizes: [3]
 
   encoder:
-    input_size: 500
+    input_size:
     hidden_size: 512
     num_layers: 2
     use_highway: False
     dropout: 0.33
 
   decoder:
-    input_size: 1574
+    input_size:
     hidden_size: &decoder_hidden_size 1024
     num_layers: 2
     use_highway: False
@@ -130,7 +130,7 @@ model:
     batch_size: 32
     eval_script: scripts/eval_test.sh
     smatch_dir: tools/amr-evaluation-tool-enhanced
-    word_splitter: &word_splitter null # /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
+    word_splitter: &word_splitter /export/ssd/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
 
 
 # Vocabulary
@@ -152,7 +152,7 @@ data:
   test_data: test_amr.txt.features.preproc
   data_type: AMR
   batch_first: True
-  train_batch_size: &train_batch_size 32
+  train_batch_size: &train_batch_size 128
   test_batch_size: 32
   iter_type: BucketIterator
   pretrain_token_emb: *glove
@@ -166,7 +166,7 @@ environment:
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir stog-amr1.0-ckpt
+  serialization_dir: &serialization_dir stog-amr1.0-bert-ckpt-5
   file_friendly_logging: False
   gpu: True
   cuda_device: 0
@@ -180,7 +180,7 @@ trainer:
   max_grad_norm: 5.0
   batch_size: *train_batch_size
   shuffle: True
-  epochs: 100
+  epochs: 120
   dev_metric: +F1
   serialization_dir: *serialization_dir
   model_save_interval:
