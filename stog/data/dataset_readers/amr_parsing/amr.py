@@ -576,6 +576,8 @@ class AMRGraph(penman.Graph):
                 tgt_copy_mask[i] = 1
 
         def add_source_side_tags_to_target_side(_src_tokens, _src_tags):
+            if not _src_tags:
+                return None, None
             assert len(_src_tags) == len(_src_tokens)
             tag_counter = defaultdict(lambda: defaultdict(int))
             for src_token, src_tag in zip(_src_tokens, _src_tags):

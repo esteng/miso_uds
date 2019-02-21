@@ -113,21 +113,23 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
 
-        fields["src_pos_tags"] = SequenceLabelField(
-            labels=list_data["src_pos_tags"],
-            sequence_field=fields["src_tokens"],
-            label_namespace="pos_tags"
-        )
+        if list_data["src_pos_tags"] is not None:
+            fields["src_pos_tags"] = SequenceLabelField(
+                labels=list_data["src_pos_tags"],
+                sequence_field=fields["src_tokens"],
+                label_namespace="pos_tags"
+            )
 
-        fields["tgt_pos_tags"] = SequenceLabelField(
-            labels=list_data["tgt_pos_tags"],
-            sequence_field=fields["tgt_tokens"],
-            label_namespace="pos_tags"
-        )
+        if list_data["tgt_pos_tags"] is not None:
+            fields["tgt_pos_tags"] = SequenceLabelField(
+                labels=list_data["tgt_pos_tags"],
+                sequence_field=fields["tgt_tokens"],
+                label_namespace="pos_tags"
+            )
 
-        self._number_pos_tags += len(list_data['tgt_pos_tags'])
-        self._number_non_oov_pos_tags += len(
-            [tag for tag in list_data['tgt_pos_tags'] if tag != '@@UNKNOWN@@'])
+            self._number_pos_tags += len(list_data['tgt_pos_tags'])
+            self._number_non_oov_pos_tags += len(
+                [tag for tag in list_data['tgt_pos_tags'] if tag != '@@UNKNOWN@@'])
 
         fields["tgt_copy_indices"] = SequenceLabelField(
             labels=list_data["tgt_copy_indices"],

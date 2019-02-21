@@ -131,8 +131,13 @@ class STOG(Model):
 
         self.test_config = test_config
 
+        self.length_penalty = 0
+
     def set_beam_size(self, beam_size):
         self.beam_size = beam_size
+
+    def set_length_penalty(self, length_penalty):
+        self.length_penalty = length_penalty
 
     def set_decoder_token_indexers(self, token_indexers):
         self.decoder_token_indexers = token_indexers
@@ -223,7 +228,7 @@ class STOG(Model):
         if encoder_token_subword_index is not None:
             encoder_token_subword_index = encoder_token_subword_index.long()
         encoder_token_inputs = batch['src_tokens']['encoder_tokens']
-        encoder_pos_tags = batch['src_pos_tags']
+        encoder_pos_tags = batch.get('src_pos_tags', None)
         encoder_must_copy_tags = batch['src_must_copy_tags']
         # [batch, num_tokens, num_chars]
         encoder_char_inputs = batch['src_tokens']['encoder_characters']
@@ -242,7 +247,10 @@ class STOG(Model):
 
         # [batch, num_tokens]
         decoder_token_inputs = batch['tgt_tokens']['decoder_tokens'][:, :-1].contiguous()
-        decoder_pos_tags = batch['tgt_pos_tags'][:, :-1]
+        if 'tgt_pos_tags' in batch:
+            decoder_pos_tags = batch['tgt_pos_tags'][:, :-1]
+        else:
+            decoder_pos_tags = None
         # [batch, num_tokens, num_chars]
         decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, :-1].contiguous()
         # TODO: The following change can be done in amr.py.
@@ -809,7 +817,7 @@ class STOG(Model):
                 for index in eos_beam_indices_offset.tolist():
                     eos_batch_idx = int(index / beam_size)
                     eos_beam_idx = index % beam_size
-                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / (step + 1)
+                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / ((step + 1) ** self.length_penalty)
                     if step > 0 and hypo_score > bucket_max_score[eos_batch_idx] and eos_beam_idx == 0:
                         bucket_max_score[eos_batch_idx] = hypo_score
                         bucket[eos_batch_idx] += [
@@ -899,7 +907,8 @@ class STOG(Model):
                     beam_indices
                 ).split(1, 1)
             )
-            variables["coverage"] = beam_select_1d(coverage, beam_indices)
+            if self.use_coverage:
+                variables["coverage"] = beam_select_1d(coverage, beam_indices)
 
 
         for batch_idx, item in enumerate(bucket):
