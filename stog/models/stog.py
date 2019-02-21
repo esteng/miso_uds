@@ -62,6 +62,7 @@ class STOG(Model):
                  use_coverage,
                  use_aux_encoder,
                  use_bert,
+                 use_pos_tags,
                  max_decode_length,
                  # Encoder
                  bert_encoder,
@@ -99,6 +100,7 @@ class STOG(Model):
         self.use_coverage = use_coverage
         self.use_aux_encoder = use_aux_encoder
         self.use_bert = use_bert
+        self.use_pos_tags = use_pos_tags
         self.max_decode_length = max_decode_length
 
         self.bert_encoder = bert_encoder
@@ -411,8 +413,11 @@ class STOG(Model):
             encoder_inputs += [bert_embeddings]
 
         token_embeddings = self.encoder_token_embedding(tokens)
-        pos_tag_embeddings = self.encoder_pos_embedding(pos_tags)
-        encoder_inputs += [token_embeddings, pos_tag_embeddings]
+        encoder_inputs += [token_embeddings]
+
+        if self.use_pos_tags:
+            pos_tag_embeddings = self.encoder_pos_embedding(pos_tags)
+            encoder_inputs += [pos_tag_embeddings]
 
         if self.use_must_copy_embedding:
             must_copy_tag_embeddings = self.encoder_must_copy_embedding(must_copy_tags)
@@ -443,15 +448,22 @@ class STOG(Model):
             self, tokens, pos_tags, chars, corefs, memory_bank, mask, states, tgt_mask):
         # [batch, num_tokens, embedding_size]
         token_embeddings = self.decoder_token_embedding(tokens)
-        pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
-        coref_embeddings = self.decoder_coref_embedding(corefs)
+        decoder_inputs = [token_embeddings]
+
+        if self.use_pos_tags:
+            pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
+            decoder_inputs.append(pos_tag_embeddings)
+
+        if True:
+            coref_embeddings = self.decoder_coref_embedding(corefs)
+            decoder_inputs.append(coref_embeddings) 
+
         if self.use_char_cnn:
             char_cnn_output = self._get_decoder_char_cnn_output(chars)
-            decoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, coref_embeddings, char_cnn_output], 2)
-        else:
-            decoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
+            decoder_inputs.append(char_cnn_output)
+
+        decoder_inputs = torch.cat(decoder_inputs, 2)
+
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
         decoder_outputs = self.decoder(decoder_inputs, memory_bank, mask, states)
 
@@ -623,9 +635,18 @@ class STOG(Model):
 
 
         def get_decoder_input(tokens, pos_tags, corefs):
+            decoder_inputs = []
+
             token_embeddings = self.decoder_token_embedding(tokens)
-            pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
-            coref_embeddings = self.decoder_coref_embedding(corefs)
+            decoder_inputs.append(token_embeddings)
+
+            if self.use_pos_tags:
+                pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
+                decoder_inputs.append(pos_tag_embeddings)
+
+            if True:
+                coref_embeddings = self.decoder_coref_embedding(corefs)
+                decoder_inputs.append(coref_embeddings)
 
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
@@ -651,12 +672,9 @@ class STOG(Model):
                     )
 
                 char_cnn_output = self._get_decoder_char_cnn_output(chars)
-                decoder_inputs = torch.cat(
-                    [token_embeddings, pos_tag_embeddings,
-                     coref_embeddings, char_cnn_output], 2)
-            else:
-                decoder_inputs = torch.cat(
-                    [token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
+                decoder_inputs.append(char_cnn_output)
+
+            decoder_inputs = torch.cat(decoder_inputs, 2)
 
             return self.decoder_embedding_dropout(decoder_inputs)
 
@@ -1208,8 +1226,11 @@ class STOG(Model):
 
         encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
         encoder_input_size += params['encoder_token_embedding']['embedding_dim']
-        encoder_pos_embedding = Embedding.from_params(vocab, params['encoder_pos_embedding'])
-        encoder_input_size += params['encoder_pos_embedding']['embedding_dim']
+        if params.get('use_pos_tags', False):
+            encoder_pos_embedding = Embedding.from_params(vocab, params['encoder_pos_embedding'])
+            encoder_input_size += params['encoder_pos_embedding']['embedding_dim']
+        else:
+            encoder_pos_embedding = None
 
         encoder_must_copy_embedding = None
         if params.get('use_must_copy_embedding', False):
@@ -1243,10 +1264,16 @@ class STOG(Model):
         decoder_input_size = params['decoder']['hidden_size']
         decoder_input_size += params['decoder_token_embedding']['embedding_dim']
         decoder_input_size += params['decoder_coref_embedding']['embedding_dim']
-        decoder_input_size += params['decoder_pos_embedding']['embedding_dim']
         decoder_token_embedding = Embedding.from_params(vocab, params['decoder_token_embedding'])
+
+        if params.get('use_pos_tags', False):
+            decoder_pos_embedding = Embedding.from_params(vocab, params['decoder_pos_embedding'])
+            decoder_input_size += params['decoder_pos_embedding']['embedding_dim']
+        else:
+            decoder_pos_embedding = None
+
         decoder_coref_embedding = Embedding.from_params(vocab, params['decoder_coref_embedding'])
-        decoder_pos_embedding = Embedding.from_params(vocab, params['decoder_pos_embedding'])
+
         if params['use_char_cnn']:
             decoder_char_embedding = Embedding.from_params(vocab, params['decoder_char_embedding'])
             decoder_char_cnn = CnnEncoder(
@@ -1365,6 +1392,7 @@ class STOG(Model):
             use_coverage=params['use_coverage'],
             use_aux_encoder=params.get('use_aux_encoder', False),
             use_bert=params.get('use_bert', False),
+            use_pos_tags=params.get('pos_tags', False),
             max_decode_length=params.get('max_decode_length', 50),
             bert_encoder=bert_encoder,
             encoder_token_embedding=encoder_token_embedding,
