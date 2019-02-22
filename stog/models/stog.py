@@ -63,6 +63,7 @@ class STOG(Model):
                  use_aux_encoder,
                  use_bert,
                  use_pos_tags,
+                 use_source_embedding,
                  max_decode_length,
                  # Encoder
                  bert_encoder,
@@ -101,6 +102,7 @@ class STOG(Model):
         self.use_aux_encoder = use_aux_encoder
         self.use_bert = use_bert
         self.use_pos_tags = use_pos_tags
+        self.use_source_embedding = use_source_embedding
         self.max_decode_length = max_decode_length
 
         self.bert_encoder = bert_encoder
@@ -412,8 +414,9 @@ class STOG(Model):
                 bert_embeddings = bert_embeddings[:, 1:-1]
             encoder_inputs += [bert_embeddings]
 
-        token_embeddings = self.encoder_token_embedding(tokens)
-        encoder_inputs += [token_embeddings]
+        if self.use_source_embedding:
+            token_embeddings = self.encoder_token_embedding(tokens)
+            encoder_inputs += [token_embeddings]
 
         if self.use_pos_tags:
             pos_tag_embeddings = self.encoder_pos_embedding(pos_tags)
@@ -1217,6 +1220,7 @@ class STOG(Model):
 
         # Encoder
         encoder_input_size = 0
+
         bert_encoder = None
         if params.get('use_bert', False):
             bert_encoder = Seq2SeqBertEncoder.from_pretrained(params['bert']['pretrained_model_dir'])
@@ -1224,13 +1228,15 @@ class STOG(Model):
             for p in bert_encoder.parameters():
                 p.requires_grad = False
 
-        encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
-        encoder_input_size += params['encoder_token_embedding']['embedding_dim']
+        encoder_token_embedding = None
+        if params.get('use_source_embedding', True):
+            encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
+            encoder_input_size += params['encoder_token_embedding']['embedding_dim']
+
+        encoder_pos_embedding = None
         if params.get('use_pos_tags', False):
             encoder_pos_embedding = Embedding.from_params(vocab, params['encoder_pos_embedding'])
             encoder_input_size += params['encoder_pos_embedding']['embedding_dim']
-        else:
-            encoder_pos_embedding = None
 
         encoder_must_copy_embedding = None
         if params.get('use_must_copy_embedding', False):
@@ -1238,7 +1244,9 @@ class STOG(Model):
             vocab, params['encoder_must_copy_embedding'])
             encoder_input_size += params['encoder_must_copy_embedding']['embedding_dim']
 
-        if params['use_char_cnn']:
+        encoder_char_embedding = None
+        encoder_char_cnn = None
+        if params.get('use_char_cnn', False):
             encoder_char_embedding = Embedding.from_params(vocab, params['encoder_char_embedding'])
             encoder_char_cnn = CnnEncoder(
                 embedding_dim=params['encoder_char_cnn']['embedding_dim'],
@@ -1247,9 +1255,6 @@ class STOG(Model):
                 conv_layer_activation=torch.tanh
             )
             encoder_input_size += params['encoder_char_cnn']['num_filters']
-        else:
-            encoder_char_embedding = None
-            encoder_char_cnn = None
 
         encoder_embedding_dropout = InputVariationalDropout(p=params['encoder_token_embedding']['dropout'])
 
@@ -1392,7 +1397,8 @@ class STOG(Model):
             use_coverage=params['use_coverage'],
             use_aux_encoder=params.get('use_aux_encoder', False),
             use_bert=params.get('use_bert', False),
-            use_pos_tags=params.get('pos_tags', False),
+            use_pos_tags=params.get('use_pos_tags', False),
+            use_source_embedding=params.get('use_source_embedding', True),
             max_decode_length=params.get('max_decode_length', 50),
             bert_encoder=bert_encoder,
             encoder_token_embedding=encoder_token_embedding,
