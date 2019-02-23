@@ -1,7 +1,7 @@
 # Parameters of the Seq2Seq Model
 
 # Device-sensitive parameters
-amr_data_dir: &amr_data_dir data/all_amr
+amr_data_dir: &amr_data_dir data/amr_2.0
 glove: &glove /export/ssd/sheng/data/glove/glove.840B.300d.zip
 
 
@@ -125,7 +125,7 @@ model:
     dropout: 0.33
 
   mimick_test:
-    data: data/all_amr/dev_amr.txt.features.preproc
+    data: data/amr_2.0/dev_amr.txt.features.preproc
     prediction: dev.pred.txt
     batch_size: 32
     eval_script: scripts/eval_test.sh
