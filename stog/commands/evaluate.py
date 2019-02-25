@@ -69,7 +69,7 @@ def evaluate_from_args(args):
     batch_size = args.batch_size if args.batch_size != -1 else config['data']['test_batch_size']
 
     logger.info("Reading evaluation data from %s", evaluation_data_path)
-    instances = load_dataset(evaluation_data_path, data_type)
+    instances = load_dataset(evaluation_data_path, data_type, **config['data'])
 
     iterator = BasicIterator(batch_size=batch_size)
     iterator.index_with(model.vocab)
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('evaluate.py', description=description)
 
     parser.add_argument('archive_file', type=str, help='path to an archived trained model')
-    parser.add_argument('--input_file', type=str, help='path to the file containing the evaluation data')
+    parser.add_argument('--input-file', type=str, help='path to the file containing the evaluation data')
     parser.add_argument('--output-file', type=str, help='path to output file')
     parser.add_argument('--weights-file', type=str, help='a path that overrides which weights file to use')
     parser.add_argument('--batch-size', type=int, default=-1, help='batch size')
