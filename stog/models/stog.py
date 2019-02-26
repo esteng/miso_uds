@@ -65,6 +65,8 @@ class STOG(Model):
                  use_pos_tags,
                  use_source_embedding,
                  use_coref_embedding,
+                 use_source_copy,
+                 use_target_copy,
                  max_decode_length,
                  # Encoder
                  bert_encoder,
@@ -105,6 +107,8 @@ class STOG(Model):
         self.use_pos_tags = use_pos_tags
         self.use_source_embedding = use_source_embedding
         self.use_coref_embedding = use_coref_embedding
+        self.use_source_copy = use_source_copy
+        self.use_target_copy = use_target_copy
         self.max_decode_length = max_decode_length
 
         self.bert_encoder = bert_encoder
@@ -1371,7 +1375,9 @@ class STOG(Model):
             vocab_size=vocab.get_vocab_size('decoder_token_ids'),
             force_copy=params['generator'].get('force_copy', True),
             # TODO: Set the following indices.
-            vocab_pad_idx=0
+            vocab_pad_idx=0,
+            source_copy=params.get('use_source_copy', True),
+            target_copy=params.get('use_target_copy', True)
         )
 
         graph_decoder = DeepBiaffineGraphDecoder.from_params(vocab, params['graph_decoder'])
@@ -1400,6 +1406,8 @@ class STOG(Model):
             use_pos_tags=params.get('use_pos_tags', False),
             use_source_embedding=params.get('use_source_embedding', True),
             use_coref_embedding=params.get('use_coref_embedding', True),
+            use_source_copy=params.get('use_source_copy', True),
+            use_target_copy=params.get('use_target_copy', True),
             max_decode_length=params.get('max_decode_length', 50),
             bert_encoder=bert_encoder,
             encoder_token_embedding=encoder_token_embedding,
