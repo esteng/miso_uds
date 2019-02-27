@@ -146,7 +146,6 @@ class PointerGenerator(torch.nn.Module):
         if not self.source_copy:
             source_copy_mask = source_copy_targets.gt(0)
             source_copy_targets = source_copy_mask.type_as(source_copy_targets) 
-            import pdb;pdb.set_trace()
 
         if not self.target_copy:
             target_copy_targets = target_copy_targets.new_zeros(target_copy_targets.size())
