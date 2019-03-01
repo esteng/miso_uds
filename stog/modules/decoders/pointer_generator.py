@@ -144,7 +144,8 @@ class PointerGenerator(torch.nn.Module):
         :param copy_attentions: [batch_size, num_target_nodes, num_source_nodes]
         """
         if not self.source_copy:
-            source_copy_targets[source_copy_targets.gt(1)] = 1
+            source_copy_mask = source_copy_targets.gt(0)
+            source_copy_targets = source_copy_mask.type_as(source_copy_targets) 
 
         if not self.target_copy:
             target_copy_targets = target_copy_targets.new_zeros(target_copy_targets.size())
