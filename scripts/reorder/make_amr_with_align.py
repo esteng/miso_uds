@@ -178,6 +178,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset_reader = AbstractMeaningRepresentationDatasetReader(skip_first_line=False)
+    dataset_reader._evaluation = True
     
     alignment = read_alignments(args.alignment) 
     

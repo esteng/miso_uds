@@ -1,7 +1,7 @@
 #!/bin/bash
 source activate stog
 
-data=/home/xma/projects/stog/stog/data
+data=/home/xma/projects/stog/data/LDC2017T10/preprocess
 train=${data}/train_amr.txt.features.preproc
 dev=${data}/dev_amr.txt.features.preproc
 fast_align=/home/xma/projects/stog/experiments/reorder/fast_align
@@ -18,8 +18,8 @@ reorder_type=$1
 #python ${BASEDIR}/make_amr_with_align.py --input $train --align train.align.output --type ${reorder_type}
 #exit 0
 
-python ${BASEDIR}/linearize_amr.py ${train} > train.align.input
-python ${BASEDIR}/linearize_amr.py ${dev} > dev.align.input
+python ${BASEDIR}/linearize_amr.py ${train} | grep -v "Better speed can be achieved with apex installed from https://www.github.com/nvidia/apex." > train.align.input
+python ${BASEDIR}/linearize_amr.py ${dev} |grep -v "Better speed can be achieved with apex installed from https://www.github.com/nvidia/apex." > dev.align.input
 
 cat train.align.input dev.align.input > all.align.input
 

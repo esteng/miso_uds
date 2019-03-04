@@ -81,7 +81,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         fields: Dict[str, Field] = {}
 
-        max_tgt_length = None if self._evaluation else 60
+        max_tgt_length = None #if self._evaluation else 80
 
         list_data = amr.graph.get_list_data(
             amr, START_SYMBOL, END_SYMBOL, self._word_splitter, max_tgt_length)

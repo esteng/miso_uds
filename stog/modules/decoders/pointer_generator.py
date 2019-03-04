@@ -106,7 +106,7 @@ class PointerGenerator(torch.nn.Module):
             scaled_copy_target_probs.contiguous()
         ], dim=2)
 
-        probs = probs / (1e-9 + torch.sum(probs, dim=-1, keepdim=True))
+        #probs = probs / (1e-9 + torch.sum(probs, dim=-1, keepdim=True))
 
         # Set the probability of coref NA to 0.
         _probs = probs.clone()

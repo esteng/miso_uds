@@ -628,20 +628,25 @@ class AMRGraph(penman.Graph):
 
         return self.reorder_dict(
             {
-                "tgt_tokens" : tgt_tokens,
-                "tgt_pos_tags": tgt_pos_tags,
-                "tgt_copy_indices" : tgt_copy_indices,
-                "tgt_copy_map" : tgt_copy_map,
-                "tgt_copy_mask" : tgt_copy_mask,
-                "src_tokens" : src_tokens,
-                "src_pos_tags": src_pos_tags,
-                "src_copy_vocab" : src_copy_vocab,
-                "src_copy_indices" : src_copy_indices,
-                "src_copy_map" : src_copy_map,
-                "pos_tag_lut": pos_tag_lut,
-                "head_tags" : head_tags,
-                "head_indices" : head_indices,
-            },
+                            "tgt_tokens" : tgt_tokens,
+                            "tgt_pos_tags": tgt_pos_tags,
+                            "tgt_copy_indices" : tgt_copy_indices,
+                            "tgt_copy_map" : tgt_copy_map,
+                            "tgt_copy_mask" : tgt_copy_mask,
+                            "src_tokens" : src_tokens,
+                            "src_token_ids" : src_token_ids,
+                            "src_token_subword_index" : src_token_subword_index,
+                            "src_must_copy_tags" : src_must_copy_tags,
+                            "src_pos_tags": src_pos_tags,
+                            "src_copy_vocab" : src_copy_vocab,
+                            "src_copy_indices" : src_copy_indices,
+                            "src_copy_map" : src_copy_map,
+                            "pos_tag_lut": pos_tag_lut,
+                            "head_tags" : head_tags,
+                            "head_indices" : head_indices,
+                            "src_copy_invalid_ids" : src_copy_invalid_ids
+            }
+            ,
             amr.reorder
         )
     
@@ -664,7 +669,7 @@ class AMRGraph(penman.Graph):
         #tokens = data_dict["tgt_tokens"][1:-1]
         #for head_idx, tag, token in zip(data_dict["head_indices"], data_dict["head_tags"], tokens):
         #    print(data_dict["tgt_tokens"][head_idx], tag, token)
-        #import pdb;pdb.set_trace()
+        print(reorder_list)
         data_dict["tgt_tokens"] = \
             [data_dict["tgt_tokens"][0]] + [
                 data_dict["tgt_tokens"][1 + reorder_reverse_map[idx]] for idx in range(len(data_dict["tgt_tokens"]) - 2)
@@ -836,6 +841,7 @@ class AMRGraph(penman.Graph):
             head_labels = ["root"]
             corefs = [1]
 
+        #import pdb;pdb.set_trace()
 
 
         triples = []
@@ -857,7 +863,7 @@ class AMRGraph(penman.Graph):
             variable_map['vv{}'.format(coref_index)] = node
         # Build edge triples and other attribute triples.
         for i, head_index in enumerate(heads):
-            if head_index == 0:
+            if head_index == 0 or head_labels[i] == 'root':
                 top_variable = 'vv{}'.format(corefs[i])
                 if top_variable not in variable_map:
                     variable_map[top_variable] = nodes[i]
