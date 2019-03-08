@@ -16,6 +16,8 @@ editdistance
 word2number
 bs4
 lxml
+networkx
+ipython   
 
 # Write logs for training visualisation with the Tensorboard application
 # Install the Tensorboard application separately (part of tensorflow) to view them.
