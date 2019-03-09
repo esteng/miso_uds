@@ -1,110 +1,75 @@
 import os
 import argparse
 
+from collections import defaultdict
+
 from stog.utils.params import Params
 from stog.utils import logging
-from stog.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader, Seq2SeqDatasetReader
-from stog.data.iterators import BucketIterator, BasicIterator
+from stog.data.dataset_readers import DatasetReader
+from stog.data.iterators.data_iterator import DataIterator
 from stog.data.token_indexers import SingleIdTokenIndexer,TokenCharactersIndexer
+from stog.data.vocabulary import Vocabulary
 
 ROOT_TOKEN="<root>"
 ROOT_CHAR="<r>"
 logger = logging.init_logger()
 
+def seq2seq_token_char_indexers(*args, **kwargs):
+    return dict(
+        encoder_tokens=SingleIdTokenIndexer(namespace="encoder_token_ids"),
+        encoder_characters=TokenCharactersIndexer(namespace="encoder_token_characters"),
+        decoder_tokens=SingleIdTokenIndexer(namespace="decoder_token_ids"),
+        decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
+    )
 
-def load_dataset_reader(dataset_type, *args, **kwargs):
-    if dataset_type == "UD":
-        dataset_reader = UniversalDependenciesDatasetReader(
-            token_indexers= {
-                "tokens" : SingleIdTokenIndexer(namespace="token_ids"),
-                "characters" : TokenCharactersIndexer(namespace="token_characters")
-            }
-        )
-    elif dataset_type == "AMR":
-        # TODO: Xutai
-        dataset_reader = AbstractMeaningRepresentationDatasetReader(
-            token_indexers=dict(
-                encoder_tokens=SingleIdTokenIndexer(namespace="encoder_token_ids"),
-                encoder_characters=TokenCharactersIndexer(namespace="encoder_token_characters"),
-                decoder_tokens=SingleIdTokenIndexer(namespace="decoder_token_ids"),
-                decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
-            ),
-            word_splitter=kwargs.get('word_splitter', None)
-        )
-
-    elif dataset_type == "MT":
-        dataset_reader = Seq2SeqDatasetReader(
-            token_indexers= dict(
-                encoder_tokens=SingleIdTokenIndexer(namespace="encoder_token_ids"),
-                encoder_characters=TokenCharactersIndexer(namespace="encoder_token_characters"),
-                decoder_tokens=SingleIdTokenIndexer(namespace="decoder_token_ids"),
-                decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
-            )
-        )
-
-    return dataset_reader
-
-
-def load_dataset(path, dataset_type, *args, **kwargs):
-    return load_dataset_reader(dataset_type, *args, **kwargs).read(path)
-
+def load_dataset(path, params):
+    return DatasetReader.by_name(params["type"])(
+        token_indexers=seq2seq_token_char_indexers(),
+        word_splitter=params.get('word_splitter', None)
+    ).read(path)
 
 def dataset_from_params(params):
+    data_dict = defaultdict()
 
-    train_data = os.path.join(params['data_dir'], params['train_data'])
-    dev_data = os.path.join(params['data_dir'], params['dev_data'])
-    test_data = params['test_data']
-    data_type = params['data_type']
+    for section in ["train", "dev", "test"]:
+        if params.get(section, None) is not None:
+            logger.info("Building {} datasets ...".format(section))
+            data_dict[section] = load_dataset(
+                os.path.join(params['directory'], params[section]), 
+                params
+            )
 
-    logger.info("Building train datasets ...")
-    train_data = load_dataset(train_data, data_type, **params)
-
-    logger.info("Building dev datasets ...")
-    dev_data = load_dataset(dev_data, data_type, **params)
-
-    if test_data:
-        test_data = os.path.join(params['data_dir'], params['test_data'])
-        logger.info("Building test datasets ...")
-        test_data = load_dataset(test_data, data_type, **params)
-
-    #logger.info("Building vocabulary ...")
-    #build_vocab(fields, train_data)
-
-    return dict(
-        train=train_data,
-        dev=dev_data,
-        test=test_data
-    )
+    return data_dict
 
 
 def iterator_from_params(vocab, params):
-    # TODO: There are some other options for iterator, I think we consider about it later.
-    iter_type = params['iter_type']
     train_batch_size = params['train_batch_size']
     test_batch_size = params['test_batch_size']
 
-    if iter_type == "BucketIterator":
-        train_iterator = BucketIterator(
-            sorting_keys=[("tgt_tokens", "num_tokens")],
-            batch_size=train_batch_size,
-        )
-    elif iter_type == "BasicIterator":
-        train_iterator = BasicIterator(
-            batch_size=train_batch_size
-        )
-    else:
-        raise NotImplementedError
+    train_iter_param = dict(batch_size=train_batch_size)
 
-    dev_iterator = BasicIterator(
-        batch_size=train_batch_size
-    )
+    if params["type"] == "bucket":
+        train_iter_param["sorting_keys"]=[("tgt_tokens", "num_tokens")]
 
-    test_iterator = BasicIterator(
-        batch_size=test_batch_size
-    )
-
+    train_iterator = DataIterator.by_name(params["type"])(**train_iter_param)
     train_iterator.index_with(vocab)
+
+    dev_iterator = DataIterator.by_name("basic")(batch_size=train_batch_size)
     dev_iterator.index_with(vocab)
+
+    test_iterator = DataIterator.by_name("basic")(batch_size=test_batch_size)
     test_iterator.index_with(vocab)
 
-    return train_iterator, dev_iterator, test_iterator
+    return {
+        "train" : train_iterator, 
+        "dev" : dev_iterator, 
+        "test" : test_iterator
+    }
+
+def vocab_from_params(params, dataset, path_to_save=None):
+    # Vocabulary and iterator are created here.
+    vocab = Vocabulary.from_instances(instances=dataset, **params)
+    # Initializing the model can have side effect of expanding the vocabulary
+    if path_to_save is not None:
+        vocab.save_to_files(path_to_save)
+    return vocab

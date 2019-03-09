@@ -8,8 +8,7 @@ import torch
 from stog.utils import logging
 from stog.utils.params import Params, remove_pretrained_embedding_params
 from stog import models as Models
-from stog.data.dataset_builder import dataset_from_params, iterator_from_params
-from stog.data.vocabulary import Vocabulary
+from stog.data.dataset_builder import dataset_from_params, iterator_from_params, vocab_from_params
 from stog.training.trainer import Trainer
 from stog.utils import environment
 from stog.utils.checks import ConfigurationError
@@ -92,19 +91,12 @@ def train_model(params: Params):
     params['trainer']['device'] = device
 
     # Load data.
-    data_params = params['data']
-    dataset = dataset_from_params(data_params)
-    train_data = dataset['train']
-    dev_data = dataset.get('dev')
-    test_data = dataset.get('test')
+    dataset = dataset_from_params(params["data"])
 
-    # Vocabulary and iterator are created here.
-    vocab_params = params.get('vocab', {})
-    vocab = Vocabulary.from_instances(instances=train_data, **vocab_params)
-    # Initializing the model can have side effect of expanding the vocabulary
-    vocab.save_to_files(os.path.join(environment_params['serialization_dir'], "vocabulary"))
+    vocab = vocab_from_params(params["vocab"], dataset["train"],
+                              os.path.join(environment_params['serialization_dir'], "vocabulary")) 
 
-    train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, data_params)
+    iterators = iterator_from_params(vocab, params["iterator"])
 
     # Build the model.
     model_params = params['model']
@@ -127,7 +119,7 @@ def train_model(params: Params):
     for name in tunable_parameter_names:
         logger.info(name)
 
-    trainer = Trainer.from_params(model, train_data, dev_data, train_iterator, dev_iterater, trainer_params)
+    trainer = Trainer.from_params(model, dataset["train"], dataset["dev"], iterators["train"], iterators["dev"], trainer_params)
 
     serialization_dir = trainer_params['serialization_dir']
     try:

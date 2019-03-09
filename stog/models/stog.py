@@ -23,7 +23,7 @@ from stog.utils.string import START_SYMBOL, END_SYMBOL, find_similar_token, is_a
 from stog.data.vocabulary import DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN
 from stog.data.tokenizers.character_tokenizer import CharacterTokenizer
 # The following imports are added for mimick testing.
-from stog.data.dataset_builder import load_dataset_reader
+from stog.data.dataset_builder import load_dataset
 from stog.predictors.predictor import Predictor
 from stog.commands.predict import _PredictManager
 import subprocess
@@ -169,7 +169,7 @@ class STOG(Model):
         word_splitter = None
         if self.use_bert:
             word_splitter = self.test_config.get('word_splitter', None)
-        dataset_reader = load_dataset_reader('AMR', word_splitter=word_splitter)
+        dataset_reader = load_dataset('AMR', word_splitter=word_splitter)
         dataset_reader.set_evaluation()
         predictor = Predictor.by_name('STOG')(self, dataset_reader)
         manager = _PredictManager(
@@ -1226,8 +1226,8 @@ class STOG(Model):
 
         bert_encoder = None
         if params.get('use_bert', False):
-            bert_encoder = Seq2SeqBertEncoder.from_pretrained(params['bert']['pretrained_model_dir'])
-            encoder_input_size += params['bert']['hidden_size']
+            bert_encoder = Seq2SeqBertEncoder.from_pretrained(params['bert'])
+            encoder_input_size += bert_encoder.pooler.dense.out_features
             for p in bert_encoder.parameters():
                 p.requires_grad = False
 

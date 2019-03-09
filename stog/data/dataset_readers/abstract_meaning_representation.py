@@ -23,7 +23,7 @@ from stog.utils.string import START_SYMBOL, END_SYMBOL
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-@DatasetReader.register("amr_trees")
+@DatasetReader.register("abstract_meaning_representations")
 class AbstractMeaningRepresentationDatasetReader(DatasetReader):
     '''
     Dataset reader for AMR data

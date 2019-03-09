@@ -12,7 +12,8 @@ from stog.data.instance import Instance
 
 logger = logging.getLogger(__name__) # pylint: disable=invalid-name
 
-FIELDS = ["id", "form", "lemma", "pos", "head", "deprel", "top", "pred", "frame"]
+#FIELDS = ["id", "form", "lemma", "pos", "head", "deprel", "top", "pred", "frame"]
+FIELDS = ["id", "form", "lemma", "pos", "top", "pred", "frame"]
 
 def parse_sentence(sentence_blob: str) -> Tuple[List[Dict[str, str]], List[Tuple[int, int]], List[str]]:
     """
@@ -75,6 +76,7 @@ class SemanticDependenciesDatasetReader(DatasetReader):
     """
     def __init__(self,
                  token_indexers: Dict[str, TokenIndexer] = None,
+                 word_splitter = None,
                  lazy: bool = False) -> None:
         super().__init__(lazy)
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
