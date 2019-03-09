@@ -11,13 +11,13 @@ test_data=test.best.txt
 # ========== Set the above variables correctly ==========
 
 printf "Frame lookup...`date`\n"
-python -u -m stog.data.dataset_readers.amr_parsing.postprocess.node_restore \
+python -u -m miso.data.dataset_readers.amr_parsing.postprocess.node_restore \
     --amr_files ${test_data} \
     --util_dir ${util_dir} || exit
 printf "Done.`date`\n\n"
 
 printf "Expanding nodes...`date`\n"
-python -u -m stog.data.dataset_readers.amr_parsing.postprocess.expander \
+python -u -m miso.data.dataset_readers.amr_parsing.postprocess.expander \
     --amr_files ${test_data}.frame \
     --util_dir ${util_dir} || exit
 printf "Done.`date`\n\n"
