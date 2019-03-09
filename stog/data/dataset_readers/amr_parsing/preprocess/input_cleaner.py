@@ -260,24 +260,6 @@ def correct_errors(amr):
                 pos = ['CD', 'NN']
                 ner = ['NUMBER', 'O']
                 break
-            # if token == 'twice':
-            #     index = i
-            #     tokens = ['2', 'time']
-            #     pos = ['CD', 'NNS']
-            #     ner = ['NUMBER', 'O']
-            #     break
-            # if token.lower() in ('daily', 'everyday'):
-            #     index = i
-            #     tokens = ['every', '1', 'day']
-            #     pos = ['DT', 'CD', 'NN']
-            #     ner = ['O', 'NUMBER', 'O']
-            #     break
-            # if token.lower() == 'annual':
-            #     index = i
-            #     tokens = ['1', '-', 'year']
-            #     pos = ['CD', ':', 'NN']
-            #     ner = ['NUMBER', 'O', 'O']
-            #     break
         else:
             break
         if not isinstance(index, list):

@@ -1,5 +1,4 @@
 class Score:
-
     def __init__(self, node, amr):
         self.node = node
         self.amr = amr
