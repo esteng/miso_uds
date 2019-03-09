@@ -81,8 +81,6 @@ class Recategorizer:
         self.url_count = 0
         self.recat_url_count = 0
         self.removed_wiki_count = 0
-        self.score_entity_count = 0
-        self.recat_score_entity_count = 0
 
         self.name_type_cooccur_counter = defaultdict(lambda: defaultdict(int))
         self.name_op_cooccur_counter = defaultdict(lambda: defaultdict(int))
@@ -335,18 +333,6 @@ class Recategorizer:
         url_count, recat_url_count = url.abstract()
         self.url_count += url_count
         self.recat_url_count += recat_url_count
-
-    def recategorize_score_nodes(self, amr):
-        graph = amr.graph
-        scores = []
-        for node in graph.get_nodes():
-            if node.instance == 'score-entity':
-                self.score_entity_count += 1
-                score = SCORE(node, amr)
-                if score.span is not None:
-                    self.recat_score_entity_count += 1
-                scores.append(score)
-        SCORE.collapse_score_nodes(scores, amr)
 
     def _get_aligned_date(self, node, amr):
         date = Date(node, amr.graph)
