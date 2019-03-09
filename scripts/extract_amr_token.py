@@ -1,7 +1,7 @@
 import sys
 import argparse
 
-from stog.data.dataset_readers.abstract_meaning_representation import AbstractMeaningRepresentationDatasetReader
+from miso.data.dataset_readers.abstract_meaning_representation import AbstractMeaningRepresentationDatasetReader
 
 
 parser = argparse.ArgumentParser('extract_amr_token.py')

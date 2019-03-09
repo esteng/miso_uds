@@ -1,5 +1,5 @@
-from stog.data.dataset_readers.amr_parsing.amr import AMRGraph
-from stog.utils.string import START_SYMBOL, END_SYMBOL
+from miso.data.dataset_readers.amr_parsing.amr import AMRGraph
+from miso.utils.string import START_SYMBOL, END_SYMBOL
 
 
 def dry_load(amr):
@@ -30,7 +30,7 @@ def dry_load(amr):
 
 if __name__ == '__main__':
     import argparse
-    from stog.data.dataset_readers.amr_parsing.io import AMRIO
+    from miso.data.dataset_readers.amr_parsing.io import AMRIO
 
     parser = argparse.ArgumentParser('amr_loader_sanity_check.py')
     parser.add_argument('--data_files', nargs='+', help='AMR data files.')
