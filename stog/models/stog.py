@@ -775,13 +775,14 @@ class STOG(Model):
             # new word probs
             word_lprobs = fold(torch.log(1e-8 + generator_output['probs'].squeeze(1)))
 
+            if self.use_coverage:
+                coverage_loss = torch.sum(
+                    torch.min(coverage, _copy_attentions),
+                    dim=2
+                )
+            else:
+                coverage_loss = word_lprobs.new_zeros(batch_size, beam_size, 1)
 
-            coverage_loss = torch.sum(
-                torch.min(coverage, _copy_attentions),
-                dim=2
-            )
-
-            new_words_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs)
             new_all_scores = \
                 word_lprobs \
                 + beam_buffer["scores"].expand_as(word_lprobs) \
@@ -900,7 +901,10 @@ class STOG(Model):
                     beam_indices
                 ).split(1, 1)
             )
-            variables["coverage"] = beam_select_1d(coverage, beam_indices)
+            if self.use_coverage:
+                variables["coverage"] = beam_select_1d(coverage, beam_indices)
+            else:
+                variables["coverage"] = None
 
 
         for batch_idx, item in enumerate(bucket):
