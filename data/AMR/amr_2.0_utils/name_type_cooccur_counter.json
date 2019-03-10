@@ -1,0 +1,1302 @@
+{
+    "company": {
+        "MISC": 10,
+        "ORGANIZATION": 524,
+        "PERSON": 58,
+        "O": 110,
+        "CITY": 3,
+        "LOCATION": 3,
+        "URL": 1,
+        "TITLE": 1
+    },
+    "country": {
+        "NATIONALITY": 2185,
+        "COUNTRY": 6924,
+        "MONEY": 2,
+        "MISC": 346,
+        "O": 97,
+        "LOCATION": 205,
+        "PERSON": 11,
+        "ORGANIZATION": 30,
+        "IDEOLOGY": 3,
+        "CITY": 48,
+        "STATE_OR_PROVINCE": 21,
+        "TITLE": 1
+    },
+    "earthquake": {
+        "ORGANIZATION": 1,
+        "CITY": 1
+    },
+    "political-party": {
+        "ORGANIZATION": 291,
+        "MISC": 186,
+        "IDEOLOGY": 251,
+        "O": 121,
+        "RELIGION": 2,
+        "CAUSE_OF_DEATH": 2,
+        "TITLE": 2,
+        "PERSON": 1
+    },
+    "local-region": {
+        "LOCATION": 7,
+        "O": 9,
+        "STATE_OR_PROVINCE": 1,
+        "ORGANIZATION": 5,
+        "CITY": 1,
+        "MISC": 1
+    },
+    "government-organization": {
+        "ORGANIZATION": 660,
+        "O": 83,
+        "PERSON": 7,
+        "STATE_OR_PROVINCE": 11,
+        "LOCATION": 23,
+        "TITLE": 18,
+        "MISC": 6,
+        "NATIONALITY": 3,
+        "COUNTRY": 1
+    },
+    "mountain": {
+        "LOCATION": 2,
+        "PERSON": 1,
+        "O": 2,
+        "MISC": 1
+    },
+    "city": {
+        "LOCATION": 168,
+        "CITY": 923,
+        "O": 35,
+        "STATE_OR_PROVINCE": 70,
+        "PERSON": 14,
+        "ORGANIZATION": 25,
+        "MISC": 7
+    },
+    "military": {
+        "ORGANIZATION": 250,
+        "O": 39,
+        "NUMBER": 1,
+        "COUNTRY": 6,
+        "MISC": 2,
+        "TITLE": 3,
+        "PERSON": 1,
+        "NATIONALITY": 4
+    },
+    "county": {
+        "LOCATION": 27,
+        "ORGANIZATION": 2,
+        "CITY": 10,
+        "O": 3,
+        "PERSON": 1
+    },
+    "province": {
+        "STATE_OR_PROVINCE": 42,
+        "LOCATION": 56,
+        "RELIGION": 15,
+        "MISC": 17,
+        "COUNTRY": 1,
+        "CITY": 18,
+        "ORGANIZATION": 2,
+        "O": 8,
+        "PERSON": 4
+    },
+    "publication": {
+        "ORGANIZATION": 235,
+        "O": 132,
+        "NUMBER": 2,
+        "MISC": 5,
+        "RELIGION": 1,
+        "URL": 9,
+        "LOCATION": 2,
+        "PERSON": 21,
+        "CITY": 1,
+        "STATE_OR_PROVINCE": 1
+    },
+    "person": {
+        "PERSON": 6089,
+        "O": 669,
+        "MISC": 28,
+        "LOCATION": 29,
+        "ORGANIZATION": 99,
+        "CRIMINAL_CHARGE": 1,
+        "HANDLE": 19,
+        "TITLE": 22,
+        "NUMBER": 1,
+        "CITY": 57,
+        "RELIGION": 1,
+        "IDEOLOGY": 8,
+        "STATE_OR_PROVINCE": 1,
+        "COUNTRY": 10,
+        "URL": 1,
+        "DURATION": 3
+    },
+    "league": {
+        "ORGANIZATION": 3,
+        "O": 1
+    },
+    "theory": {
+        "NUMBER": 2,
+        "ORGANIZATION": 1,
+        "CITY": 1,
+        "O": 1
+    },
+    "country-region": {
+        "LOCATION": 33,
+        "STATE_OR_PROVINCE": 5,
+        "O": 10,
+        "COUNTRY": 6,
+        "ORGANIZATION": 3,
+        "MISC": 3,
+        "CITY": 2
+    },
+    "river": {
+        "CITY": 3,
+        "MISC": 1,
+        "STATE_OR_PROVINCE": 1,
+        "LOCATION": 6
+    },
+    "dynasty": {
+        "LOCATION": 1,
+        "O": 2
+    },
+    "disease": {
+        "O": 13,
+        "CAUSE_OF_DEATH": 84,
+        "ORGANIZATION": 1
+    },
+    "religious-group": {
+        "RELIGION": 322,
+        "MISC": 95,
+        "O": 57,
+        "IDEOLOGY": 120,
+        "TITLE": 1,
+        "ORGANIZATION": 8,
+        "PERSON": 4,
+        "LOCATION": 2
+    },
+    "organization": {
+        "O": 147,
+        "ORGANIZATION": 1223,
+        "MISC": 12,
+        "LOCATION": 59,
+        "PERSON": 17,
+        "COUNTRY": 2,
+        "RELIGION": 18,
+        "STATE_OR_PROVINCE": 1,
+        "NATIONALITY": 4,
+        "NUMBER": 1
+    },
+    "palace": {
+        "LOCATION": 1
+    },
+    "political-movement": {
+        "IDEOLOGY": 91,
+        "O": 25,
+        "ORGANIZATION": 31,
+        "CAUSE_OF_DEATH": 6,
+        "MISC": 14,
+        "LOCATION": 1,
+        "DATE": 1
+    },
+    "milk": {
+        "ORGANIZATION": 1
+    },
+    "festival": {
+        "O": 4,
+        "DATE": 21,
+        "DURATION": 2,
+        "PERSON": 1,
+        "SET": 3
+    },
+    "ethnic-group": {
+        "MISC": 93,
+        "O": 37,
+        "IDEOLOGY": 4,
+        "PERSON": 3,
+        "RELIGION": 3,
+        "NATIONALITY": 5,
+        "LOCATION": 3
+    },
+    "facility": {
+        "O": 19,
+        "LOCATION": 32,
+        "ORGANIZATION": 14,
+        "CITY": 5,
+        "PERSON": 7,
+        "MISC": 2
+    },
+    "road": {
+        "O": 6,
+        "LOCATION": 8,
+        "ORGANIZATION": 1
+    },
+    "city-district": {
+        "LOCATION": 14,
+        "O": 3,
+        "CITY": 16,
+        "PERSON": 2,
+        "ORGANIZATION": 3,
+        "MISC": 1
+    },
+    "band": {
+        "MISC": 1,
+        "O": 1
+    },
+    "game": {
+        "MISC": 27,
+        "COUNTRY": 1,
+        "O": 9,
+        "TITLE": 1,
+        "ORGANIZATION": 1
+    },
+    "event": {
+        "MISC": 8,
+        "O": 46,
+        "ORGANIZATION": 8,
+        "DATE": 4,
+        "CITY": 2,
+        "LOCATION": 3,
+        "DURATION": 2,
+        "PERSON": 3,
+        "CAUSE_OF_DEATH": 1
+    },
+    "location": {
+        "LOCATION": 8,
+        "PERSON": 1,
+        "O": 16,
+        "MISC": 2,
+        "ORGANIZATION": 6,
+        "NUMBER": 1,
+        "CITY": 5
+    },
+    "statue": {
+        "O": 1
+    },
+    "product": {
+        "NUMBER": 7,
+        "O": 90,
+        "MISC": 14,
+        "ORGANIZATION": 28,
+        "PERSON": 7,
+        "TITLE": 2
+    },
+    "thing": {
+        "O": 101,
+        "ORGANIZATION": 23,
+        "PERSON": 8,
+        "MISC": 11,
+        "TITLE": 1,
+        "COUNTRY": 1,
+        "IDEOLOGY": 3,
+        "DATE": 1,
+        "STATE_OR_PROVINCE": 3,
+        "LOCATION": 1,
+        "RELIGION": 1,
+        "CITY": 1
+    },
+    "university": {
+        "ORGANIZATION": 77,
+        "CITY": 5,
+        "LOCATION": 4,
+        "O": 3,
+        "TITLE": 2,
+        "MISC": 1
+    },
+    "ocean": {
+        "LOCATION": 17,
+        "NATIONALITY": 1,
+        "MISC": 1,
+        "O": 1
+    },
+    "strait": {
+        "LOCATION": 2,
+        "O": 2
+    },
+    "aircraft-type": {
+        "O": 16,
+        "MISC": 8,
+        "DATE": 1,
+        "ORGANIZATION": 2
+    },
+    "island": {
+        "LOCATION": 37,
+        "DATE": 1,
+        "PERSON": 5,
+        "MISC": 2,
+        "NATIONALITY": 1,
+        "ORGANIZATION": 1,
+        "O": 5,
+        "CITY": 1,
+        "COUNTRY": 3
+    },
+    "world-region": {
+        "LOCATION": 199,
+        "MISC": 34,
+        "O": 32,
+        "PERSON": 1,
+        "NATIONALITY": 11,
+        "CITY": 8,
+        "ORGANIZATION": 3
+    },
+    "regime": {
+        "PERSON": 1
+    },
+    "conference": {
+        "ORGANIZATION": 4,
+        "O": 10,
+        "MISC": 2
+    },
+    "language": {
+        "NATIONALITY": 40,
+        "MISC": 6,
+        "O": 8,
+        "COUNTRY": 1
+    },
+    "broadcast-program": {
+        "PERSON": 22,
+        "ORGANIZATION": 40,
+        "O": 38,
+        "STATE_OR_PROVINCE": 1,
+        "URL": 1,
+        "LOCATION": 1
+    },
+    "variable": {
+        "O": 25
+    },
+    "family": {
+        "PERSON": 8,
+        "O": 6,
+        "MISC": 1,
+        "ORGANIZATION": 4
+    },
+    "station": {
+        "LOCATION": 2,
+        "ORGANIZATION": 2,
+        "CITY": 1,
+        "O": 2
+    },
+    "lot": {
+        "O": 2
+    },
+    "group": {
+        "O": 8,
+        "ORGANIZATION": 24,
+        "IDEOLOGY": 1,
+        "LOCATION": 3,
+        "PERSON": 1
+    },
+    "sea": {
+        "ORGANIZATION": 1,
+        "LOCATION": 14,
+        "MISC": 1
+    },
+    "continent": {
+        "LOCATION": 132,
+        "CITY": 37,
+        "NATIONALITY": 113,
+        "COUNTRY": 8,
+        "O": 6,
+        "MISC": 8,
+        "IDEOLOGY": 1,
+        "MONEY": 1
+    },
+    "pass": {
+        "LOCATION": 1
+    },
+    "missile": {
+        "O": 15,
+        "MISC": 1,
+        "PERSON": 1
+    },
+    "newspaper": {
+        "ORGANIZATION": 77,
+        "O": 24,
+        "DATE": 1,
+        "STATE_OR_PROVINCE": 2,
+        "MISC": 4,
+        "PERSON": 4,
+        "SET": 1
+    },
+    "war": {
+        "O": 39,
+        "CAUSE_OF_DEATH": 24,
+        "COUNTRY": 3,
+        "NUMBER": 2,
+        "MISC": 2
+    },
+    "park": {
+        "ORGANIZATION": 1,
+        "LOCATION": 6,
+        "MISC": 1,
+        "O": 1
+    },
+    "amusement-park": {
+        "ORGANIZATION": 9,
+        "LOCATION": 6
+    },
+    "law": {
+        "O": 126,
+        "ORGANIZATION": 14,
+        "PERSON": 11,
+        "MISC": 22,
+        "ORDINAL": 4,
+        "NUMBER": 4,
+        "DATE": 2
+    },
+    "theater": {
+        "LOCATION": 1
+    },
+    "wheel": {
+        "PERSON": 1
+    },
+    "work-of-art": {
+        "PERSON": 8,
+        "O": 23,
+        "LOCATION": 1
+    },
+    "channel": {
+        "ORGANIZATION": 6,
+        "MISC": 1
+    },
+    "state": {
+        "STATE_OR_PROVINCE": 286,
+        "LOCATION": 18,
+        "PERSON": 1,
+        "MISC": 11,
+        "CITY": 5,
+        "ORGANIZATION": 3,
+        "O": 5
+    },
+    "book": {
+        "O": 54,
+        "ORGANIZATION": 3,
+        "PERSON": 3,
+        "LOCATION": 6,
+        "MISC": 7,
+        "DATE": 3
+    },
+    "research-institute": {
+        "ORGANIZATION": 40,
+        "O": 4
+    },
+    "treaty": {
+        "ORGANIZATION": 45,
+        "MISC": 13,
+        "O": 37
+    },
+    "documentary": {
+        "O": 4
+    },
+    "small-molecule": {
+        "O": 29
+    },
+    "dispersant": {
+        "O": 1
+    },
+    "award": {
+        "O": 12,
+        "TITLE": 1,
+        "MISC": 6
+    },
+    "miltary": {
+        "ORGANIZATION": 1
+    },
+    "fort": {
+        "LOCATION": 1
+    },
+    "store": {
+        "O": 5,
+        "ORGANIZATION": 4
+    },
+    "service": {
+        "O": 1,
+        "ORGANIZATION": 1
+    },
+    "animal": {
+        "PERSON": 2,
+        "O": 4,
+        "LOCATION": 2
+    },
+    "network": {
+        "ORGANIZATION": 4,
+        "O": 2
+    },
+    "page": {
+        "O": 2
+    },
+    "address": {
+        "URL": 1
+    },
+    "movie": {
+        "PERSON": 2,
+        "O": 1
+    },
+    "analyze-01": {
+        "ORGANIZATION": 1
+    },
+    "policy-01": {
+        "O": 1
+    },
+    "website": {
+        "O": 1,
+        "TITLE": 1,
+        "ORGANIZATION": 1
+    },
+    "program": {
+        "ORGANIZATION": 21,
+        "O": 17,
+        "MISC": 3,
+        "NUMBER": 2
+    },
+    "square": {
+        "LOCATION": 4
+    },
+    "street": {
+        "LOCATION": 4
+    },
+    "planet": {
+        "CITY": 2,
+        "LOCATION": 12,
+        "MISC": 1,
+        "O": 11,
+        "PERSON": 1
+    },
+    "bill": {
+        "MISC": 2,
+        "CRIMINAL_CHARGE": 1,
+        "O": 1,
+        "PERSON": 1
+    },
+    "term": {
+        "O": 1
+    },
+    "idea": {
+        "MISC": 1
+    },
+    "incident": {
+        "O": 3,
+        "MISC": 1,
+        "PERSON": 1,
+        "LOCATION": 1
+    },
+    "vaccine": {
+        "O": 1
+    },
+    "multivitamin": {
+        "MISC": 1
+    },
+    "idiot": {
+        "O": 1
+    },
+    "doctor": {
+        "PERSON": 6
+    },
+    "criminal-organization": {
+        "ORGANIZATION": 146,
+        "O": 36,
+        "PERSON": 12,
+        "IDEOLOGY": 1,
+        "MISC": 2,
+        "LOCATION": 3
+    },
+    "gymnast": {
+        "PERSON": 1
+    },
+    "series": {
+        "O": 3
+    },
+    "sports-facility": {
+        "LOCATION": 1,
+        "ORGANIZATION": 1,
+        "O": 1
+    },
+    "club": {
+        "ORGANIZATION": 1
+    },
+    "team": {
+        "O": 8,
+        "ORGANIZATION": 30
+    },
+    "legend": {
+        "PERSON": 1
+    },
+    "hospital": {
+        "ORGANIZATION": 4,
+        "CITY": 1
+    },
+    "bay": {
+        "CITY": 3,
+        "LOCATION": 2
+    },
+    "music": {
+        "O": 8
+    },
+    "machine": {
+        "O": 1,
+        "MISC": 1
+    },
+    "foundation": {
+        "ORGANIZATION": 1,
+        "PERSON": 1
+    },
+    "lotion": {
+        "O": 1
+    },
+    "oil": {
+        "ORGANIZATION": 1
+    },
+    "lash": {
+        "O": 1
+    },
+    "lipgloss": {
+        "O": 1
+    },
+    "nail": {
+        "O": 1
+    },
+    "trilogy": {
+        "O": 1
+    },
+    "film": {
+        "PERSON": 1,
+        "O": 11,
+        "MISC": 3
+    },
+    "market-sector": {
+        "O": 35,
+        "LOCATION": 4,
+        "ORGANIZATION": 8,
+        "PERSON": 1,
+        "CITY": 1
+    },
+    "category": {
+        "O": 2
+    },
+    "airport": {
+        "LOCATION": 3,
+        "PERSON": 1,
+        "ORGANIZATION": 1
+    },
+    "regional-group": {
+        "ORGANIZATION": 1,
+        "PERSON": 1
+    },
+    "region": {
+        "NATIONALITY": 1,
+        "ORGANIZATION": 1,
+        "O": 3,
+        "MISC": 1,
+        "CITY": 2
+    },
+    "prince": {
+        "PERSON": 2
+    },
+    "movement": {
+        "ORGANIZATION": 4,
+        "MISC": 1
+    },
+    "site": {
+        "ORGANIZATION": 2,
+        "PERSON": 1,
+        "O": 1
+    },
+    "man": {
+        "PERSON": 8
+    },
+    "market": {
+        "O": 3,
+        "ORGANIZATION": 2
+    },
+    "scientist": {
+        "PERSON": 1
+    },
+    "magazine": {
+        "O": 8,
+        "ORGANIZATION": 7,
+        "MISC": 4,
+        "PERSON": 8,
+        "DATE": 1
+    },
+    "car-make": {
+        "O": 9,
+        "LOCATION": 1,
+        "ORGANIZATION": 9,
+        "PERSON": 1
+    },
+    "tax": {
+        "O": 1
+    },
+    "religion": {
+        "RELIGION": 1
+    },
+    "territory": {
+        "O": 2,
+        "LOCATION": 4,
+        "ORGANIZATION": 2,
+        "NATIONALITY": 10
+    },
+    "journal": {
+        "O": 5,
+        "ORGANIZATION": 2
+    },
+    "natural-object": {
+        "O": 3,
+        "LOCATION": 2
+    },
+    "public-institution": {
+        "ORGANIZATION": 2
+    },
+    "model": {
+        "O": 2,
+        "PERSON": 1
+    },
+    "empire": {
+        "O": 1
+    },
+    "music-key": {
+        "O": 2,
+        "MISC": 1
+    },
+    "show": {
+        "O": 7,
+        "PERSON": 6,
+        "ORGANIZATION": 2,
+        "NUMBER": 2
+    },
+    "scale": {
+        "O": 2
+    },
+    "culture": {
+        "O": 1
+    },
+    "lake": {
+        "LOCATION": 1,
+        "PERSON": 4
+    },
+    "philosophy": {
+        "IDEOLOGY": 1,
+        "RELIGION": 1
+    },
+    "alias": {
+        "O": 1
+    },
+    "trio": {
+        "PERSON": 1
+    },
+    "aircraft": {
+        "NUMBER": 1,
+        "MISC": 1,
+        "O": 1
+    },
+    "blog-01": {
+        "O": 1
+    },
+    "ship": {
+        "O": 9,
+        "PERSON": 3,
+        "CITY": 3
+    },
+    "class": {
+        "O": 4
+    },
+    "situation": {
+        "NUMBER": 1
+    },
+    "vehicle": {
+        "MISC": 1,
+        "O": 9,
+        "ORGANIZATION": 1
+    },
+    "stack": {
+        "O": 1
+    },
+    "software": {
+        "O": 1
+    },
+    "feedback": {
+        "O": 1
+    },
+    "system": {
+        "O": 9,
+        "MISC": 6,
+        "NUMBER": 1
+    },
+    "cat": {
+        "O": 1
+    },
+    "soldier": {
+        "PERSON": 1
+    },
+    "clan": {
+        "PERSON": 2
+    },
+    "natural-disaster": {
+        "O": 7,
+        "CAUSE_OF_DEATH": 2,
+        "PERSON": 1
+    },
+    "clause": {
+        "ORGANIZATION": 1
+    },
+    "plan": {
+        "O": 1,
+        "ORGANIZATION": 1
+    },
+    "school": {
+        "O": 1,
+        "ORGANIZATION": 5,
+        "CITY": 1
+    },
+    "card": {
+        "O": 1,
+        "LOCATION": 1
+    },
+    "area": {
+        "CITY": 1,
+        "PERSON": 1
+    },
+    "agency": {
+        "ORGANIZATION": 30,
+        "O": 2
+    },
+    "order": {
+        "ORGANIZATION": 1
+    },
+    "agreement": {
+        "O": 1
+    },
+    "nucleic-acid": {
+        "O": 3
+    },
+    "virus": {
+        "O": 1,
+        "MISC": 3
+    },
+    "bathroom": {
+        "CITY": 1
+    },
+    "job": {
+        "O": 1
+    },
+    "survey": {
+        "MISC": 1
+    },
+    "issue-02": {
+        "MISC": 1
+    },
+    "rate-01": {
+        "O": 1
+    },
+    "worship-place": {
+        "ORGANIZATION": 4,
+        "O": 13,
+        "MISC": 2,
+        "RELIGION": 1,
+        "PERSON": 3,
+        "LOCATION": 3
+    },
+    "blog": {
+        "O": 2
+    },
+    "nationality": {
+        "NATIONALITY": 3,
+        "ORGANIZATION": 1
+    },
+    "pubication": {
+        "URL": 1
+    },
+    "project": {
+        "O": 3,
+        "ORGANIZATION": 2
+    },
+    "building": {
+        "LOCATION": 5,
+        "O": 2,
+        "ORGANIZATION": 2,
+        "MISC": 1
+    },
+    "guy": {
+        "PERSON": 1
+    },
+    "scheme": {
+        "MISC": 1
+    },
+    "format": {
+        "O": 1
+    },
+    "drug": {
+        "O": 6,
+        "MISC": 2
+    },
+    "special": {
+        "O": 1
+    },
+    "medical-condition": {
+        "O": 2
+    },
+    "volcano": {
+        "LOCATION": 1
+    },
+    "district": {
+        "LOCATION": 6,
+        "STATE_OR_PROVINCE": 1,
+        "CITY": 7
+    },
+    "helicopter": {
+        "MISC": 1,
+        "O": 2
+    },
+    "camp": {
+        "ORGANIZATION": 1,
+        "O": 1
+    },
+    "you": {
+        "PERSON": 1
+    },
+    "newsletter": {
+        "O": 1
+    },
+    "canal": {
+        "ORGANIZATION": 1,
+        "LOCATION": 1
+    },
+    "local": {
+        "ORGANIZATION": 1
+    },
+    "outlet": {
+        "MISC": 1
+    },
+    "firm": {
+        "ORGANIZATION": 6
+    },
+    "pistol": {
+        "MISC": 1
+    },
+    "gun": {
+        "O": 1
+    },
+    "report-01": {
+        "O": 1
+    },
+    "installation": {
+        "PERSON": 1
+    },
+    "department": {
+        "O": 1,
+        "PERSON": 1,
+        "LOCATION": 1
+    },
+    "child": {
+        "PERSON": 4
+    },
+    "title": {
+        "O": 1
+    },
+    "range": {
+        "CITY": 1,
+        "LOCATION": 1
+    },
+    "commission": {
+        "ORGANIZATION": 2
+    },
+    "force": {
+        "ORGANIZATION": 1
+    },
+    "operation": {
+        "ORGANIZATION": 1,
+        "O": 3,
+        "MISC": 2
+    },
+    "refuge": {
+        "LOCATION": 2,
+        "O": 1
+    },
+    "brother": {
+        "ORGANIZATION": 1
+    },
+    "character": {
+        "PERSON": 1
+    },
+    "song": {
+        "O": 1,
+        "MISC": 1
+    },
+    "era": {
+        "O": 1,
+        "MISC": 1
+    },
+    "giant": {
+        "O": 1
+    },
+    "hotel": {
+        "LOCATION": 2
+    },
+    "hostel": {
+        "ORGANIZATION": 1
+    },
+    "beach": {
+        "CITY": 2,
+        "LOCATION": 2
+    },
+    "sedan": {
+        "ORGANIZATION": 1
+    },
+    "name-01": {
+        "MISC": 1
+    },
+    "battle-01": {
+        "LOCATION": 1
+    },
+    "poet": {
+        "PERSON": 4
+    },
+    "bank": {
+        "ORGANIZATION": 6
+    },
+    "spaceship": {
+        "LOCATION": 4,
+        "MISC": 1,
+        "O": 6,
+        "ORGANIZATION": 1,
+        "CITY": 1,
+        "PERSON": 2
+    },
+    "town": {
+        "CITY": 6,
+        "LOCATION": 1
+    },
+    "peninsula": {
+        "LOCATION": 11,
+        "NATIONALITY": 2
+    },
+    "enzyme": {
+        "O": 7
+    },
+    "cell-line": {
+        "O": 1
+    },
+    "village": {
+        "LOCATION": 3
+    },
+    "protein": {
+        "O": 1
+    },
+    "musical-note": {
+        "O": 1
+    },
+    "museum": {
+        "STATE_OR_PROVINCE": 1
+    },
+    "television": {
+        "O": 1,
+        "NUMBER": 2,
+        "ORGANIZATION": 4
+    },
+    "body": {
+        "ORGANIZATION": 1
+    },
+    "platform": {
+        "PERSON": 2
+    },
+    "monopoly": {
+        "ORGANIZATION": 1
+    },
+    "subsidiary": {
+        "ORGANIZATION": 2
+    },
+    "journalist": {
+        "PERSON": 2
+    },
+    "dissident": {
+        "PERSON": 1
+    },
+    "jet": {
+        "O": 3,
+        "MISC": 3,
+        "DATE": 1
+    },
+    "bomb": {
+        "O": 1
+    },
+    "boy": {
+        "PERSON": 1
+    },
+    "radar": {
+        "ORGANIZATION": 1
+    },
+    "satellite": {
+        "ORGANIZATION": 2,
+        "MISC": 1
+    },
+    "seminar": {
+        "ORGANIZATION": 1
+    },
+    "reactor": {
+        "LOCATION": 3,
+        "ORGANIZATION": 1
+    },
+    "rocket": {
+        "O": 3,
+        "MISC": 4
+    },
+    "myth": {
+        "O": 1
+    },
+    "center": {
+        "O": 1
+    },
+    "institution": {
+        "PERSON": 1
+    },
+    "worm": {
+        "O": 4
+    },
+    "complex": {
+        "LOCATION": 2
+    },
+    "township": {
+        "LOCATION": 1
+    },
+    "desert": {
+        "CITY": 1
+    },
+    "lawyer": {
+        "PERSON": 4
+    },
+    "plant": {
+        "LOCATION": 1
+    },
+    "accomplice": {
+        "PERSON": 1
+    },
+    "supertanker": {
+        "CITY": 1
+    },
+    "revolution": {
+        "MISC": 4,
+        "O": 2
+    },
+    "submarine": {
+        "O": 5
+    },
+    "consortium": {
+        "ORGANIZATION": 1
+    },
+    "airliner": {
+        "O": 1
+    },
+    "radio": {
+        "ORGANIZATION": 1
+    },
+    "activist": {
+        "PERSON": 1
+    },
+    "valley": {
+        "CITY": 3
+    },
+    "destroyer": {
+        "O": 3
+    },
+    "republic": {
+        "STATE_OR_PROVINCE": 1,
+        "COUNTRY": 3
+    },
+    "field": {
+        "LOCATION": 2
+    },
+    "rifle": {
+        "MISC": 1
+    },
+    "castle": {
+        "MISC": 1
+    },
+    "port": {
+        "LOCATION": 3,
+        "CITY": 3
+    },
+    "counterpart": {
+        "O": 1
+    },
+    "initiative": {
+        "ORGANIZATION": 4
+    },
+    "gulf": {
+        "LOCATION": 3
+    },
+    "laboratory": {
+        "ORGANIZATION": 1
+    },
+    "moon": {
+        "PERSON": 2
+    },
+    "mission": {
+        "O": 2
+    },
+    "cartel": {
+        "CITY": 1
+    },
+    "enclave": {
+        "CITY": 2
+    },
+    "cosmonaut": {
+        "PERSON": 1
+    },
+    "plane": {
+        "O": 2,
+        "MISC": 1
+    },
+    "cleric": {
+        "PERSON": 1
+    },
+    "cosmodrome": {
+        "O": 1
+    },
+    "fleet": {
+        "LOCATION": 1
+    },
+    "report": {
+        "PERSON": 2
+    },
+    "businessman": {
+        "PERSON": 3
+    },
+    "restaurant": {
+        "ORGANIZATION": 2
+    },
+    "woman": {
+        "PERSON": 1
+    },
+    "estate": {
+        "MISC": 1
+    },
+    "madam": {
+        "PERSON": 1
+    },
+    "code": {
+        "O": 1
+    },
+    "attorney": {
+        "PERSON": 1
+    },
+    "draft": {
+        "O": 1
+    },
+    "shop": {
+        "ORGANIZATION": 1
+    },
+    "base": {
+        "ORGANIZATION": 1,
+        "CITY": 2
+    },
+    "prize": {
+        "O": 1
+    },
+    "medicine": {
+        "O": 1
+    },
+    "period": {
+        "O": 1
+    },
+    "exhibit-01": {
+        "COUNTRY": 1
+    }
+}
