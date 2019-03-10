@@ -10,14 +10,14 @@ from typing import Dict, List, Tuple, Union
 import torch
 import numpy as np
 
-from stog.utils.checks import ConfigurationError
-from stog.utils.logging import init_logger
-from stog.data.vocabulary import Vocabulary
-from stog.models.model import Model
-from stog.modules import StackedLstm
-from stog.modules.text_field_embedders import BasicTextFieldEmbedder
-from stog.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
-from stog.utils.nn import get_text_field_mask
+from miso.utils.checks import ConfigurationError
+from miso.utils.logging import init_logger
+from miso.data.vocabulary import Vocabulary
+from miso.models.model import Model
+from miso.modules import StackedLstm
+from miso.modules.text_field_embedders import BasicTextFieldEmbedder
+from miso.modules.seq2seq_encoders import PytorchSeq2SeqWrapper
+from miso.utils.nn import get_text_field_mask
 
 logger = init_logger()
 
@@ -98,13 +98,13 @@ class LanguageModel(Model):
                                           embedding_dim=self._forward_dim)
         self._bidirectional = False
         self.register_buffer('_last_average_loss', torch.zeros(1))
-         
+
         if dropout:
             self._dropout = torch.nn.Dropout(dropout)
         else:
             self._dropout = lambda x: x
         self.return_dict = {}
-            
+
     def _get_target_token_embeddings(self,
                                      token_embeddings: torch.Tensor,
                                      mask: torch.Tensor,
@@ -281,7 +281,7 @@ class LanguageModel(Model):
         # Not actually on dev
         return {'loss': self.return_dict['loss'],
                 'fwd': self.return_dict['forward_loss']}
-    
+
     @classmethod
     def from_params(cls, vocab, params):
         logger.info('Building model...')
@@ -291,7 +291,7 @@ class LanguageModel(Model):
             module=StackedLstm.from_params(params['encoder']),
             stateful=True
         )
-        
+
         model = LanguageModel(
             vocab=vocab,
             text_field_embedder=text_field_embedder,

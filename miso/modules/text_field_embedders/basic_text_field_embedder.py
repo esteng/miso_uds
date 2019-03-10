@@ -4,13 +4,13 @@ import warnings
 import torch
 from overrides import overrides
 
-from stog.utils.params import Params
+from miso.utils.params import Params
 from allennlp.common.checks import ConfigurationError
 from allennlp.data import Vocabulary
 from .text_field_embedder import TextFieldEmbedder
 from allennlp.modules.time_distributed import TimeDistributed
-from stog.modules.token_embedders.embedding import Embedding
-from stog.modules.token_embedders.token_embedder import TokenEmbedder
+from miso.modules.token_embedders.embedding import Embedding
+from miso.modules.token_embedders.token_embedder import TokenEmbedder
 
 
 @TextFieldEmbedder.register("basic")

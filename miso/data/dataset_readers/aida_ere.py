@@ -3,14 +3,14 @@ import logging
 
 from overrides import overrides
 
-from stog.utils.file import cached_path
-from stog.utils.tqdm import Tqdm
-from stog.data.instance import Instance
-from stog.data.tokenizers import WordTokenizer
-from stog.data.tokenizers.word_splitter import JustSpacesWordSplitter
-from stog.data.dataset_readers.dataset_reader import DatasetReader
-from stog.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
-from stog.data.fields import (Field,
+from miso.utils.file import cached_path
+from miso.utils.tqdm import Tqdm
+from miso.data.instance import Instance
+from miso.data.tokenizers import WordTokenizer
+from miso.data.tokenizers.word_splitter import JustSpacesWordSplitter
+from miso.data.dataset_readers.dataset_reader import DatasetReader
+from miso.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
+from miso.data.fields import (Field,
                               TextField,
                               MetadataField,
                               SequenceLabelField,

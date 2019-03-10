@@ -14,7 +14,6 @@ from miso.utils.nn import masked_log_softmax
 from miso.utils.nn import get_text_field_mask
 from miso.utils.logging import init_logger
 from miso.utils.string import START_SYMBOL, END_SYMBOL
-from miso.data.amr import AMRTree
 logger = init_logger()
 
 
@@ -191,6 +190,8 @@ class DeepBiaffineParser(Model, torch.nn.Module):
 
             coref = torch_dict['coref_index'][i][:current_len].tolist()
 
+            raise NotImplementedError
+            # TODO: replace the old `AMRTree` class with the updated version.
             t = AMRTree()
             t.recover_from_list(
                 {
