@@ -1,42 +1,39 @@
 # Stog: the String-to-Graph project
 
 This project is based on python 3.6 and the newest version of PyTorch.
+Stog is a deep learning framework used in Blab that contains re-usable 
+components for deep learning models.
 
-## Baselines
+For a detailed overview of Stog as a deep learning framework,
+see [OVERVIEW.md](https://gitlab.hltcoe.jhu.edu/szhang/stog/tree/master/docs/OVERVIEW.md).
+For a tutorial on how to add a new model, task and dataset in Stog, see
+[TUTORIAL.md](https://gitlab.hltcoe.jhu.edu/szhang/stog/tree/master/docs/TUTORIAL.md).
 
-- RNN Seq2Seq Model (see [this](https://gitlab.hltcoe.jhu.edu/research/mt-ie/tree/copy) for details) 
-- (Optional) Transition-based Semantic Parser
+## Installation
+Via conda
 
-## Stage-1 AMR Parsing Timeline
+- `conda env create -f stog.env -n stog_env`
+- `pip install -e . -r requirements.txt`
 
-- [x] Build a UD parser using the deep biaffine network.
-    - ETA: 9/24 - 10/14
-- [x] Build attention-based Seq2Seq for AMR concept prediction. 
-    - ETA: 10/15 - 11/12
-- [ ] Build the new self-copy mechanism.
-    - ETA: 11/12 - 11/30
-- [ ] Joint train AMR concept prediction and edge prediction.
-    - ETA: 12/1 - 12/15
-- [ ] Add AMR-specific pre- and post-processing
-    - ETA: 12/1 - 12/30
 
-## Thoughts about AMR
+## Running a Simple Language Model Example
 
-See this [issue](https://gitlab.hltcoe.jhu.edu/szhang/stog/issues/15).
+#### Training
+Example of training (on clsp grid):
 
-## Related Work
+```
+CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m stog.commands.train params/lm.yaml
+```
 
-- Deep Biaffine
-    - [ICLR2017](https://arxiv.org/pdf/1611.01734.pdf)
-    - [CoNLL2017](https://web.stanford.edu/~tdozat/files/TDozat-CoNLL2017-Paper.pdf)
-    - [CoNLL2018](http://universaldependencies.org/conll18/proceedings/pdf/K18-2016.pdf)
-- [NeuroNLP](https://github.com/XuezheMax/NeuroNLP2)
-- [SemEval 2015 Task 18](http://aclweb.org/anthology/S15-2153)
-    - [English DM](https://lindat.mff.cuni.cz/repository/xmlui/handle/11234/1-1956)
-- [CoNLL 2018 Shared Task](http://universaldependencies.org/conll18/)
-    - Evaluation Script
-- [Spider](https://yale-lily.github.io/spider)
+#### Update pre-trained model
+To recover (reload) and continue training from an existing model; or to override any
+parameters, the yaml files can be chained by comma, e.g.
 
-## Data
+```
+CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m stog.commands.train params/lm.yaml,params/recover.yaml
+```
 
-### [UDS Data](https://gitlab.hltcoe.jhu.edu/research/mt-ie/blob/copy/README.md#uds-data-cross-lingual-semantic-parsing-w-factuality-and-sprs)
+#### Testing a model
+
+*TODO*
+

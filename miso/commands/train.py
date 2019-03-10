@@ -104,7 +104,7 @@ def train_model(params: Params):
     # Initializing the model can have side effect of expanding the vocabulary
     vocab.save_to_files(os.path.join(environment_params['serialization_dir'], "vocabulary"))
 
-    train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, data_params)
+    train_iterator, dev_iterater, test_iterater = iterator_from_params(vocab, data_params['iterator'])
 
     # Build the model.
     model_params = params['model']
@@ -160,6 +160,7 @@ def train_model(params: Params):
         for key, value in test_metrics.items():
             metrics["test_" + key] = value
 
+        metrics = {k : v.item() for k,v in metrics.items() if isinstance(v, torch.Tensor)}
         dump_metrics(os.path.join(serialization_dir, "metrics.json"), metrics, log=True)
 
         # TODO: May not be a good way, but leave it for now
@@ -180,4 +181,3 @@ if __name__ == "__main__":
     logger.info(params)
 
     train_model(params)
-

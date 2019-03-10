@@ -16,6 +16,7 @@ from miso.utils.time import time_to_str
 from miso.modules.optimizer import Optimizer
 from miso.utils.exception_hook import ExceptionHook
 
+
 sys.excepthook = ExceptionHook()
 
 logger = logging.init_logger()

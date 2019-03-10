@@ -4,12 +4,13 @@ import warnings
 import torch
 from overrides import overrides
 
-from allennlp.common import Params
+from stog.utils.params import Params
 from allennlp.common.checks import ConfigurationError
 from allennlp.data import Vocabulary
-from allennlp.modules.text_field_embedders.text_field_embedder import TextFieldEmbedder
+from .text_field_embedder import TextFieldEmbedder
 from allennlp.modules.time_distributed import TimeDistributed
-from allennlp.modules.token_embedders.token_embedder import TokenEmbedder
+from stog.modules.token_embedders.embedding import Embedding
+from stog.modules.token_embedders.token_embedder import TokenEmbedder
 
 
 @TextFieldEmbedder.register("basic")
@@ -106,14 +107,14 @@ class BasicTextFieldEmbedder(TextFieldEmbedder):
         embedder_to_indexer_map = params.pop("embedder_to_indexer_map", None)
         if embedder_to_indexer_map is not None:
             embedder_to_indexer_map = embedder_to_indexer_map.as_dict(quiet=True)
-        allow_unmatched_keys = params.pop_bool("allow_unmatched_keys", False)
+        allow_unmatched_keys = bool(params.pop("allow_unmatched_keys", False))
 
         token_embedder_params = params.pop('token_embedders', None)
 
         if token_embedder_params is not None:
             # New way: explicitly specified, so use it.
             token_embedders = {
-                    name: TokenEmbedder.from_params(subparams, vocab=vocab)
+                    name: Embedding.from_params(vocab=vocab, params=subparams)
                     for name, subparams in token_embedder_params.items()
             }
 
@@ -127,7 +128,8 @@ class BasicTextFieldEmbedder(TextFieldEmbedder):
             keys = list(params.keys())
             for key in keys:
                 embedder_params = params.pop(key)
-                token_embedders[key] = TokenEmbedder.from_params(vocab=vocab, params=embedder_params)
+                token_embedders[key] = Embedding.from_params(vocab=vocab, params=embedder_params)
 
-        params.assert_empty(cls.__name__)
+        # TODO(pitrack): replace this line?
+        # params.assert_empty(cls.__name__)
         return cls(token_embedders, embedder_to_indexer_map, allow_unmatched_keys)

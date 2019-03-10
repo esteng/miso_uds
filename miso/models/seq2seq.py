@@ -19,6 +19,7 @@ from miso.utils.string import START_SYMBOL
 from miso.data.vocabulary import DEFAULT_OOV_TOKEN
 from miso.data.tokenizers.character_tokenizer import CharacterTokenizer
 
+
 logger = init_logger()
 
 

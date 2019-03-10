@@ -3,9 +3,13 @@ import argparse
 
 from miso.utils.params import Params
 from miso.utils import logging
-from miso.data.dataset_readers import UniversalDependenciesDatasetReader, AbstractMeaningRepresentationDatasetReader, Seq2SeqDatasetReader
 from miso.data.iterators import BucketIterator, BasicIterator
 from miso.data.token_indexers import SingleIdTokenIndexer,TokenCharactersIndexer
+from miso.data.dataset_readers import (UniversalDependenciesDatasetReader,
+                                       AbstractMeaningRepresentationDatasetReader,
+                                       Seq2SeqDatasetReader,
+                                       LanguageModelingDatasetReader,
+                                       AidaEreDatasetReader)
 
 ROOT_TOKEN="<root>"
 ROOT_CHAR="<r>"
@@ -41,6 +45,11 @@ def load_dataset_reader(dataset_type, *args, **kwargs):
                 decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
             )
         )
+    elif dataset_type == "LM":
+        dataset_reader = LanguageModelingDatasetReader() # all defaults
+
+    elif dataset_type == "AIDA":
+        dataset_reader = AidaEreDatasetReader()
 
     return dataset_reader
 
@@ -85,7 +94,7 @@ def iterator_from_params(vocab, params):
 
     if iter_type == "BucketIterator":
         train_iterator = BucketIterator(
-            sorting_keys=[("tgt_tokens", "num_tokens")],
+            sorting_keys=list(map(tuple, params.get('sorting_keys', []))),
             batch_size=train_batch_size,
         )
     elif iter_type == "BasicIterator":
