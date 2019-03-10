@@ -1,0 +1,36 @@
+﻿<!DOCTYPE frameset SYSTEM "frameset.dtd">
+<frameset>
+  <predicate lemma="glycosylate">
+    <roleset id="glycosylate.01" name="to add glyosyl radicals to a protein to form a glycoprotein">
+      <aliases>
+        <alias framenet="" pos="v" verbnet="">glycosylate</alias>
+      </aliases>
+      <note>GLYCOSYLATE-V NOTES: (from glycosylate.01-v) Extended for Bio AMRs by Bianca and Ulf.</note>
+      <roles>
+        <role descr="Intentional agent" f="PAG" n="0"/>
+        <role descr="Protein glycosylated" f="PPT" n="1"/>
+        <role descr="Instrument, drug" f="" n="2"></role>
+        <role descr="Result of glycosylation" f="" n="3"></role>
+      </roles>
+      <example name="Arg0,1" src="" type="">
+        <inflection aspect="ns" form="ns" person="ns" tense="ns" voice="ns"/>
+        <text>They glycosylated insulin, complexed it with Con A, and retained the complex within a membrane capsule, which allowed glucose to diffuse in, disrupt the Con A-SAPG insulin complex, and release insulin, which diffuses out.</text>
+        <arg f="" n="0">They</arg>
+        <rel f="">glycosylated</rel>
+        <arg f="" n="1">insulin</arg>
+      </example>
+      <example name="passivized form, with result" src="" type="">
+        <text>Also lipids can be glycosylated to form glycolipids, which are integral components of biological membranes.</text>
+        <arg f="" n="1">lipids</arg>
+        <rel f="">glycosylated</rel>
+        <arg f="" n="3">glycolipids, which are integral components of biological membranes</arg>
+      </example>
+      <example name="example with instrument" src="" type="">
+        <text>A hydroxyproline-containing class IV chitinase of sugar beet is glycosylated with xylose.</text>
+        <arg f="" n="1">A hydroxyproline-containing class IV chitinase of sugar beet</arg>
+        <rel f="">glycosylated</rel>
+        <arg f="" n="2">xylose</arg>
+      </example>
+    </roleset>
+  </predicate>
+</frameset>

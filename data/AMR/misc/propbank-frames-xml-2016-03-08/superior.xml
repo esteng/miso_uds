@@ -1,0 +1,30 @@
+<!DOCTYPE frameset SYSTEM "frameset.dtd">
+<frameset>
+  <predicate lemma="superior">
+    <roleset id="superior.01" name="superior">
+      <aliases>
+        <alias framenet="" pos="j" verbnet="">superior</alias>
+      </aliases>
+      <note>SUPERIOR-J NOTES: (from superior.01-j)</note>
+      <roles>
+        <role descr="superior entity" f="PPT" n="1"/>
+        <role descr="superior to what/whom?" f="" n="2"/>
+      </roles>
+      <example name="a rather tenuous claim!, both arguments" src="" type="">
+        <text>Ice cream is superior to frozen yogurt.</text>
+        <rel f="">superior</rel>
+        <arg f="" n="1">Ice cream</arg>
+        <arg f="" n="2">to frozen yogurt</arg>
+      </example>
+    </roleset>
+    <roleset id="superior-yy" name="boss (and other non-predicate senses)" usage="AMR">
+      <roles/>
+      <example name="his superiors" src="" type="">
+        <text>He passed on the message to his superiors.</text>
+      </example>
+      <example name="his superior" src="" type="">
+        <text>He undermined his superior's decision.</text>
+      </example>
+    </roleset>
+  </predicate>
+</frameset>

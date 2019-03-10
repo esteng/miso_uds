@@ -1,0 +1,43 @@
+<!DOCTYPE frameset SYSTEM "frameset.dtd">
+<frameset>
+  <predicate lemma="hyperlink">
+    <roleset id="hyperlink.01" name="provide an active link to a website">
+      <aliases>
+        <alias framenet="" pos="v" verbnet="">hyperlink</alias>
+      </aliases>
+      <note>HYPERLINK-V NOTES: Created by Claire (from hyperlink.01-v)</note>
+      <roles>
+        <role descr="agent, entity providing hyperlink" f="pag" n="0"/>
+        <role descr="focus of linking, document containing the hyperlink" f="ppt" n="1"/>
+        <role descr="site hyperlink leads to" f="gol" n="2"/>
+        <role descr="hyperlink itself, URL (probably unlikely?)" f="vsp" n="3"/>
+      </roles>
+      <example name="Site your sources!" src="Site your sources!" type="Site your sources!">
+        <inflection aspect="ns" form="ns" person="ns" tense="ns" voice="ns"/>
+        <text>When reproducing, please be sure *PRO*-3 to hyperlink the original source and the author's information.</text>
+        <arg f="" n="0">*PRO*-3</arg>
+        <rel f="">hyperlink</rel>
+        <arg f="" n="2">the original source and the author's information</arg>
+      </example>
+    </roleset>
+    <roleset id="hyperlink.91" name="meta info: link text to url-entity" usage="AMR">
+      <aliases>
+        <alias framenet="" pos="v" verbnet="">hyperlink</alias>
+      </aliases>
+      <roles>
+        <role descr="text being hyperlinked" f="ppt" n="1"/>
+        <role descr="url-entity" f="vsp" n="3"/>
+      </roles>
+      <example name="Declaration of Independence" src="" type="">
+         <text>&lt;a href="https://www.monticello.org/sites/default/files/uploaded-content-images/Declaration_Engrav_Pg1of1_doctored_0.jpg"&gt;Declaration of Independence&lt;/a&gt;</text>
+	 <arg f="" n="1">Declaration of Independence</arg>
+	 <arg f="" n="3">https://www.monticello.org/sites/default/files/uploaded-content-images/Declaration_Engrav_Pg1of1_doctored_0.jpg</arg>
+      </example>
+      <example name="For more information, click here." src="" type="">
+         <text>For more information, click &lt;a href="http://www.hollywoodbowl.com"&gt;here&lt;/a&gt;.</text>
+	 <arg f="" n="1">here</arg>
+	 <arg f="" n="3">http://www.hollywoodbowl.com</arg>
+      </example>
+    </roleset>
+  </predicate>
+</frameset>

@@ -1,0 +1,26 @@
+<!DOCTYPE frameset SYSTEM "frameset.dtd">
+<frameset>
+  <predicate lemma="breakfast">
+    <roleset id="breakfast.01" name="eat breakfast">
+      <aliases>
+        <alias framenet="" pos="v" verbnet="">breakfast</alias>
+      </aliases>
+      <note>BREAKFAST-V NOTES: created by Jena (from breakfast.01-v)</note>
+      <roles>
+        <role descr="eater" f="PAG" n="0">
+          <vnrole vncls="39.5" vntheta="Agent"/>
+        </role>
+        <role descr="food" f="PPT" n="1">
+          <vnrole vncls="39.5" vntheta="Patient"/>
+        </role>
+      </roles>
+      <example name="" src="" type="">
+        <text>[Travelling salesmen]-3 were already up and about, [*-3]breakfasting on steaming-hot dumplings before * setting off for their next destination.</text>
+        <arg f="" n="0">[*-3]</arg>
+        <rel f="">breakfasting</rel>
+        <arg f="" n="1">on steaming-hot dumplings</arg>
+        <arg f="TMP" n="m">before * setting off for their next destination</arg>
+      </example>
+    </roleset>
+  </predicate>
+</frameset>

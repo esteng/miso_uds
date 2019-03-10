@@ -1,0 +1,130 @@
+<!DOCTYPE frameset SYSTEM "frameset.dtd">
+<frameset>
+  <predicate lemma="have-half-life">
+    <roleset framenet="" id="have-half-life.01" name="half-life" usage="AMR">
+      <aliases>
+        <alias framenet="" pos="n" verbnet="">half-life</alias>
+        <alias framenet="" pos="v" verbnet="">have-half-life</alias>
+      </aliases>
+      <roles>
+        <role descr="substance" f="" n="1" />
+        <role descr="half-life duration" f="" n="2" />
+      </roles>
+      <example name="half-life" src="" type="">
+        <text>Caesium-137 has a half-life of 30 years.</text>
+        <arg f="" n="1">Caesium-137</arg>
+	<rel f="">has a half-life of</rel>
+        <arg f="" n="2">30 years</arg>
+      </example>
+      <example name="t 1/2" src="" type="">
+        <text>Caesium-137 (t 1/2: 30 years)</text>
+        <arg f="" n="1">Caesium-137</arg>
+	<rel f="">t 1/2</rel>
+        <arg f="" n="2">30 years</arg>
+      </example>
+    </roleset>
+  </predicate>
+  <predicate lemma="have-percentage-maximal-inhibitory-concentration">
+     <roleset framenet="" id="have-percentage-maximal-inhibitory-concentration.01" name="half-percentage-maximal-inhibitory-concentration" usage="AMR">
+      <aliases>
+        <alias framenet="" pos="n" verbnet="">ic</alias>
+        <alias framenet="" pos="n" verbnet="">ic50</alias>
+        <alias framenet="" pos="n" verbnet="">inhibitory-concentration</alias>
+        <alias framenet="" pos="v" verbnet="">have-percentage-maximal-inhibitory-concentration</alias>
+      </aliases>
+      <roles>
+        <role descr="drug" f="" n="1" />
+        <role descr="percentage (most commonly 50)" f="" n="2" />
+        <role descr="inhibited process" f="" n="3" />
+        <role descr="concentration of drug" f="" n="4" />
+        <role descr="population (e.g. rat)" f="" n="5" />
+      </roles>
+      <example name="IC50" src="" type="">
+        <text>The enzyme inhibited phosphorylation with an IC50 of 0.6 millimolar.</text>
+        <arg f="" n="1">The enzyme</arg>
+        <arg f="" n="2">50</arg>
+	<rel f="">inhibited IC</rel>
+        <arg f="" n="3">phosphorylation</arg>
+        <arg f="" n="4">0.6 millimolar</arg>
+      </example>
+     </roleset>
+  </predicate>
+  <predicate lemma="have-percentage-maximal-effective-concentration">
+     <roleset framenet="" id="have-percentage-maximal-effective-concentration.01" name="half-percentage-maximal-effective-concentration" usage="AMR">
+      <aliases>
+        <alias framenet="" pos="n" verbnet="">ec</alias>
+        <alias framenet="" pos="n" verbnet="">ec50</alias>
+        <alias framenet="" pos="n" verbnet="">effective-concentration</alias>
+        <alias framenet="" pos="v" verbnet="">have-percentage-maximal-effective-concentration</alias>
+      </aliases>
+      <roles>
+        <role descr="drug" f="" n="1" />
+        <role descr="percentage (most commonly 50)" f="" n="2" />
+        <role descr="effect exhibited" f="" n="3" />
+        <role descr="concentration of drug" f="" n="4" />
+        <role descr="exposure time" f="" n="5" />
+        <role descr="population (e.g. rat)" f="" n="6" />
+      </roles>
+      <example name="EC50" src="" type="">
+        <text>The drug increased MAPK expression 20-fold with an EC50 of 2 nanomolar.</text>
+        <arg f="" n="1">The drug</arg>
+        <arg f="" n="2">50</arg>
+	<rel f="">EC</rel>
+        <arg f="" n="3">The drug increased MAPK expression 20-fold</arg>
+        <arg f="" n="4">2 nanomolar</arg>
+      </example>
+     </roleset>
+  </predicate>
+  <predicate lemma="have-percentage-effective-dose">
+     <roleset framenet="" id="have-percentage-maximal-effective-dose.01" name="half-percentage-maximal-effective-dose" usage="AMR">
+      <aliases>
+        <alias framenet="" pos="n" verbnet="">ed</alias>
+        <alias framenet="" pos="n" verbnet="">ed50</alias>
+        <alias framenet="" pos="n" verbnet="">effective-dose</alias>
+        <alias framenet="" pos="n" verbnet="">median-effective-dose</alias>
+        <alias framenet="" pos="v" verbnet="">have-percentage-maximal-effective-dose</alias>
+      </aliases>
+      <roles>
+        <role descr="drug" f="" n="1" />
+        <role descr="percentage (most commonly 50)" f="" n="2" />
+        <role descr="effect exhibited" f="" n="3" />
+        <role descr="quantity of drug" f="" n="4" />
+        <role descr="population (e.g. rat)" f="" n="5" />
+      </roles>
+      <example name="ED50" src="" type="">
+        <text>The CRF ED50 value in naive rats was 0.9mug.</text>
+        <arg f="" n="1">CRF</arg>
+        <arg f="" n="2">50</arg>
+	<rel f="">ED</rel>
+        <arg f="" n="4">0.9mug</arg>
+        <arg f="" n="5">naive rats</arg>
+      </example>
+     </roleset>
+  </predicate>
+  <predicate lemma="have-percentage-lethal-dose">
+     <roleset framenet="" id="have-percentage-lethal-dose.01" name="half-percentage-lethal-dose" usage="AMR">
+      <aliases>
+        <alias framenet="" pos="n" verbnet="">ld</alias>
+        <alias framenet="" pos="n" verbnet="">ld50</alias>
+        <alias framenet="" pos="n" verbnet="">lethal-dose</alias>
+        <alias framenet="" pos="n" verbnet="">median-lethal-dose</alias>
+        <alias framenet="" pos="v" verbnet="">have-percentage-lethal-dose</alias>
+      </aliases>
+      <roles>
+        <role descr="drug" f="" n="1" />
+        <role descr="percentage (most commonly 50)" f="" n="2" />
+        <role descr="quantity of drug" f="" n="3" />
+        <role descr="population (e.g. rat)" f="" n="4" />
+      </roles>
+      <example name="LD50" src="" type="">
+        <text>The median lethal dose (LD50) of Phenazepam in mice is about 620mg/kg.</text>
+        <arg f="" n="1">Phenazepam</arg>
+        <arg f="" n="2">median/50</arg>
+	<rel f="">The lethal dose/LD</rel>
+        <arg f="" n="3">about 620mg/kg</arg>
+        <arg f="" n="4">mouse</arg>
+      </example>
+     </roleset>
+  </predicate>
+</frameset>
+

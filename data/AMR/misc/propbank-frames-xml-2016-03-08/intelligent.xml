@@ -1,0 +1,31 @@
+<!DOCTYPE frameset SYSTEM "frameset.dtd">
+<frameset>
+  <predicate lemma="intelligent">
+    <roleset id="intelligent.01" name="intelligent">
+      <aliases>
+        <alias framenet="" pos="j" verbnet="">intelligent</alias>
+        <alias framenet="" pos="n" verbnet="">intelligence</alias>
+      </aliases>
+      <note>INTELLIGENT-J NOTES: (from intelligent.01-j)</note>
+      <roles>
+        <role descr="smartie, intelligent entity" f="PPT" n="1"/>
+        <role descr="skill, intelligent in/at what?" f="" n="2"/>
+      </roles>
+      <example name="both args" src="" type="">
+        <text>She is intelligent at deriving formulas.</text>
+        <rel f="">intelligent</rel>
+        <arg f="" n="1">She</arg>
+        <arg f="" n="2">at deriving formulas</arg>
+      </example>
+    </roleset>
+    <roleset id="intelligence-yy" name="gathering information for military or political purposes" usage="AMR">
+      <roles/>
+      <example name="CIA" src="" type="">
+        <text>Central Intelligence Agency</text>
+      </example>
+      <example name="military intelligence" src="" type="">
+        <text>The US provided military intelligence to the rebel forces.</text>
+      </example>
+    </roleset>
+  </predicate>
+</frameset>

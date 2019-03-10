@@ -1,0 +1,28 @@
+<!DOCTYPE frameset SYSTEM "frameset.dtd">
+<frameset>
+  <predicate lemma="byline" usage="AMR">
+    <roleset framenet="" id="byline.91" name="byline">
+      <aliases>
+        <alias framenet="" pos="n" verbnet="">byline</alias>
+        <alias framenet="" pos="n" verbnet="">by-line</alias>
+        <alias framenet="" pos="n" verbnet="">dateline</alias>
+        <alias framenet="" pos="n" verbnet="">date-line</alias>
+      </aliases>
+      <roles>
+        <role descr="news organization" f="" n="0"></role>
+        <role descr="author" f="" n="1"></role>
+        <role descr="photographer, illustrator" f="" n="2"></role>
+        <role descr="translator" f="" n="3"></role>
+        <role descr="means" f="" n="4"></role>
+      </roles>
+      <example name="Xinhua byline" src="" type="">
+        <text>Xinhua New Agency, Shanghai, February 10, by wire (reporters Jinhu Xie and Chijian Zhang)</text>
+        <arg f="" n="0">Xinhua New Agency</arg>
+        <arg f="" n="1">reporters Jinhu Xie and Chijian Zhang</arg>
+        <arg f="" n="4">wire</arg>
+        <arg f="tmp" n="m">February 10</arg>
+        <arg f="loc" n="m">Shanghai</arg>
+      </example>
+    </roleset>
+  </predicate>
+</frameset>

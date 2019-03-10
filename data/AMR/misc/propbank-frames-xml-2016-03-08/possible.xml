@@ -1,0 +1,60 @@
+<!DOCTYPE frameset SYSTEM "frameset.dtd">
+<frameset>
+  <predicate lemma="possible">
+    <roleset id="possible.01" name="likely or able to be/occur">
+      <aliases>
+        <alias framenet="Likelihood Awareness_status" pos="j" verbnet="">possible</alias>
+        <alias framenet="" pos="v" verbnet="" usage="AMR">can</alias>
+        <alias framenet="" pos="v" verbnet="" usage="AMR">could</alias>
+        <alias framenet="" pos="j" verbnet="" usage="AMR">able</alias>
+        <alias framenet="" pos="v" verbnet="" usage="AMR">may</alias>
+        <alias framenet="" pos="v" verbnet="" usage="AMR">might</alias>
+      </aliases>
+      <note>POSSIBLE-J NOTES: Added by Julia based on WSJ data. (from possible.01-j)</note>
+      <roles>
+        <role descr="thing that is possible" f="pag" n="1"/>
+      </roles>
+      <example name="it is possible" src="internet" type="">
+        <inflection aspect="ns" form="ns" person="ns" tense="ns" voice="ns"/>
+        <text>It is possible, under such circumstances that a Peace Party might arise;</text>
+        <rel f="">possible</rel>
+        <arg f="loc" n="m">under such circumstances</arg>
+        <arg f="" n="1">that a Peace Party might arise</arg>
+      </example>
+      <example name="a possible sale" src="AMR" type="">
+        <text>The board discussed a possible sale of the company.</text>
+	<arg f="" n="1">[a] [sale of the company]</arg>
+	<rel f="">possible</rel>
+      </example>
+      <example name="can" src="AMR" type="" usage="AMR">
+        <text>The boy can recite the poem by heart.</text>
+	<arg f="" n="1">[The boy] [recite the poem by heart]</arg>
+	<rel f="">can</rel>
+      </example>
+      <example name="could" src="AMR" type="" usage="AMR">
+        <text>Gas could go to $10 a gallon.</text>
+	<arg f="" n="1">[Gas] [go to $10 a gallon]</arg>
+	<rel f="">could</rel>
+      </example>
+      <example name="is able to" src="AMR" type="" usage="AMR">
+        <text>The boy is able to go.</text>
+	<arg f="" n="1">[The boy] [go]</arg>
+	<rel f="">is able to</rel>
+      </example>
+      <example name="may" src="AMR" type="" usage="AMR">
+        <text>It may rain.</text>
+	<arg f="" n="1">rain</arg>
+	<rel f="">may</rel>
+      </example>
+      <example name="might" src="AMR" type="" usage="AMR">
+        <text>She might come as well.</text>
+	<arg f="" n="1">[She] [come as well]</arg>
+	<rel f="">might</rel>
+      </example>
+    </roleset>
+  </predicate>
+  <note usage="AMR">In AMR, the old 'possible :domain ...' construction is replaced
+                    by 'possible-01 :ARG1 ...' according to the 'possible-01' frame.</note>
+  <note usage="AMR">In AMR, 'could' is annotated as ':polite +' in cases such as
+                    'Could you close the door?'</note>
+</frameset>
