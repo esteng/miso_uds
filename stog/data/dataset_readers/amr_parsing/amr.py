@@ -17,8 +17,8 @@ logger = logging.init_logger()
 
 
 # Disable inverting ':mod' relation.
-penman.AMRCodec._inversions.pop('domain')
-penman.AMRCodec._deinversions.pop('mod')
+#penman.AMRCodec._inversions.pop('domain')
+#penman.AMRCodec._deinversions.pop('mod')
 from penman import Triple
 
 amr_codec = penman.AMRCodec(indent=6)

@@ -9,6 +9,10 @@ from stog.data.fields import Field, TextField
 from stog.data.token_indexers import SingleIdTokenIndexer, TokenIndexer
 from stog.data.tokenizers import Token
 from stog.data.instance import Instance
+from stog.data.dataset_readers.semantic_dependencies.sdp import SDPGraph
+from stog.utils.string import START_SYMBOL, END_SYMBOL
+from stog.data.tokenizers.bert_tokenizer import AMRBertTokenizer
+from stog.data.fields import TextField, SpanField, SequenceLabelField, ListField, MetadataField, Field, AdjacencyField, ArrayField
 
 logger = logging.getLogger(__name__) # pylint: disable=invalid-name
 
@@ -77,9 +81,22 @@ class SemanticDependenciesDatasetReader(DatasetReader):
     def __init__(self,
                  token_indexers: Dict[str, TokenIndexer] = None,
                  word_splitter = None,
-                 lazy: bool = False) -> None:
+                 lazy: bool = False,
+                 evaluation: bool = False) -> None:
         super().__init__(lazy)
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
+        if word_splitter is not None:
+            self._word_splitter = AMRBertTokenizer.from_pretrained(
+                word_splitter, do_lower_case=False)
+        else:
+            self._word_splitter = None
+        
+        self._evaluation = evaluation
+
+        self._number_bert_ids = 0
+        self._number_bert_oov_ids = 0
+        self._number_non_oov_pos_tags = 0
+        self._number_pos_tags = 0
 
     @overrides
     def _read(self, file_path: str):
@@ -95,22 +112,138 @@ class SemanticDependenciesDatasetReader(DatasetReader):
                     continue
                 tokens = [word["form"] for word in annotated_sentence]
                 pos_tags = [word["pos"] for word in annotated_sentence]
-                yield self.text_to_instance(tokens, pos_tags, directed_arc_indices, arc_tags)
+                yield self.text_to_instance(annotated_sentence, directed_arc_indices, arc_tags)
 
     @overrides
     def text_to_instance(self, # type: ignore
-                         tokens: List[str],
-                         pos_tags: List[str] = None,
+                         annotated_sentence,
                          arc_indices: List[Tuple[int, int]] = None,
                          arc_tags: List[str] = None) -> Instance:
         # pylint: disable=arguments-differ
-        fields: Dict[str, Field] = {}
-        token_field = TextField([Token(t) for t in tokens], self._token_indexers)
-        fields["tokens"] = token_field
-        fields["metadata"] = MetadataField({"tokens": tokens})
-        if pos_tags is not None:
-            fields["pos_tags"] = SequenceLabelField(pos_tags, token_field, label_namespace="pos")
-        if arc_indices is not None and arc_tags is not None:
-            fields["arc_tags"] = AdjacencyField(arc_indices, token_field, arc_tags)
+        SDP_graph = SDPGraph(annotated_sentence, arc_indices, arc_tags)
+        list_data = SDP_graph.get_list_data(START_SYMBOL, END_SYMBOL, self._word_splitter)
+        
+        fields = {}
+        # These four fields are used for seq2seq model and target side self copy
+        fields["src_tokens"] = TextField(
+            tokens=[Token(x) for x in list_data["src_tokens"]],
+            token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
+        )
+
+        if list_data['src_token_ids'] is not None:
+            fields['src_token_ids'] = ArrayField(list_data['src_token_ids'])
+            self._number_bert_ids += len(list_data['src_token_ids'])
+            self._number_bert_oov_ids += len(
+                [bert_id for bert_id in list_data['src_token_ids'] if bert_id == 100])
+
+        if list_data['src_token_subword_index'] is not None:
+            fields['src_token_subword_index'] = ArrayField(
+                list_data['src_token_subword_index'])
+
+        fields["src_must_copy_tags"] = SequenceLabelField(
+            labels=list_data["src_must_copy_tags"],
+            sequence_field=fields["src_tokens"],
+            label_namespace="must_copy_tags"
+        )
+
+        fields["tgt_tokens"] = TextField(
+            tokens=[Token(x) for x in list_data["tgt_tokens"]],
+            token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
+        )
+
+        if list_data["src_pos_tags"] is not None:
+            fields["src_pos_tags"] = SequenceLabelField(
+                labels=list_data["src_pos_tags"],
+                sequence_field=fields["src_tokens"],
+                label_namespace="pos_tags"
+            )
+
+        if list_data["tgt_pos_tags"] is not None:
+            fields["tgt_pos_tags"] = SequenceLabelField(
+                labels=list_data["tgt_pos_tags"],
+                sequence_field=fields["tgt_tokens"],
+                label_namespace="pos_tags"
+            )
+
+            self._number_pos_tags += len(list_data['tgt_pos_tags'])
+            self._number_non_oov_pos_tags += len(
+                [tag for tag in list_data['tgt_pos_tags'] if tag != '@@UNKNOWN@@'])
+
+        fields["tgt_copy_indices"] = SequenceLabelField(
+            labels=list_data["tgt_copy_indices"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="coref_tags",
+        )
+
+        fields["tgt_copy_mask"] = SequenceLabelField(
+            labels=list_data["tgt_copy_mask"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="coref_mask_tags",
+        )
+
+        fields["tgt_copy_map"] = AdjacencyField(
+            indices=list_data["tgt_copy_map"],
+            sequence_field=fields["tgt_tokens"],
+            padding_value=0
+        )
+
+        # These two fields for source copy
+        fields["src_copy_indices"] = SequenceLabelField(
+            labels=list_data["src_copy_indices"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="source_copy_target_tags",
+        )
+
+        fields["src_copy_map"] = AdjacencyField(
+            indices=list_data["src_copy_map"],
+            sequence_field=TextField(
+                [
+                    Token(x) for x in list_data["src_copy_vocab"].get_special_tok_list() + list_data["src_tokens"]
+                ],
+                None
+            ),
+            padding_value=0
+        )
+
+        # These two fields are used in biaffine parser
+        fields["head_tags"] = SequenceLabelField(
+            labels=list_data["head_tags"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="head_tags",
+            strip_sentence_symbols=True
+        )
+
+        fields["head_indices"] = SequenceLabelField(
+            labels=list_data["head_indices"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="head_index_tags",
+            strip_sentence_symbols=True
+        )
+
+        if self._evaluation:
+            # Metadata fields, good for debugging
+            fields["src_tokens_str"] = MetadataField(
+                list_data["src_tokens"]
+            )
+
+            fields["tgt_tokens_str"] = MetadataField(
+                list_data.get("tgt_tokens", [])
+            )
+
+            fields["src_copy_vocab"] = MetadataField(
+                list_data["src_copy_vocab"]
+            )
+
+            fields["tag_lut"] = MetadataField(
+                dict(pos=list_data["pos_tag_lut"])
+            )
+
+            fields["source_copy_invalid_ids"] = MetadataField(
+                list_data['src_copy_invalid_ids']
+            )
+
+            fields["sdp"] = MetadataField(
+               annotated_sentence 
+            )
 
         return Instance(fields)
