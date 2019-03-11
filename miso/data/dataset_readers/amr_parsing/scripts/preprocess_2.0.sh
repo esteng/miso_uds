@@ -3,32 +3,22 @@
 
 # ############### AMR v2.0 ################
 # # Directory where intermediate utils will be saved to speed up processing.
-util_dir=data/amr_utils
+util_dir=data/AMR/amr_2.0_utils
 
 # AMR data with **features**
-data_dir=data/exp
+data_dir=data/AMR/amr_2.0
 train_data=${data_dir}/train_amr.txt.features
 dev_data=${data_dir}/dev_amr.txt.features
 test_data=${data_dir}/test_amr.txt.features
 
-############### AMR v1.0 ################
-# Directory where intermediate utils will be saved to speed up processing.
-# util_dir=data/amr_v1.0_utils
-#
-# # AMR data with **features**
-# data_dir=data/amr_exp_v1.0
-# train_data=${data_dir}/train_amr.txt.features
-# dev_data=${data_dir}/dev_amr.txt.features
-# test_data=${data_dir}/test_amr.txt.features
-
 # Directory of PropBank frame files.
 # Copy it from LDC2017T10.
-propbank_dir=data/misc/propbank-frames-xml-2016-03-08/
+propbank_dir=data/AMR/misc/propbank-frames-xml-2016-03-08/
 
 # Verbalization list file.
 # Download it from amr.isi.edu.
-verbalization_file=data/misc/verbalization-list-v1.06.txt
-morph_verbalization_file=data/misc/morph-verbalization-v1.01.txt
+verbalization_file=data/AMR/misc/verbalization-list-v1.06.txt
+morph_verbalization_file=data/AMR/misc/morph-verbalization-v1.01.txt
 
 # ========== Set the above variables correctly ==========
 
@@ -65,14 +55,14 @@ printf "Done.`date`\n\n"
 # printf "Done.`date`\n\n"
 
 printf "Creating alignment...`date`\n"
-python -u -m miso.data.dataset_readers.amr_parsing.preprocess.aligner \
+python -u -m miso.data.dataset_readers.amr_parsing.preprocess.sense_remover \
     --util_dir ${util_dir} \
     --amr_files ${test_data}.input_clean.recategorize \
     ${train_data}.input_clean.recategorize ${dev_data}.input_clean.recategorize || exit
 printf "Done.`date`\n\n"
 
 printf "Rename preprocessed files...`date`\n"
-mv ${test_data}.input_clean.recategorize.align ${test_data}.preproc
-mv ${train_data}.input_clean.recategorize.align ${train_data}.preproc
-mv ${dev_data}.input_clean.recategorize.align ${dev_data}.preproc
+mv ${test_data}.input_clean.recategorize.nosense ${test_data}.preproc
+mv ${train_data}.input_clean.recategorize.nosense ${train_data}.preproc
+mv ${dev_data}.input_clean.recategorize.nosense ${dev_data}.preproc
 rm ${data_dir}/*.input_clean*

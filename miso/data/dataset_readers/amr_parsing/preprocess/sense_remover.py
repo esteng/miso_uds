@@ -9,31 +9,30 @@ from miso.utils import logging
 logger = logging.init_logger()
 
 
-class Aligner:
+class SenseRemover:
     """
-    This aligner **only** aligns instances of AMR nodes to lemmas of the input sentence.
-    Other attributes' alignment will be done in the recategorization stage.
+    Remove sense numbers of AMR node instances
     """
 
     def __init__(self, node_utils):
         self.node_utils = node_utils
         self.stemmer = nltk.stem.SnowballStemmer('english').stem
 
-        self.aligned_instance_count = 0
+        self.removed_instance_count = 0
         self.amr_instance_count = 0
         self.restore_count = 0
-        self.no_aligned_instances = set()
+        self.not_removed_instances = set()
 
-    def align_file(self, file_path):
+    def remove_file(self, file_path):
         for i, amr in enumerate(AMRIO.read(file_path), 1):
             if i % 1000 == 0:
                 logger.info('Processed {} examples.'.format(i))
                 self.print_statistics()
-            self.align_graph(amr)
+            self.remove_graph(amr)
             yield amr
         self.print_statistics()
 
-    def align_graph(self, amr):
+    def remove_graph(self, amr):
         graph = amr.graph
         for node in graph.get_nodes():
             if node.copy_of is not None:
@@ -60,33 +59,31 @@ class Aligner:
         return lemmas
 
     def find_corresponding_lemma(self, instance, lemmas, amr):
-        # TODO: Add more align rules.
-        # amr_lemma is case-sensitive, so try casing it in different ways: Aaa, AAA, aaa.
         self.amr_instance_count += 1
-        aligned_lemma = None
+        input_lemma = None
         # stems = [self.stemmer(l) for l in amr.lemmas]
         for lemma in lemmas:
             if lemma in amr.lemmas:
-                aligned_lemma = lemma
+                input_lemma = lemma
                 break
             # lemma_stem = self.stemmer(lemma)
             # if lemma_stem in stems:
             #     amr.lemmas[stems.index(lemma_stem)] = lemma
-            #     aligned_lemma = lemma
+            #     input_lemma = lemma
             #     break
 
         # Make sure it can be correctly restored.
-        if aligned_lemma is not None:
-            restored_frame = self.node_utils.get_frames(aligned_lemma)[0]
+        if input_lemma is not None:
+            restored_frame = self.node_utils.get_frames(input_lemma)[0]
             if restored_frame != instance:
-                aligned_lemma = None
+                input_lemma = None
 
-        if aligned_lemma is None:
-            self.no_aligned_instances.add(instance)
+        if input_lemma is None:
+            self.not_removed_instances.add(instance)
         else:
-            self.aligned_instance_count += 1
+            self.removed_instance_count += 1
 
-        return aligned_lemma
+        return input_lemma
 
     def remove_sense(self, instance):
         instance_lemma = re.sub(r'-\d\d$', '', str(instance))
@@ -107,19 +104,19 @@ class Aligner:
         self.restore_count += int(old == _old)
 
     def reset_statistics(self):
-        self.aligned_instance_count = 0
+        self.removed_instance_count = 0
         self.amr_instance_count = 0
         self.restore_count = 0
-        self.no_aligned_instances = set()
+        self.no_removed_instances = set()
 
     def print_statistics(self):
-        logger.info('align rate: {}% ({}/{})'.format(
-            self.aligned_instance_count / self.amr_instance_count,
-            self.aligned_instance_count, self.amr_instance_count))
+        logger.info('sense remove rate: {}% ({}/{})'.format(
+            self.removed_instance_count / self.amr_instance_count,
+            self.removed_instance_count, self.amr_instance_count))
         logger.info('restore rate: {}% ({}/{})'.format(
             self.restore_count / self.amr_instance_count,
             self.restore_count, self.amr_instance_count))
-        logger.info('size of no align lemma set: {}'.format(len(self.no_aligned_instances)))
+        logger.info('size of not removed lemma set: {}'.format(len(self.not_removed_instances)))
 
 
 if __name__ == '__main__':
@@ -127,7 +124,7 @@ if __name__ == '__main__':
 
     from miso.data.dataset_readers.amr_parsing.node_utils import NodeUtilities as NU
 
-    parser = argparse.ArgumentParser('aligner.py')
+    parser = argparse.ArgumentParser('sense_remover.py')
     parser.add_argument('--amr_files', nargs='+', required=True)
     parser.add_argument('--util_dir', default='./temp')
 
@@ -135,10 +132,10 @@ if __name__ == '__main__':
 
     node_utils = NU.from_json(args.util_dir, 0)
 
-    aligner = Aligner(node_utils)
+    remover = SenseRemover(node_utils)
 
     for file_path in args.amr_files:
-        with open(file_path + '.align', 'w', encoding='utf-8') as f:
-            for amr in aligner.align_file(file_path):
+        with open(file_path + '.nosense', 'w', encoding='utf-8') as f:
+            for amr in remover.remove_file(file_path):
                 f.write(str(amr) + '\n\n')
-        aligner.reset_statistics()
+        remover.reset_statistics()

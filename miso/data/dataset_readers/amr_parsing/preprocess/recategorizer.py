@@ -200,7 +200,7 @@ class Recategorizer:
         self.recategorize_date_nodes(amr)
         self.recategorize_score_nodes(amr)
         self.recategorize_ordinal_nodes(amr)
-        # self.recategorize_quantities(amr)
+        self.recategorize_quantities(amr)
         self.recategorize_urls(amr)
 
     def resolve_name_node_reentrancy(self, amr):
@@ -258,7 +258,7 @@ class Recategorizer:
                 if len(entity.span):
                     self.recat_named_entity_count += 1
                 entities.append(entity)
-        if False: # amr.id.startswith('PROXY_XIN_ENG_20030624_0298.6'):
+        if False: # amr.id.startswith('PROXY_XIN_ENG_20041219_0059.18'):
             for entity in entities:
                 print(' '.join(amr.tokens[i] for i in entity.span))
                 print(entity.span)

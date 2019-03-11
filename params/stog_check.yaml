@@ -1,7 +1,7 @@
 # Parameters of the Seq2Seq Model
 
 # Device-sensitive parameters
-amr_data_dir: &amr_data_dir data/steady
+amr_data_dir: &amr_data_dir data/AMR/amr_2.0
 glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
 
 
@@ -123,10 +123,10 @@ model:
     dropout: 0
 
   mimick_test:
-    data: data/steady/dev_amr.txt.features.preproc
+    data: data/AMR/amr_2.0/dev_amr.txt.features.preproc
     prediction: prediction-in-train.txt
     batch_size: 32
-    eval_script: scripts/eval_test.sh
+    eval_script: miso/data/dataset_readers/amr_parsing/scripts/eval_test.sh
     smatch_dir: tools/amr-evaluation-tool-enhanced
     word_splitter: &word_splitter null # /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
 

@@ -8,7 +8,7 @@ set -e
 # The compound file is downloaded from
 # https://github.com/ChunchuanLv/AMR_AS_GRAPH_PREDICTION/blob/master/data/joints.txt
 compound_file=data/AMR/amr_2.0_utils/joints.txt
-amr_dir=data/amr_2.0
+amr_dir=data/AMR/amr_2.0
 
 python -u -m miso.data.dataset_readers.amr_parsing.preprocess.feature_annotator \
     ${amr_dir}/test_amr.txt ${amr_dir}/train_amr.txt ${amr_dir}/dev_amr.txt \
