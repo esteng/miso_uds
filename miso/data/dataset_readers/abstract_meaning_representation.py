@@ -83,7 +83,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         max_tgt_length = None if self._evaluation else 60
 
-        list_data = amr.graph.get_list_data(
+        list_data = amr.graph.get_stog_data(
             amr, START_SYMBOL, END_SYMBOL, self._word_splitter, max_tgt_length)
 
         # These four fields are used for seq2seq model and target side self copy
@@ -103,7 +103,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
                 list_data['src_token_subword_index'])
 
         fields["src_must_copy_tags"] = SequenceLabelField(
-            labels=list_data["src_must_copy_tags"],
+            labels=list_data["src_anonym_indicators"],
             sequence_field=fields["src_tokens"],
             label_namespace="must_copy_tags"
         )
@@ -128,6 +128,12 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
         self._number_pos_tags += len(list_data['tgt_pos_tags'])
         self._number_non_oov_pos_tags += len(
             [tag for tag in list_data['tgt_pos_tags'] if tag != '@@UNKNOWN@@'])
+
+        fields["tgt_indices"] = SequenceLabelField(
+            labels=list_data["tgt_indices"],
+            sequence_field=fields["tgt_tokens"],
+            label_namespace="coref_tags",
+        )
 
         fields["tgt_copy_indices"] = SequenceLabelField(
             labels=list_data["tgt_copy_indices"],

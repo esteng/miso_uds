@@ -245,19 +245,7 @@ class STOG(Model):
         decoder_pos_tags = batch['tgt_pos_tags'][:, :-1]
         # [batch, num_tokens, num_chars]
         decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, :-1].contiguous()
-        # TODO: The following change can be done in amr.py.
-        # Initially, raw_coref_inputs has value like [0, 0, 0, 1, 0]
-        # where '0' indicates that the input token has no precedent, and
-        # '1' indicates that the input token's first precedent is at position '1'.
-        # Here, we change it to [0, 1, 2, 1, 4] which means if the input token
-        # has no precedent, then it is referred to itself.
-        raw_coref_inputs = batch["tgt_copy_indices"][:, :-1].contiguous()
-        coref_happen_mask = raw_coref_inputs.ne(0)
-        decoder_coref_inputs = torch.ones_like(raw_coref_inputs) * torch.arange(
-            0, raw_coref_inputs.size(1)).type_as(raw_coref_inputs).unsqueeze(0)
-        decoder_coref_inputs.masked_fill_(coref_happen_mask, 0)
-        # [batch, num_tokens]
-        decoder_coref_inputs = decoder_coref_inputs + raw_coref_inputs
+        decoder_coref_inputs = batch['tgt_indices'][:, :-1].contiguous()
 
         decoder_inputs = dict(
             token=decoder_token_inputs,
@@ -513,7 +501,7 @@ class STOG(Model):
             generator_outputs['coref_indexes'],
             generator_outputs['decoder_mask']
         )
-        #import pdb;pdb.set_trace()
+
         return dict(
             nodes=generator_outputs['predictions'],
             heads=parser_outputs['edge_heads'],
@@ -536,7 +524,6 @@ class STOG(Model):
 
         bucket = [[] for i in range(batch_size)]
         bucket_max_score = [-1e8 for i in range(batch_size)]
-
 
         def flatten(tensor):
             sizes = list(tensor.size())
@@ -596,7 +583,6 @@ class STOG(Model):
                 ).view(-1)
             ).view(input_size)
 
-
         def update_tensor_buff(key, step, beam_indices, tensor, select_input=True):
             if step == 0 and beam_buffer[key] is None:
                 beam_buffer[key] = tensor.new_zeros(
@@ -612,7 +598,6 @@ class STOG(Model):
             else:
                 beam_buffer[key] = beam_select_2d(beam_buffer[key], beam_indices)
                 beam_buffer[key][:, :, step] = fold(tensor.squeeze(1))
-
 
         def get_decoder_input(tokens, pos_tags, corefs):
             token_embeddings = self.decoder_token_embedding(tokens)
@@ -857,7 +842,6 @@ class STOG(Model):
                     beam_indices
                 ).view(batch_size * beam_size, -1)[:, :step].split(1, 1)
 
-
             variables["coref_attention_maps"] = beam_select_1d(variables["coref_attention_maps"], beam_indices)
             variables["coref_vocab_maps"] = beam_select_1d(variables["coref_vocab_maps"], beam_indices)
 
@@ -872,7 +856,6 @@ class STOG(Model):
                 repeat_list_item(tag_luts, beam_size),
                 invalid_indices
             )
-
 
             beam_buffer["scores"] = new_hypo_scores.unsqueeze(2)
 
@@ -936,9 +919,6 @@ class STOG(Model):
         return_dict["scores"] = torch.div(return_dict["scores"], return_dict["decoder_mask"].sum(1, keepdim=True).type_as(return_dict["scores"]))
 
         return return_dict
-
-
-
 
     def decode_with_pointer_generator(
             self, memory_bank, mask, states, copy_attention_maps, copy_vocabs,
