@@ -1,7 +1,7 @@
 # Parameters of the Seq2Seq Model
 
 # Device-sensitive parameters
-amr_data_dir: &amr_data_dir data/amr_2.0
+amr_data_dir: &amr_data_dir data/AMR/amr_2.0
 glove: &glove /export/ssd/sheng/data/glove/glove.840B.300d.zip
 
 
@@ -125,10 +125,10 @@ model:
     dropout: 0.33
 
   mimick_test:
-    data: data/amr_2.0/dev_amr.txt.features.preproc
+    data: data/AMR/amr_2.0/dev_amr.txt.features.preproc
     prediction: dev.pred.txt
     batch_size: 32
-    eval_script: scripts/eval_test.sh
+    eval_script: miso/data/dataset_readers/amr_parsing/scripts/eval_test.sh
     smatch_dir: tools/amr-evaluation-tool-enhanced
     word_splitter: /export/ssd/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
 
@@ -152,9 +152,12 @@ data:
   test_data: test_amr.txt.features.preproc
   data_type: AMR
   batch_first: True
-  train_batch_size: &train_batch_size 64
-  test_batch_size: 32
-  iter_type: BucketIterator
+  iterator:
+    train_batch_size: &train_batch_size 64
+    test_batch_size: 32
+    iter_type: BucketIterator
+    sorting_keys:  # (field, padding type)
+      - [tgt_tokens, num_tokens]
   pretrain_token_emb: *glove
   pretrain_char_emb:
   word_splitter: /export/ssd/sheng/data/bert-base-cased/bert-base-cased-vocab.txt

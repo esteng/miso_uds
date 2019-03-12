@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # Directory where intermediate utils will be saved to speed up processing.
-util_dir=data/amr_v1.0_utils
+util_dir=data/AMR/amr_1.0_utils
 
 # AMR data with **features**
-# data_dir=data/amr_exp_v1.0
+# data_dir=data/AMR/amr_1.0
 # test_data=${data_dir}/test_amr.txt.features.preproc
 test_data=test.best.txt
 
