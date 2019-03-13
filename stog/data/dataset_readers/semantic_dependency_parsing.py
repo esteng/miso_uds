@@ -58,7 +58,10 @@ def parse_sentence(sentence_blob: str) -> Tuple[List[Dict[str, str]], List[Tuple
             if arg != "_":
                 arc_indices.append((line_idx, predicates[predicate_idx]))
                 arc_tags.append(arg)
-    return annotated_sentence, arc_indices, arc_tags
+
+    assert sentence_blob.split("\n")[0][0] == "#"
+    sentence_id = sentence_blob.split("\n")[0]
+    return annotated_sentence, arc_indices, arc_tags, sentence_id
 
 
 def lazy_parse(text: str):
@@ -97,6 +100,11 @@ class SemanticDependenciesDatasetReader(DatasetReader):
         self._number_bert_oov_ids = 0
         self._number_non_oov_pos_tags = 0
         self._number_pos_tags = 0
+        self._filename=""
+    
+    def set_evaluation(self):
+        self._evaluation = True
+
 
     @overrides
     def _read(self, file_path: str):
@@ -106,19 +114,23 @@ class SemanticDependenciesDatasetReader(DatasetReader):
         logger.info("Reading semantic dependency parsing data from: %s", file_path)
 
         with open(file_path) as sdp_file:
-            for annotated_sentence, directed_arc_indices, arc_tags in lazy_parse(sdp_file.read()):
+            line = sdp_file.readline().rstrip()
+            assert line.startswith("#SDP")
+            self._filename = line
+            for annotated_sentence, directed_arc_indices, arc_tags, sentence_id in lazy_parse(sdp_file.read()):
                 # If there are no arc indices, skip this instance.
                 if not directed_arc_indices:
                     continue
                 tokens = [word["form"] for word in annotated_sentence]
                 pos_tags = [word["pos"] for word in annotated_sentence]
-                yield self.text_to_instance(annotated_sentence, directed_arc_indices, arc_tags)
+                yield self.text_to_instance(annotated_sentence, directed_arc_indices, arc_tags, sentence_id)
 
     @overrides
     def text_to_instance(self, # type: ignore
                          annotated_sentence,
                          arc_indices: List[Tuple[int, int]] = None,
-                         arc_tags: List[str] = None) -> Instance:
+                         arc_tags: List[str] = None,
+                         sentence_id: str = None) -> Instance:
         # pylint: disable=arguments-differ
         SDP_graph = SDPGraph(annotated_sentence, arc_indices, arc_tags)
         list_data = SDP_graph.get_list_data(START_SYMBOL, END_SYMBOL, self._word_splitter)
@@ -242,8 +254,12 @@ class SemanticDependenciesDatasetReader(DatasetReader):
                 list_data['src_copy_invalid_ids']
             )
 
-            fields["sdp"] = MetadataField(
+            fields["annotated_sentence"] = MetadataField(
                annotated_sentence 
+            )
+
+            fields["sentence_id"] = MetadataField(
+                sentence_id
             )
 
         return Instance(fields)

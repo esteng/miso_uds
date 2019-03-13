@@ -14,8 +14,8 @@ from stog.utils.exception_hook import ExceptionHook
 sys.excepthook = ExceptionHook()
 
 
-@Predictor.register('STOG')
-class STOGPredictor(Predictor):
+@Predictor.register('abstract_meaning_representations')
+class AMRPredictor(Predictor):
     """
     Predictor for the :class:`~stog.models.stog` model.
     """

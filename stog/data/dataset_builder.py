@@ -22,11 +22,14 @@ def seq2seq_token_char_indexers(*args, **kwargs):
         decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
     )
 
-def load_dataset(path, params):
+def load_dataset_reader(params):
     return DatasetReader.by_name(params["type"])(
         token_indexers=seq2seq_token_char_indexers(),
         word_splitter=params.get('word_splitter', None)
-    ).read(path)
+    )
+
+def load_dataset(path, params):
+    return load_dataset_reader(params).read(path)
 
 def dataset_from_params(params):
     data_dict = defaultdict()

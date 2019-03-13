@@ -50,8 +50,11 @@ from stog.commands.subcommand import Subcommand
 from stog.utils.checks import check_for_gpu, ConfigurationError
 from stog.utils import lazy_groups_of
 from stog.predictors.predictor import Predictor, JsonDict
-from stog.predictors import BiaffineDependencyParserPredictor, Seq2SeqPredictor, STOGPredictor
+#from stog.predictors import BiaffineDependencyParserPredictor, Seq2SeqPredictor, STOGPredictor
 from stog.data import Instance
+from stog.utils.exception_hook import ExceptionHook
+
+sys.excepthook = ExceptionHook()
 
 class Predict(Subcommand):
     def add_subparser(self, name: str, parser: argparse._SubParsersAction) -> argparse.ArgumentParser:
@@ -97,7 +100,7 @@ def _get_predictor(args: argparse.Namespace) -> Predictor:
                            device=args.cuda_device,
                            weights_file=args.weights_file)
 
-    return Predictor.from_archive(archive)
+    return Predictor.from_archive(archive, predictor_name=args.predictor)
 
 
 class _PredictManager:
@@ -126,11 +129,10 @@ class _PredictManager:
             self._dataset_reader = None
 
         # TODO: there should be better ways to do this
-        if type(predictor) in (Seq2SeqPredictor, STOGPredictor):
-            self.beam_size = beam_size
-            self._predictor._model.set_beam_size(self.beam_size)
-            self._predictor._model.set_length_penalty(length_penalty)
-            self._predictor._model.set_decoder_token_indexers(self._dataset_reader._token_indexers)
+        self.beam_size = beam_size
+        self._predictor._model.set_beam_size(self.beam_size)
+        self._predictor._model.set_length_penalty(length_penalty)
+        self._predictor._model.set_decoder_token_indexers(self._dataset_reader._token_indexers)
 
     def _predict_json(self, batch_data: List[JsonDict]) -> Iterator[str]:
         if len(batch_data) == 1:
@@ -237,7 +239,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--predictor',
                            type=str,
-                           help='optionally specify a specific predictor to use')
+                           required=True,
+                           help='Specify a specific predictor to use')
 
     parser.add_argument('--beam-size',
                         type=int,

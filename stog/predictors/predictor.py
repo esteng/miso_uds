@@ -5,7 +5,7 @@ from stog.utils.registrable import Registrable
 from stog.utils.checks import ConfigurationError
 from stog.utils.string import JsonDict, sanitize
 from stog.data import DatasetReader, Instance
-from stog.data.dataset_builder import load_dataset
+from stog.data.dataset_builder import load_dataset_reader
 
 # a mapping from model `type` to the default Predictor for that type
 DEFAULT_PREDICTORS = {
@@ -114,11 +114,11 @@ class Predictor(Registrable):
                                          f"Please specify a predictor explicitly.")
             predictor_name = DEFAULT_PREDICTORS[model_type]
 
-        word_splitter = None
-        if config['model'].get('use_bert', False):
-            word_splitter=config['data'].get('word_splitter', None)
-        dataset_reader = load_dataset(
-            config["data"], word_splitter=word_splitter)
+        if not config['model'].get('use_bert', False):
+            config['data']['word_splitter'] = None
+        
+        dataset_reader = load_dataset_reader(config["data"])
+
         if hasattr(dataset_reader, 'set_evaluation'):
             dataset_reader.set_evaluation()
 

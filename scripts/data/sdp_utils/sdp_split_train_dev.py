@@ -20,11 +20,14 @@ if __name__ == "__main__":
     suffix = os.path.basename(args.input)
 
     input_file = open(args.input, 'r')
-    if args.skip_first_line:
-        input_file.readline()
 
     train_file = open(os.path.join(args.output_dir, "train." + suffix), 'w+') 
     dev_file = open(os.path.join(args.output_dir, "dev." + suffix), 'w+') 
+
+    if args.skip_first_line:
+        firstline = input_file.readline()
+        dev_file.write(firstline)
+        train_file.write(firstline)
 
     for sentence in lazy_load(input_file.read()):
         if len(sentence) == 0:
@@ -32,9 +35,9 @@ if __name__ == "__main__":
 
         section_id = int(sentence[2:4])
         if section_id == args.dev_section:
-            dev_file.write(sentence + '\n')
+            dev_file.write(sentence + '\n\n')
         else:
-            train_file.write(sentence + '\n')
+            train_file.write(sentence + '\n\n')
 
     
 

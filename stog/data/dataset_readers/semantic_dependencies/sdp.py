@@ -119,6 +119,9 @@ class SDPGraph:
             DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN,
             DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN
         }
+        for token, pos_tag in zip(self.get_src_tokens(), self.pos_tags):
+            pos_tag_lut[token] = pos_tag
+
         tgt_index_from_src = {}
         src_index_from_tgt = {}
 
@@ -131,16 +134,22 @@ class SDPGraph:
             tgt_copy_mask.append(0)
             tgt_copy_indices.append(0)
             tgt_copy_map.append((len(tgt_tokens) - 1, len(tgt_tokens) - 1))
+            tgt_index_from_src[0] = 0
+            src_index_from_tgt[0] = 0
 
         visited = defaultdict(int)
 
         def travel_graph(node, parent_node=None, tag_with_parent=None, prohibit_nodes_indices=[]):
+            
+
             tgt_tokens.append(node.token)
             tgt_pos_tags.append(node.pos_tag)
-            pos_tag_lut[node.token] = node.pos_tag
 
             node_index_in_target = len(tgt_tokens) - 1
             node_index_in_source = node.index
+
+            # record this every time we visit the node.
+            src_index_from_tgt[node_index_in_target] = node_index_in_source
 
             if parent_node is None:
                 head_tags.append("root")
@@ -198,22 +207,23 @@ class SDPGraph:
             tgt_copy_mask.append(0)
             tgt_copy_indices.append(0)
             tgt_copy_map.append((len(tgt_tokens) - 1, len(tgt_tokens) - 1))
+            src_index_from_tgt[len(tgt_tokens) - 1] = 0
         
         src_tokens = self.get_src_tokens()
         src_token_ids = None
         src_token_subword_index = None
         src_pos_tags = self.pos_tags
-        src_copy_vocab = SourceCopyVocabulary(src_tokens)
-        src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
-        src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
+
+        src_copy_vocab = RedundentSourceCopyVocabulary(src_tokens)
+        src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens, src_index_from_tgt, bos, eos)
+        src_copy_map = src_copy_vocab.get_copy_map()
+
         if bert_tokenizer is not None:
             src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens, True)
 
         src_must_copy_tags = [1 if is_abstract_token(t) else 0 for t in src_tokens]
         src_copy_invalid_ids = set(
-            src_copy_vocab.index_sequence(
-                [t for t in src_tokens if is_english_punct(t)]
-            )
+                [idx + 1 for idx, t in enumerate(src_tokens) if is_english_punct(t)]
         )
 
         return {
@@ -271,6 +281,8 @@ class SDPNode:
         string += "\n".join(["{} --> {}, {}".format(label, child_node.index, child_node.token) for label, child_node in self.children])
         return string
 
+#TODO: leave OOV tokens now since we now every token on target side is a copy from source
+#However in some case we might need a dummy node to deal with multi-top graph
 
 class SourceCopyVocabulary:
     def __init__(self, sentence, pad_token=DEFAULT_PADDING_TOKEN, unk_token=DEFAULT_OOV_TOKEN):
@@ -308,7 +320,65 @@ class SourceCopyVocabulary:
         ]
 
     def get_special_tok_list(self):
-        return [self.pad_token, self.unk_token]
+        list_to_return = [self.pad_token]
+        if self.unk_token:
+            list_to_return.append(self.unk_token)
+        return list_to_return
 
     def __repr__(self):
         return json.dumps(self.idx_to_token)
+
+class RedundentSourceCopyVocabulary(SourceCopyVocabulary):
+    def __init__(self, sentence, pad_token=DEFAULT_PADDING_TOKEN, unk_token=None):
+        #TODO: leave OOV tokens now since we now every token on target side is a copy from source
+        #However in some case we might need a dummy node to deal with multi-top graph
+        if type(sentence) is not list:
+            sentence = sentence.split(" ")
+
+        self.src_tokens = sentence
+        self.pad_token = pad_token
+        self.num_special = 1
+
+        self.idx_to_token = {0 : self.pad_token}
+
+        if unk_token:
+            self.unk_token = unk_token
+            self.idx_to_token[1] = self.unk_token
+            self.num_special += 1
+        else:
+            self.unk_token = None
+
+        self.vocab_size = 1
+
+        for token in sentence:
+            self.idx_to_token[self.vocab_size] = token
+            self.vocab_size += 1
+    
+    def get_copy_map(self, *args):
+        map_to_return = []
+        for i in range(self.vocab_size):
+            map_to_return.append((i, i))
+        return map_to_return
+
+    def index_sequence(self, tgt_tokens, src_index_from_tgt, bos=None, eos=None):
+        tokens_not_from_source = [token for token in tgt_tokens if token not in self.src_tokens and token not in [bos, eos]]
+        if len(tokens_not_from_source):
+            raise ConfigurationError(
+                "Only complete copy is support right now, [{}] there tokens are not in source tgt_tokens".format()
+            )
+        else:
+            indices = [self.num_special + src_index_from_tgt[tgt_index] for tgt_index in range(len(tgt_tokens))]
+            if bos:
+                indices[0] = 0
+            if eos:
+                indices[-1] = 0 
+
+            return indices
+    
+    def get_special_tok_list(self):
+        #TODO: a hack here, need to be fix later
+        list_to_return = [self.pad_token, self.pad_token]
+        return list_to_return
+
+
+        

@@ -93,7 +93,9 @@ class STOG(Model):
                  generator,
                  # Graph decoder
                  graph_decoder,
-                 test_config
+                 test_config,
+                 #Mimicking Test
+                 data_type
                  ):
         super(STOG, self).__init__()
 
@@ -143,6 +145,8 @@ class STOG(Model):
 
         self.length_penalty = 0
 
+        self.data_type = data_type
+
     def set_beam_size(self, beam_size):
         self.beam_size = beam_size
 
@@ -169,7 +173,12 @@ class STOG(Model):
         word_splitter = None
         if self.use_bert:
             word_splitter = self.test_config.get('word_splitter', None)
-        dataset_reader = load_dataset('AMR', word_splitter=word_splitter)
+
+        dataset_reader = DatasetReader.by_name(self.data_type)(
+            token_indexers=seq2seq_token_char_indexers(),
+            word_splitter=word_splitter
+        )
+
         dataset_reader.set_evaluation()
         predictor = Predictor.by_name('STOG')(self, dataset_reader)
         manager = _PredictManager(
@@ -1429,6 +1438,7 @@ class STOG(Model):
             aux_encoder_output_dropout=aux_encoder_output_dropout,
             generator=generator,
             graph_decoder=graph_decoder,
-            test_config=params.get('mimick_test', None)
+            test_config=params.get('mimick_test', None),
+            data_type=params["data_type"]
         )
 

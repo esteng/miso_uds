@@ -100,6 +100,7 @@ def train_model(params: Params):
 
     # Build the model.
     model_params = params['model']
+    model_params["data_type"] = params["data"]["type"]
     model = getattr(Models, model_params['model_type']).from_params(vocab, model_params)
     logger.info(model)
 
