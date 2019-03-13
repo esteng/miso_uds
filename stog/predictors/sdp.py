@@ -167,7 +167,7 @@ class SDPPredictor(Predictor):
 
                 new_item["top"] = "+" if node["top"] == 1 else "-"
                 new_item["pred"] = "+" if node["pred"] == 1 else "-"
-                new_item["frame"] = "-"
+                new_item["frame"] = "Y"
 
                 new_item["relations"] = []
                 for pred_idx in range(num_pred):
@@ -178,7 +178,7 @@ class SDPPredictor(Predictor):
             else:
                 new_item["top"] = "-"
                 new_item["pred"] = "-" 
-                new_item["frame"] = "-"
+                new_item["frame"] = "N"
 
                 new_item["relations"] = ["_" for i in range(num_pred)]
 

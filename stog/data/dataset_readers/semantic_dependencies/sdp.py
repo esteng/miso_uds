@@ -43,6 +43,7 @@ class SDPGraph:
         self.lemmas = []
         self.predicate_indices = []
         self.top_index = []
+        self.annotated_sentence = annotated_sentence
 
         for index, item in enumerate(annotated_sentence):
             self.sentence.append(item["form"])
@@ -75,7 +76,7 @@ class SDPGraph:
             self.node_list.append(
                 SDPNode(
                     index=index,
-                    token=self.sentence[index],
+                    token=self.get_src_tokens()[index],
                     lemma=self.lemmas[index],
                     pos_tag=self.pos_tags[index]
                 )
@@ -107,7 +108,13 @@ class SDPGraph:
         return list(set(reduce(lambda x, y: x + y, self.arc_indices)))
 
     def get_src_tokens(self):
-        return self.sentence
+        list_to_return = []
+        for item in self.annotated_sentence:
+            if "_generic" not in item["lemma"] and "+" not in item["lemma"]:
+                list_to_return.append(item["lemma"])
+            else:
+                list_to_return.append(item["form"])
+        return list_to_return
 
     def get_list_data(self, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None):
         tgt_tokens = []
