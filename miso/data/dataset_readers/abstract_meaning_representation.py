@@ -83,7 +83,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         max_tgt_length = None if self._evaluation else 60
 
-        list_data = amr.graph.get_stog_data(
+        list_data = amr.graph.get_istog_data(
             amr, START_SYMBOL, END_SYMBOL, self._word_splitter, max_tgt_length)
 
         # These four fields are used for seq2seq model and target side self copy
@@ -141,12 +141,6 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             label_namespace="coref_tags",
         )
 
-        fields["tgt_copy_mask"] = SequenceLabelField(
-            labels=list_data["tgt_copy_mask"],
-            sequence_field=fields["tgt_tokens"],
-            label_namespace="coref_mask_tags",
-        )
-
         fields["tgt_copy_map"] = AdjacencyField(
             indices=list_data["tgt_copy_map"],
             sequence_field=fields["tgt_tokens"],
@@ -185,6 +179,12 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             label_namespace="head_index_tags",
             strip_sentence_symbols=True
         )
+
+        if list_data.get('node_mask', None) is not None:
+            fields['node_mask'] = ArrayField(list_data['node_mask'])
+
+        if list_data.get('edge_mask', None) is not None:
+            fields['edge_mask'] = ArrayField(list_data['edge_mask'])
 
         if self._evaluation:
             # Metadata fields, good for debugging
