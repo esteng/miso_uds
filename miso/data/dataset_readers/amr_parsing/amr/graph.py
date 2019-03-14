@@ -12,7 +12,7 @@ from miso.utils import logging
 
 from .node import AMRNode
 from .src_copy_vocab import SourceCopyVocabulary
-from .utils import recover_triples_from_prediction, prepare_stog_instance
+from .utils import recover_triples_from_prediction, prepare_stog_instance, prepare_istog_instance
 
 
 logger = logging.init_logger()
@@ -347,6 +347,15 @@ class AMRGraph(penman.Graph):
         src_pos_tags = amr.pos_tags
         tgt_tokens, head_tags, head_indices, node_to_idx = self.get_meta_data()
         return prepare_stog_instance(
+            src_tokens, src_pos_tags, tgt_tokens, head_tags, head_indices, node_to_idx,
+            bos, eos, bert_tokenizer, max_tgt_length
+        )
+
+    def get_istog_data(self, amr, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None):
+        src_tokens = self.get_src_tokens()
+        src_pos_tags = amr.pos_tags
+        tgt_tokens, head_tags, head_indices, node_to_idx = self.get_meta_data()
+        return prepare_istog_instance(
             src_tokens, src_pos_tags, tgt_tokens, head_tags, head_indices, node_to_idx,
             bos, eos, bert_tokenizer, max_tgt_length
         )
