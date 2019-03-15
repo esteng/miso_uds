@@ -34,40 +34,52 @@ class SDPGraph:
                  annotated_sentence,
                  arc_indices,
                  arc_tags,
+                 evaluation=False
                  ):
 
-        self.arc_indices = arc_indices
-        self.arc_tags = arc_tags
+        self.evaluation = evaluation
+        if evaluation or len(arc_indices) == 0 or len(arc_tags) == 0:
+            self.build_node_info(annotated_sentence)
+        else:
+            self.build_graph(annotated_sentence)
+
+    def build_node_info(self, annotated_sentence):
         self.sentence = []
         self.pos_tags = []
         self.lemmas = []
         self.predicate_indices = []
         self.top_index = []
-        self.annotated_sentence = annotated_sentence
 
         for index, item in enumerate(annotated_sentence):
             self.sentence.append(item["form"])
             self.pos_tags.append(item["pos"])
             self.lemmas.append(item["lemma"])
-            if item["top"] == '+':
+            if item.get("top", None) == '+':
                 self.top_index.append(index)
-            if item['pred'] == '+':
+            if item.get('pred', None) == '+':
                 self.predicate_indices.append(index)
 
-        if len(self.top_index) > 1:
-            raise NotImplementedError
-        elif len(self.top_index) == 0:
-            # There are cases that not top node in Graph.
-            # We would set the first predicate as top node.
-            self.top_index = self.predicate_indices[0]
-        else:
-            self.top_index = self.top_index[0]
+        if not self.evaluation:
+            if len(self.top_index) > 1:
+                raise NotImplementedError
+            elif len(self.top_index) == 0:
+                # There are cases that not top node in Graph.
+                # We would set the first predicate as top node.
+                self.top_index = self.predicate_indices[0]
+            else:
+                self.top_index = self.top_index[0]
 
-        if self.top_index not in self.active_token_indices():
-            # There are cases that top node is not a pedicate, or even not a part of a graph
-            # We would set the first predicate as top node.
-            self.top_index = self.predicate_indices[0]
+            if self.top_index not in self.active_token_indices():
+                # There are cases that top node is not a pedicate, or even not a part of a graph
+                # We would set the first predicate as top node.
+                self.top_index = self.predicate_indices[0]
 
+
+    def build_graph(self, annotated_sentence):
+        self.annotated_sentence = annotated_sentence
+        self.build_node_info(annotated_sentence)
+        self.arc_indices = arc_indices
+        self.arc_tags = arc_tags
         self.node_list = []
         self.index_to_node = {}
         self._G = nx.DiGraph()
@@ -105,29 +117,80 @@ class SDPGraph:
         self.top_node = self.index_to_node[self.top_index]
 
     def active_token_indices(self):
-        return list(set(reduce(lambda x, y: x + y, self.arc_indices)))
+        if len(self.arc_indices) == 0:
+            return []
+        else:
+            return list(set(reduce(lambda x, y: x + y, self.arc_indices)))
 
     def get_src_tokens(self):
-        list_to_return = []
-        for item in self.annotated_sentence:
-            if "_generic" not in item["lemma"] and "+" not in item["lemma"]:
-                list_to_return.append(item["lemma"])
-            else:
-                list_to_return.append(item["form"])
-        return list_to_return
+        return self.lemmas
 
     def get_list_data(self, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None):
+        if self.evaluation:
+            return self.get_test_data(bert_tokenizer, max_tgt_length)
+        else:
+            return self.get_train_data(bos, eos, bert_tokenizer, max_tgt_length)
+    
+    def get_test_data(self, bert_tokenizer=None, max_tgt_length=None):
+        tgt_tokens = [DEFAULT_PADDING_TOKEN, DEFAULT_PADDING_TOKEN]
+        tgt_pos_tags = [DEFAULT_PADDING_TOKEN, DEFAULT_PADDING_TOKEN]
+        tgt_copy_map = [(0, 0), (1, 1)]
+        tgt_copy_mask = [0, 0]
+        tgt_copy_indices = [1, 2]
+
+        head_tags = [DEFAULT_PADDING_TOKEN]
+        head_indices = [0]
+        
+        src_tokens = self.get_src_tokens()
+        src_token_ids = None
+        src_token_subword_index = None
+        src_pos_tags = self.pos_tags
+
+        src_copy_vocab = RedundentSourceCopyVocabulary(src_tokens)
+        src_copy_indices = [0, 0]
+        src_copy_map = src_copy_vocab.get_copy_map()
+
+        pos_tag_lut = RedundentSourceCopyVocabulary(src_pos_tags)
+        if bert_tokenizer is not None:
+            src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens, True)
+
+        src_must_copy_tags = [1 if is_abstract_token(t) else 0 for t in src_tokens]
+        src_copy_invalid_ids = set(
+                [idx + 1 for idx, t in enumerate(src_tokens) if is_english_punct(t)]
+        )
+
+        return {
+            "tgt_tokens" : tgt_tokens,
+            "tgt_pos_tags": tgt_pos_tags,
+            "tgt_copy_indices" : tgt_copy_indices,
+            "tgt_copy_map" : tgt_copy_map,
+            "tgt_copy_mask" : tgt_copy_mask,
+            "src_tokens" : src_tokens,
+            "src_token_ids" : src_token_ids,
+            "src_token_subword_index" : src_token_subword_index,
+            "src_must_copy_tags" : src_must_copy_tags,
+            "src_pos_tags": src_pos_tags,
+            "src_copy_vocab" : src_copy_vocab,
+            "src_copy_indices" : src_copy_indices,
+            "src_copy_map" : src_copy_map,
+            "pos_tag_lut": pos_tag_lut,
+            "head_tags" : head_tags,
+            "head_indices" : head_indices,
+            "src_copy_invalid_ids" : src_copy_invalid_ids
+        }
+
+    def get_train_data(self, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None):
         tgt_tokens = []
         tgt_pos_tags = []
         tgt_copy_map = []
         tgt_copy_mask = []
         tgt_copy_indices = []
-        pos_tag_lut ={
-            DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN,
-            DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN
-        }
-        for token, pos_tag in zip(self.get_src_tokens(), self.pos_tags):
-            pos_tag_lut[token] = pos_tag
+        #pos_tag_lut ={
+        #    DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN,
+        #    DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN
+        #}
+        #for token, pos_tag in zip(self.get_src_tokens(), self.pos_tags):
+        #    pos_tag_lut[token] = pos_tag
 
         tgt_index_from_src = {}
         src_index_from_tgt = {}
@@ -225,6 +288,7 @@ class SDPGraph:
         src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens, src_index_from_tgt, bos, eos)
         src_copy_map = src_copy_vocab.get_copy_map()
 
+        pos_tag_lut = RedundentSourceCopyVocabulary(src_pos_tags)
         if bert_tokenizer is not None:
             src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens, True)
 

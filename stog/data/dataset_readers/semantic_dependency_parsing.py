@@ -119,7 +119,8 @@ class SemanticDependenciesDatasetReader(DatasetReader):
             self._filename = line
             for annotated_sentence, directed_arc_indices, arc_tags, sentence_id in lazy_parse(sdp_file.read()):
                 # If there are no arc indices, skip this instance.
-                if not directed_arc_indices:
+                if not directed_arc_indices and not self._evaluation:
+                    import pdb;pdb.set_trace()
                     continue
                 tokens = [word["form"] for word in annotated_sentence]
                 pos_tags = [word["pos"] for word in annotated_sentence]
@@ -132,14 +133,14 @@ class SemanticDependenciesDatasetReader(DatasetReader):
                          arc_tags: List[str] = None,
                          sentence_id: str = None) -> Instance:
         # pylint: disable=arguments-differ
-        SDP_graph = SDPGraph(annotated_sentence, arc_indices, arc_tags)
+        SDP_graph = SDPGraph(annotated_sentence, arc_indices, arc_tags, self._evaluation)
         list_data = SDP_graph.get_list_data(START_SYMBOL, END_SYMBOL, self._word_splitter)
         
         fields = {}
         # These four fields are used for seq2seq model and target side self copy
         fields["src_tokens"] = TextField(
             tokens=[Token(x) for x in list_data["src_tokens"]],
-            token_indexers={k: v for k, v in self._token_indexers.items() if 'encoder' in k}
+            token_indexers=self._token_indexers
         )
 
         if list_data['src_token_ids'] is not None:
@@ -160,7 +161,7 @@ class SemanticDependenciesDatasetReader(DatasetReader):
 
         fields["tgt_tokens"] = TextField(
             tokens=[Token(x) for x in list_data["tgt_tokens"]],
-            token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
+            token_indexers=self._token_indexers
         )
 
         if list_data["src_pos_tags"] is not None:

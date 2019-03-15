@@ -35,7 +35,6 @@ class SDPPredictor(Predictor):
     @overrides
     def predict_batch_instance(self, instances):
         outputs = []
-        gen_vocab_size = self._model.vocab.get_vocab_size('decoder_token_ids')
         _outputs = super(SDPPredictor, self).predict_batch_instance(instances)
         for instance, output in zip(instances, _outputs):
             copy_vocab = instance.fields['src_copy_vocab'].metadata
@@ -50,25 +49,24 @@ class SDPPredictor(Predictor):
             nodes_src_indices = []
 
             for i, index in enumerate(node_indexes):
-                # Lookup the node.
-                if index >= gen_vocab_size:
-                    copy_index = index - gen_vocab_size
-                    nodes.append(copy_vocab.get_token_from_idx(copy_index))
-                    copy_indicators.append(1)
-                    nodes_src_indices.append(copy_index - 1)
-                else:
-                    nodes.append(self._model.vocab.get_token_from_index(index, 'decoder_token_ids'))
-                    copy_indicators.append(0)
-                    nodes_src_indices.append(100000)
-                # Lookup the head label.
-                head_labels.append(self._model.vocab.get_token_from_index(
-                    head_label_indexes[i], 'head_tags'))
+                if index == 0 :
+                    seq_len = i
+                    break
 
-            if END_SYMBOL in nodes:
-                nodes = nodes[:nodes.index(END_SYMBOL)]
-                head_indexes = head_indexes[:len(nodes)]
-                head_labels = head_labels[:len(nodes)]
-                corefs = corefs[:len(nodes)]
+                copy_index = index
+                nodes.append(copy_vocab.get_token_from_idx(copy_index))
+                copy_indicators.append(1)
+                nodes_src_indices.append(copy_index - 1)
+                # Lookup the head label.
+                head_labels.append(
+                    self._model.vocab.get_token_from_index(
+                    head_label_indexes[i], 'head_tags')
+                )
+
+            nodes = nodes[:seq_len]
+            head_indexes = head_indexes[:len(nodes)]
+            head_labels = head_labels[:len(nodes)]
+            corefs = corefs[:len(nodes)]
 
             outputs.append(
                 dict(
@@ -121,10 +119,12 @@ class SDPPredictor(Predictor):
                     tgt_index_to_node[coref_tgt_index]["heads"][output["heads"][tgt_index]] =  output["head_labels"][tgt_index]
                     tgt_index_to_node[tgt_index] = tgt_index_to_node[coref_tgt_index]
 
+        num_top = 0
         for node in node_list:
             for head_idx, head_label in node["heads"].items():
                 if head_idx == 0:
                     node["top"] = 1
+                    num_top += 1
                     continue
 
                 if "_reversed" in head_label:
@@ -136,6 +136,8 @@ class SDPPredictor(Predictor):
                     tgt_index_to_node[head_idx - 1]["pred"] = 1
                     node["parents"][head_idx - 1] = head_label
         
+        if num_top > 1:
+            import pdb;pdb.set_trace()
         pred_idx = 0
         for node in sorted(node_list, key=lambda x: x["src_index"]):
             if node["pred"] == 1 and node["src_index"] < 1000:
@@ -144,7 +146,7 @@ class SDPPredictor(Predictor):
 
         for node in node_list:
             for head_tgt_index, label in node["parents"].items():
-                if tgt_index_to_node[head_tgt_index]["pred_idx"] is not None:
+                if tgt_index_to_node[head_tgt_index]["pred_idx"] is not None and head_tgt_index != node["tgt_index"]:
                     node["pred_parents"][tgt_index_to_node[head_tgt_index]["pred_idx"]] = label
 
         return node_list, src_index_to_node, pred_idx

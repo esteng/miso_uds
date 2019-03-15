@@ -93,7 +93,8 @@ def train_model(params: Params):
     # Load data.
     dataset = dataset_from_params(params["data"])
 
-    vocab = vocab_from_params(params["vocab"], dataset["train"],
+    vocab = vocab_from_params(params["vocab"], 
+                              dataset["train"],
                               os.path.join(environment_params['serialization_dir'], "vocabulary")) 
 
     iterators = iterator_from_params(vocab, params["iterator"])

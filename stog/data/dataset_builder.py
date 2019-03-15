@@ -22,9 +22,20 @@ def seq2seq_token_char_indexers(*args, **kwargs):
         decoder_characters=TokenCharactersIndexer(namespace="decoder_token_characters")
     )
 
+def shared_seq2seq_token_char_indexers(*args, **kwargs):
+    return dict(
+        tokens=SingleIdTokenIndexer(namespace="token_ids"),
+        characters=TokenCharactersIndexer(namespace="token_characters")
+    )
+
 def load_dataset_reader(params):
+    if params["share_vocab"]:
+        indexer = shared_seq2seq_token_char_indexers() 
+    else:
+        indexer = seq2seq_token_char_indexers()
+
     return DatasetReader.by_name(params["type"])(
-        token_indexers=seq2seq_token_char_indexers(),
+        token_indexers=indexer,
         word_splitter=params.get('word_splitter', None)
     )
 
