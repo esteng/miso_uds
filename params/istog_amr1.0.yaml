@@ -1,7 +1,7 @@
 # Parameters of the Seq2Seq Model
 
 # Device-sensitive parameters
-amr_data_dir: &amr_data_dir data/AMR/amr_2.0
+amr_data_dir: &amr_data_dir data/AMR/amr_1.0
 glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
 
 
@@ -10,7 +10,8 @@ model:
   model_type: ISTOG
   use_char_cnn: True
   use_anonym_indicator: True
-  use_coverage: False
+  use_coverage: True
+  use_aux_encoder: False
   use_bert: False
 
   bert:
@@ -22,34 +23,34 @@ model:
     vocab_namespace: 'encoder_token_ids'
     embedding_dim: 300
     padding_index: 0
-    dropout: 0
-    pretrained_file:
+    dropout: 0.33
+    pretrained_file: *glove
 
   encoder_pos_embedding:
     num_embeddings:
     vocab_namespace: 'pos_tags'
-    embedding_dim: 50
+    embedding_dim: 100
     padding_index: 0
     dropout: 0
 
   encoder_anonym_indicator_embedding:
     num_embeddings: 3
     vocab_namespace: 'must_copy_tags'
-    embedding_dim: 20
+    embedding_dim: 50
     padding_index:
     dropout: 0
 
   encoder_char_embedding:
     num_embeddings:
     vocab_namespace: 'encoder_token_characters'
-    embedding_dim: &encoder_char_embedding_dim 50
+    embedding_dim: &encoder_char_embedding_dim 100
     padding_index: 0
     dropout: 0
     pretrained_file:
 
   encoder_char_cnn:
     embedding_dim: *encoder_char_embedding_dim
-    num_filters: 50
+    num_filters: 100
     ngram_filter_sizes: [3]
 
   decoder_token_embedding:
@@ -57,56 +58,56 @@ model:
     vocab_namespace: 'decoder_token_ids'
     embedding_dim: 300
     padding_index: 0
-    dropout: 0
-    pretrained_file:
+    dropout: 0.33
+    pretrained_file: *glove
+    data_type: AMR
 
   decoder_pos_embedding:
     num_embeddings:
     vocab_namespace: 'pos_tags'
-    embedding_dim: 50
+    embedding_dim: 100
     padding_index: 0
     dropout: 0
-
-  decoder_char_embedding:
-    num_embeddings:
-    vocab_namespace: 'decoder_token_characters'
-    embedding_dim: &decoder_char_embedding_dim 50
-    padding_index: 0
-    dropout: 0
-    pretrained_file:
 
   decoder_coref_embedding:
     num_embeddings: 500
     embedding_dim: 50
-    padding_index:
-    dropout: 0
+    padding_index: 0
+    dropout: 0.33
+
+  decoder_char_embedding:
+    num_embeddings:
+    vocab_namespace: 'decoder_token_characters'
+    embedding_dim: &decoder_char_embedding_dim 100
+    padding_index: 0
+    dropout: 0.33
+    pretrained_file:
 
   decoder_char_cnn:
     embedding_dim: *decoder_char_embedding_dim
-    num_filters: 50
+    num_filters: 100
     ngram_filter_sizes: [3]
 
   encoder:
     input_size:
-    hidden_size: 256
+    hidden_size: 512
     num_layers: 2
     use_highway: False
-    dropout: 0
+    dropout: 0.33
 
   decoder:
     input_size:
-    hidden_size: &decoder_hidden_size 512
+    hidden_size: &decoder_hidden_size 1024
     num_layers: 2
     use_highway: False
-    dropout: 0
+    dropout: 0.33
 
   source_attention:
-    attention_function: dot
-    share_linear: False
-    coverage: False
+    attention_function: mlp
+    coverage: True
 
   coref_attention:
-    attention_function: dot
+    attention_function: mlp
     share_linear: True
 
   generator:
@@ -117,30 +118,41 @@ model:
     force_copy: True
 
   tree_decoder:
-    input_size: 512
-    edge_hidden_size: 200
-    label_hidden_size: 100
-    dropout: 0
+    input_size: *decoder_hidden_size
+    edge_hidden_size: 256
+    label_hidden_size: 128
+    dropout: 0.33
 
   mimick_test:
-    data: data/AMR/amr_2.0/dev_amr.txt.features.preproc
-    prediction: prediction-in-train.txt
+    data: data/AMR/amr_1.0/dev_amr.txt.features.preproc
+    prediction: dev.pred.txt
     batch_size: 32
     eval_script: miso/data/dataset_readers/amr_parsing/scripts/eval_test.sh
     smatch_dir: tools/amr-evaluation-tool-enhanced
-    word_splitter: &word_splitter null # /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
+    word_splitter: &word_splitter /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
+
+
+# Vocabulary
+vocab:
+  non_padded_namespaces: [must_copy_tags, coref_tags]
+  min_count:
+      encoder_token_ids: 1
+      decoder_token_ids: 1
+  max_vocab_size:
+      encoder_token_ids: 9200
+      decoder_token_ids: 7300
 
 
 # Data parameters
 data:
   data_dir: *amr_data_dir
-  train_data: dev_amr.txt.features.preproc
+  train_data: train_amr.txt.features.preproc
   dev_data: dev_amr.txt.features.preproc
-  test_data: dev_amr.txt.features.preproc
+  test_data: test_amr.txt.features.preproc
   data_type: AMR
   batch_first: True
   iterator:
-    train_batch_size: &train_batch_size 64
+    train_batch_size: &train_batch_size 32
     test_batch_size: 32
     iter_type: BucketIterator
     sorting_keys:  # (field, padding type)
@@ -150,18 +162,13 @@ data:
   word_splitter: *word_splitter
 
 
-# Vocab
-vocab:
-  non_padded_namespaces: [must_copy_tags, coref_tags]
-
-
 # Training parameters
 environment:
   recover: False
   seed: 1
   numpy_seed: 1
   torch_seed: 1
-  serialization_dir: &serialization_dir debug-ckpt
+  serialization_dir: &serialization_dir stog-amr1.0-ckpt
   file_friendly_logging: False
   gpu: True
   cuda_device: 0
@@ -175,7 +182,7 @@ trainer:
   max_grad_norm: 5.0
   batch_size: *train_batch_size
   shuffle: True
-  epochs: 50
+  epochs: 120
   dev_metric: +F1
   serialization_dir: *serialization_dir
   model_save_interval:

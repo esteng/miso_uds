@@ -156,7 +156,7 @@ class ISTOG(Model):
             word_splitter = self.test_config.get('word_splitter', None)
         dataset_reader = load_dataset_reader('AMR', word_splitter=word_splitter)
         dataset_reader.set_evaluation()
-        predictor = Predictor.by_name('ISTOG')(self, dataset_reader)
+        predictor = Predictor.by_name('STOG')(self, dataset_reader)
         manager = _PredictManager(
             predictor,
             self.test_config['data'],
@@ -164,7 +164,7 @@ class ISTOG(Model):
             self.test_config['batch_size'],
             False,
             True,
-            1
+            0
         )
         try:
             logger.info('Mimicking test...')
@@ -473,17 +473,10 @@ class ISTOG(Model):
             generator_outputs = self.beam_search_with_pointer_generator(
                 memory_bank, mask, states, copy_attention_maps, copy_vocabs, tag_luts, invalid_indexes)
 
-        parser_outputs = self.decode_with_tree_parser(
-            generator_outputs['decoder_inputs'],
-            generator_outputs['decoder_rnn_memory_bank'],
-            generator_outputs['coref_indexes'],
-            generator_outputs['decoder_mask']
-        )
-        #import pdb;pdb.set_trace()
         return dict(
             nodes=generator_outputs['predictions'],
-            heads=parser_outputs['edge_heads'],
-            head_labels=parser_outputs['edge_labels'],
+            heads=generator_outputs['edge_heads'],
+            head_labels=generator_outputs['edge_labels'],
             corefs=generator_outputs['coref_indexes'],
         )
 
@@ -917,14 +910,14 @@ class ISTOG(Model):
         pos_tags = pos_tags.type_as(tokens)
         corefs = torch.zeros(batch_size, 1).type_as(mask).long()
 
-        decoder_input_history = []
-        decoder_outputs = []
         rnn_outputs = []
         copy_attentions = []
         coref_attentions = []
         predictions = []
         coref_indexes = []
         decoder_mask = []
+        edge_heads = []
+        edge_labels = []
 
         input_feed = None
         coref_inputs = []
@@ -999,9 +992,21 @@ class ISTOG(Model):
                 invalid_indexes
             )
 
-            # 5. Update variables.
-            decoder_input_history += [decoder_inputs]
-            decoder_outputs += [_decoder_outputs]
+            # 5. Run tree decoder.
+            if step_i != 0:
+                queries = _rnn_outputs
+                if step_i == 1:
+                    keys, edge_mask = None, None
+                else:
+                    keys = torch.cat(rnn_outputs[1:], dim=1)
+                    coref_history = torch.cat(coref_indexes[:-1], dim=1)
+                    coref_current = coref_indexes[-1]
+                    edge_mask = coref_history.ne(coref_current).unsqueeze(1)
+                heads, labels = self.tree_decoder(queries, keys, edge_mask)
+                edge_heads += [heads]
+                edge_labels += [labels]
+
+            # 6. Update variables.
             rnn_outputs += [_rnn_outputs]
 
             copy_attentions += [_copy_attentions]
@@ -1013,26 +1018,22 @@ class ISTOG(Model):
             # Add the mask for the next input.
             decoder_mask += [_mask]
 
-        # 6. Do the following chunking for the tree decoding input.
-        # Exclude the hidden state for BOS.
-        decoder_input_history = torch.cat(decoder_input_history[1:], dim=1)
-        decoder_outputs = torch.cat(decoder_outputs[1:], dim=1)
-        rnn_outputs = torch.cat(rnn_outputs[1:], dim=1)
+        # 7. Do the following chunking for the tree decoding input.
         # Exclude coref/mask for EOS.
         # TODO: Answer "What if the last one is not EOS?"
         predictions = torch.cat(predictions[:-1], dim=1)
         coref_indexes = torch.cat(coref_indexes[:-1], dim=1)
         decoder_mask = 1 - torch.cat(decoder_mask[:-1], dim=1)
+        edge_heads = torch.cat(edge_heads, dim=1)
+        edge_labels = torch.cat(edge_labels, dim=1)
 
         return dict(
             # [batch_size, max_decode_length]
             predictions=predictions,
             coref_indexes=coref_indexes,
             decoder_mask=decoder_mask,
-            # [batch_size, max_decode_length, hidden_size]
-            decoder_inputs=decoder_input_history,
-            decoder_memory_bank=decoder_outputs,
-            decoder_rnn_memory_bank=rnn_outputs,
+            edge_heads=edge_heads,
+            edge_labels=edge_labels,
             # [batch_size, max_decode_length, encoder_length]
             copy_attentions=copy_attentions,
             coref_attentions=coref_attentions
@@ -1125,32 +1126,6 @@ class ISTOG(Model):
                 pos_tags.unsqueeze(1),
                 coref_index.unsqueeze(1),
                 mask.unsqueeze(1))
-
-    def decode_with_tree_parser(self, decoder_inputs, memory_bank, corefs, mask):
-        """Predict edges and edge labels between nodes.
-        :param decoder_inputs: [batch_size, node_length, embedding_size]
-        :param memory_bank: [batch_size, node_length, hidden_size]
-        :param corefs: [batch_size, node_length]
-        :param mask:  [batch_size, node_length]
-        :return a dict of edge_heads and edge_labels.
-            edge_heads: [batch_size, node_length]
-            edge_labels: [batch_size, node_length]
-        """
-        if self.use_aux_encoder:
-            aux_encoder_outputs = self.aux_encoder(decoder_inputs, mask)
-            self.aux_encoder.reset_states()
-            memory_bank = torch.cat([memory_bank, aux_encoder_outputs], 2)
-
-        memory_bank, _, _, corefs, mask = self.tree_decoder._add_head_sentinel(
-            memory_bank, None, None, corefs, mask)
-        (edge_node_h, edge_node_m), (edge_label_h, edge_label_m) = self.tree_decoder.encode(memory_bank)
-        edge_node_scores = self.tree_decoder._get_edge_node_scores(edge_node_h, edge_node_m, mask.float())
-        edge_heads, edge_labels = self.tree_decoder.mst_decode(
-            edge_label_h, edge_label_m, edge_node_scores, corefs, mask)
-        return dict(
-            edge_heads=edge_heads,
-            edge_labels=edge_labels
-        )
 
     @classmethod
     def from_params(cls, vocab, params):

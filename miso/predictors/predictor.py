@@ -12,6 +12,7 @@ DEFAULT_PREDICTORS = {
     'Seq2Seq': 'Seq2Seq',
     'DeepBiaffineParser': 'BiaffineParser',
     'STOG': 'STOG',
+    'ISTOG': 'STOG',
 }
 
 

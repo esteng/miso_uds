@@ -53,6 +53,7 @@ from miso.predictors.predictor import Predictor, JsonDict
 from miso.predictors import BiaffineDependencyParserPredictor, Seq2SeqPredictor, STOGPredictor
 from miso.data import Instance
 
+
 class Predict(Subcommand):
     def add_subparser(self, name: str, parser: argparse._SubParsersAction) -> argparse.ArgumentParser:
         # pylint: disable=protected-access

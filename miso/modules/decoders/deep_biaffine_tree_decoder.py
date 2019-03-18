@@ -42,7 +42,7 @@ class DeepBiaffineTreeDecoder(torch.nn.Module):
             edge_heads: [batch_size, query_length]
             edge_labels: [batch_size, query_length]
         """
-        keys, mask = self._add_sentinel(keys, mask)
+        keys, mask = self._add_sentinel(queries, keys, mask)
         edge_query_hiddens, edge_key_hiddens, label_query_hiddens, label_key_hiddens = self._mlp(queries, keys)
         edge_scores = self._get_edge_scores(edge_query_hiddens, edge_key_hiddens)
         edge_heads, edge_labels = self._decode(label_query_hiddens, label_key_hiddens, edge_scores, mask)
@@ -71,7 +71,7 @@ class DeepBiaffineTreeDecoder(torch.nn.Module):
         :return:
         """
         batch_size, query_length, _ = queries.size()
-        keys, mask = self._add_sentinel(keys, mask)
+        keys, mask = self._add_sentinel(queries, keys, mask)
         edge_query_hiddens, edge_key_hiddens, label_query_hiddens, label_key_hiddens = self._mlp(queries, keys)
 
         # [batch_size, query_length, key_length]
@@ -110,21 +110,26 @@ class DeepBiaffineTreeDecoder(torch.nn.Module):
             num_instances=num_instances
         )
 
-    def _add_sentinel(self, keys: torch.FloatTensor, mask: torch.ByteTensor):
+    def _add_sentinel(self, queries: torch.FloatTensor, keys: torch.FloatTensor, mask: torch.ByteTensor):
         """
         Add a sentinel at the beginning of keys.
-        :param keys:  [batch_size, key_legnth, key_hidden_size]
+        :param queries:  [batch_size, query_length, query_hidden_size]
+        :param keys:  [batch_size, key_length, key_hidden_size]
         :param mask: None or [batch_size, query_length, key_length]
         :return:
             new_keys: [batch_size, key_length + 1, key_hidden_size]
             mask: None or [batch_size, query_length, key_length + 1]
         """
-        batch_size, _, hidden_size = keys.size()
+        batch_size, query_length, hidden_size = queries.size()
+        if keys is None:
+            new_keys = self.sentinel.expand([batch_size, 1, hidden_size])
+            new_mask = self.sentinel.new_ones(batch_size, query_length, 1)
+            return new_keys, new_mask
+
         sentinel = self.sentinel.expand([batch_size, 1, hidden_size])
         new_keys = torch.cat([sentinel, keys], dim=1)
         new_mask = None
         if mask is not None:
-            query_length = mask.size(1)
             sentinel_mask = mask.new_ones(batch_size, query_length, 1)
             new_mask = torch.cat([sentinel_mask, mask], dim=2)
         return new_keys, new_mask
