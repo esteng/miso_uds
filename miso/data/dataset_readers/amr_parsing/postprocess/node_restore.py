@@ -10,7 +10,9 @@ class NodeRestore:
 
     def restore_instance(self, amr):
         graph = amr.graph
-        for node in graph.get_nodes():
+        for node, _, _ in graph.get_list_node(replace_copy=False):
+            if node.copy_of is not None:
+                continue
             instance = node.instance
             new_instance = self.node_utils.get_frames(instance)[0]
             if instance != new_instance:
