@@ -80,6 +80,7 @@ class ISTOG(Model):
                  decoder_char_embedding,
                  decoder_char_cnn,
                  decoder_embedding_dropout,
+                 head_sentinels,
                  decoder,
                  # Aux Encoder
                  aux_encoder,
@@ -118,6 +119,7 @@ class ISTOG(Model):
         self.decoder_char_embedding = decoder_char_embedding
         self.decoder_char_cnn = decoder_char_cnn
         self.decoder_embedding_dropout = decoder_embedding_dropout
+        self.head_sentinels = head_sentinels
         self.decoder = decoder
 
         self.aux_encoder = aux_encoder
@@ -249,6 +251,7 @@ class ISTOG(Model):
 
         decoder_inputs = dict(
             token=decoder_token_inputs,
+            head=batch['head_indices'][:, 1:-3],
             pos_tag=decoder_pos_tags,
             char=decoder_char_inputs,
             coref=decoder_coref_inputs
@@ -305,6 +308,7 @@ class ISTOG(Model):
         if for_training:
             decoder_outputs = self.decode_for_training(
                 decoder_inputs['token'],
+                decoder_inputs['head'],
                 decoder_inputs['pos_tag'],
                 decoder_inputs['char'],
                 decoder_inputs['coref'],
@@ -410,7 +414,7 @@ class ISTOG(Model):
             final_states=encoder_final_states
         )
 
-    def decode_for_training(self, tokens, pos_tags, chars, corefs, memory_bank, mask, states):
+    def decode_for_training(self, tokens, heads, pos_tags, chars, corefs, memory_bank, mask, states):
         # [batch, num_tokens, embedding_size]
         token_embeddings = self.decoder_token_embedding(tokens)
         pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
@@ -422,6 +426,21 @@ class ISTOG(Model):
         else:
             decoder_inputs = torch.cat([
                 token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
+
+        batch_size, num_tokens, embedding_size = decoder_inputs.size()
+        if num_tokens > 3:
+            batch_index = torch.arange(batch_size).view(-1, 1).type_as(tokens)
+            # [batch, num_tokens - 3, embedding_size]
+            head_embeddings = decoder_inputs[batch_index, heads]
+            # Heads for null, BOS and top.
+            sentinels = self.head_sentinels.expand(batch_size, 3, embedding_size)
+            head_embeddings = torch.cat([sentinels, head_embeddings], dim=1)
+        else:
+            head_embeddings = self.head_sentinels[:, :num_tokens].expand(
+                batch_size, num_tokens, embedding_size)
+
+        decoder_inputs = torch.cat([decoder_inputs, head_embeddings], dim=2)
+
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
         decoder_outputs = self.decoder(decoder_inputs, memory_bank, mask, states)
 
@@ -910,6 +929,7 @@ class ISTOG(Model):
         pos_tags = pos_tags.type_as(tokens)
         corefs = torch.zeros(batch_size, 1).type_as(mask).long()
 
+        decoder_input_history = []
         rnn_outputs = []
         copy_attentions = []
         coref_attentions = []
@@ -955,11 +975,24 @@ class ISTOG(Model):
             else:
                 decoder_inputs = torch.cat(
                     [token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
-            decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
+
+            batch_size, _, embedding_size = decoder_inputs.size()
+            if step_i < 3:
+                head_embeddings = self.head_sentinels[:, step_i:step_i + 1].expand(
+                    batch_size, 1, embedding_size)
+            else:
+                _decoder_input_history = torch.cat(decoder_input_history, dim=1)
+                batch_index = torch.arange(batch_size).view(-1, 1).type_as(tokens)
+                heads = edge_heads[-1]
+                head_embeddings = _decoder_input_history[batch_index, heads]
+
+            _decoder_inputs = torch.cat([decoder_inputs, head_embeddings], dim=2)
+
+            # _decoder_inputs = self.decoder_embedding_dropout(_decoder_inputs)
 
             # 2. Decode one step.
             decoder_output_dict = self.decoder(
-                decoder_inputs, memory_bank, mask, states, input_feed, coref_inputs, coverage)
+                _decoder_inputs, memory_bank, mask, states, input_feed, coref_inputs, coverage)
             _decoder_outputs = decoder_output_dict['decoder_hidden_states']
             _rnn_outputs = decoder_output_dict['rnn_hidden_states']
             _copy_attentions = decoder_output_dict['source_copy_attentions']
@@ -1007,6 +1040,7 @@ class ISTOG(Model):
                 edge_labels += [labels]
 
             # 6. Update variables.
+            decoder_input_history += [decoder_inputs]
             rnn_outputs += [_rnn_outputs]
 
             copy_attentions += [_copy_attentions]
@@ -1174,8 +1208,7 @@ class ISTOG(Model):
         encoder_output_dropout = InputVariationalDropout(p=params['encoder']['dropout'])
 
         # Decoder
-        decoder_input_size = params['decoder']['hidden_size']
-        decoder_input_size += params['decoder_token_embedding']['embedding_dim']
+        decoder_input_size = params['decoder_token_embedding']['embedding_dim']
         decoder_input_size += params['decoder_coref_embedding']['embedding_dim']
         decoder_input_size += params['decoder_pos_embedding']['embedding_dim']
         decoder_token_embedding = Embedding.from_params(vocab, params['decoder_token_embedding'])
@@ -1195,6 +1228,12 @@ class ISTOG(Model):
             decoder_char_cnn = None
 
         decoder_embedding_dropout = InputVariationalDropout(p=params['decoder_token_embedding']['dropout'])
+
+        # Tree information
+        head_sentinels = torch.nn.Parameter(torch.randn([1, 3, decoder_input_size]))
+        decoder_input_size += decoder_input_size
+
+        decoder_input_size += params['decoder']['hidden_size']
 
         # Source attention
         if params['source_attention']['attention_function'] == 'mlp':
@@ -1315,6 +1354,7 @@ class ISTOG(Model):
             decoder_char_cnn=decoder_char_cnn,
             decoder_char_embedding=decoder_char_embedding,
             decoder_embedding_dropout=decoder_embedding_dropout,
+            head_sentinels=head_sentinels,
             decoder=decoder,
             aux_encoder=aux_encoder,
             aux_encoder_output_dropout=aux_encoder_output_dropout,
