@@ -160,14 +160,11 @@ def train_model(params: Params):
         for key, value in test_metrics.items():
             metrics["test_" + key] = value
 
-        metrics = {k : v.item() for k,v in metrics.items() if isinstance(v, torch.Tensor)}
-        dump_metrics(os.path.join(serialization_dir, "metrics.json"), metrics, log=True)
+        for key, value in metrics.items():
+            if isinstance(value, torch.Tensor):
+                metrics[key] = value.item()
 
-        # TODO: May not be a good way, but leave it for now
-        # with open(os.path.join(serialization_dir, 'predictions.txt'), 'w') as f:
-        #     for tree in predictions['tree']:
-        #         f.write(tree.pretty_str())
-        #         f.write('\n\n')
+        dump_metrics(os.path.join(serialization_dir, "metrics.json"), metrics, log=True)
 
     return best_model
 
