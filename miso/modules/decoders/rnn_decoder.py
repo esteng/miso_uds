@@ -30,12 +30,13 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         self.coref_attention_layer = coref_attention_layer
         self.use_coverage = use_coverage
 
-    def forward(self, inputs, memory_bank, mask, hidden_state,
+    def forward(self, inputs, memory_bank, mask, hidden_state, heads=None,
                 input_feed=None, target_copy_hidden_states=None, coverage=None):
         """
 
         :param inputs: [batch_size, decoder_seq_length, embedding_size]
         :param memory_bank: [batch_size, encoder_seq_length, encoder_hidden_size]
+        :param heads: [batch_size, decoder_seq_length, head_hidden_size]
         :param mask:  None or [batch_size, decoder_seq_length]
         :param hidden_state: a tuple of (state, memory) with shape [num_encoder_layers, batch_size, encoder_hidden_size]
         :param input_feed: None or [batch_size, 1, hidden_size]
@@ -71,9 +72,12 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             output, _ = pad_packed_sequence(packed_output, batch_first=True)
             rnn_hidden_states.append(output)
 
+            if heads is None:
+                continue
+
             coverage_records.append(coverage)
             output, std_attention, coverage = self.attention_layer(
-                output, memory_bank, mask, coverage)
+                output, memory_bank, heads[step_i], mask, coverage)
 
             output = self.dropout(output)
             input_feed = output
@@ -107,14 +111,17 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             target_copy_hidden_states.append(output)
             decoder_hidden_states.append(output)
 
-        decoder_hidden_states = torch.cat(decoder_hidden_states, 1)
-        rnn_hidden_states = torch.cat(rnn_hidden_states, 1)
-        source_copy_attentions = torch.cat(source_copy_attentions, 1)
+        if len(decoder_hidden_states):
+            decoder_hidden_states = torch.cat(decoder_hidden_states, 1)
+        if len(rnn_hidden_states):
+            rnn_hidden_states = torch.cat(rnn_hidden_states, 1)
+        if len(source_copy_attentions):
+            source_copy_attentions = torch.cat(source_copy_attentions, 1)
         if len(target_copy_attentions):
             target_copy_attentions = torch.cat(target_copy_attentions, 1)
         else:
             target_copy_attentions = None
-        if self.use_coverage:
+        if self.use_coverage and len(coverage_records):
             coverage_records = torch.cat(coverage_records, 1)
         else:
             coverage_records = None
