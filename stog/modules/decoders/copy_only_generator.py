@@ -87,7 +87,8 @@ class CopyOnlyGenerator(torch.nn.Module):
         # [batch_size, num_target_nodes, dymanic_vocab_size]
         scaled_copy_target_probs = torch.bmm(scaled_target_attentions, target_attention_maps.float())
 
-        if invalid_indexes:
+        #if invalid_indexes:
+        if False:
             if invalid_indexes.get('vocab', None) is not None:
                 vocab_invalid_indexes = invalid_indexes['vocab']
                 for i, indexes in enumerate(vocab_invalid_indexes):

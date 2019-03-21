@@ -26,6 +26,22 @@ amr_codec = penman.AMRCodec(indent=6)
 
 WORDSENSE_RE = re.compile(r'-\d\d$')
 QUOTED_RE = re.compile(r'^".*"$')
+RELATION_ORDER = defaultdict(lambda: 10000)
+RELATION_ORDER = [
+    "BV_reversed",
+    "compound_reversed",
+    "measure_reversed",
+    "ARG1",
+    "ARG2",
+    "ARG3",
+    "ARG4",
+    "ARG1_reversed",
+    "ARG2_reversed",
+    "ARG3_reversed",
+    "ARG4_reversed",
+    "loc_reversed"
+]
+relation_dist = defaultdict(list)
 
 
 class SDPGraph:
@@ -38,6 +54,9 @@ class SDPGraph:
                  ):
 
         self.evaluation = evaluation
+        self.annotated_sentence = annotated_sentence
+        self.arc_indices = arc_indices
+        self.arc_tags = arc_tags
         if evaluation or len(arc_indices) == 0 or len(arc_tags) == 0:
             self.build_node_info(annotated_sentence)
         else:
@@ -53,7 +72,11 @@ class SDPGraph:
         for index, item in enumerate(annotated_sentence):
             self.sentence.append(item["form"])
             self.pos_tags.append(item["pos"])
-            self.lemmas.append(item["lemma"])
+            #if "+" in item["lemma"]:
+            #    self.lemmas.append(item["form"].lower())
+            #else:
+            #    self.lemmas.append(item["lemma"])
+            self.lemmas.append(item["lemma"].lower())
             if item.get("top", None) == '+':
                 self.top_index.append(index)
             if item.get('pred', None) == '+':
@@ -76,12 +99,9 @@ class SDPGraph:
 
 
     def build_graph(self, annotated_sentence):
-        self.annotated_sentence = annotated_sentence
         self.build_node_info(annotated_sentence)
-        self.arc_indices = arc_indices
-        self.arc_tags = arc_tags
         self.node_list = []
-        self.index_to_node = {}
+        self.src_index_to_node = {}
         self._G = nx.DiGraph()
     
         for index in self.active_token_indices():
@@ -93,7 +113,7 @@ class SDPGraph:
                     pos_tag=self.pos_tags[index]
                 )
             )
-            self.index_to_node[index] = self.node_list[-1]
+            self.src_index_to_node[index] = self.node_list[-1]
 
         for (child_idx, parent_idx), edge_label in zip(self.arc_indices, self.arc_tags):
             #if child_idx == self.top_index:
@@ -103,18 +123,18 @@ class SDPGraph:
             #    edge_label = self.reverse_relation(edge_label)
 
             self.add_edge(
-                self.index_to_node[parent_idx],
-                self.index_to_node[child_idx],
+                self.src_index_to_node[parent_idx],
+                self.src_index_to_node[child_idx],
                 edge_label,
             )
             #self._G.add_edge(
-            #    self.index_to_node(child_idx),
-            #    self.index_to_node(parent_idx),
+            #    self.src_index_to_node(child_idx),
+            #    self.src_index_to_node(parent_idx),
             #    label=edge_label
             #)
 
 
-        self.top_node = self.index_to_node[self.top_index]
+        self.top_node = self.src_index_to_node[self.top_index]
 
     def active_token_indices(self):
         if len(self.arc_indices) == 0:
@@ -160,23 +180,23 @@ class SDPGraph:
         )
 
         return {
-            "tgt_tokens" : tgt_tokens,
+            "tgt_tokens": tgt_tokens,
             "tgt_pos_tags": tgt_pos_tags,
-            "tgt_copy_indices" : tgt_copy_indices,
-            "tgt_copy_map" : tgt_copy_map,
-            "tgt_copy_mask" : tgt_copy_mask,
-            "src_tokens" : src_tokens,
-            "src_token_ids" : src_token_ids,
-            "src_token_subword_index" : src_token_subword_index,
-            "src_must_copy_tags" : src_must_copy_tags,
+            "tgt_copy_indices": tgt_copy_indices,
+            "tgt_copy_map": tgt_copy_map,
+            "tgt_copy_mask": tgt_copy_mask,
+            "src_tokens": src_tokens,
+            "src_token_ids": src_token_ids,
+            "src_token_subword_index": src_token_subword_index,
+            "src_must_copy_tags": src_must_copy_tags,
             "src_pos_tags": src_pos_tags,
-            "src_copy_vocab" : src_copy_vocab,
-            "src_copy_indices" : src_copy_indices,
-            "src_copy_map" : src_copy_map,
+            "src_copy_vocab": src_copy_vocab,
+            "src_copy_indices": src_copy_indices,
+            "src_copy_map": src_copy_map,
             "pos_tag_lut": pos_tag_lut,
-            "head_tags" : head_tags,
-            "head_indices" : head_indices,
-            "src_copy_invalid_ids" : src_copy_invalid_ids
+            "head_tags": head_tags,
+            "head_indices": head_indices,
+            "src_copy_invalid_ids": src_copy_invalid_ids
         }
 
     def get_train_data(self, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None):
@@ -207,16 +227,55 @@ class SDPGraph:
             tgt_index_from_src[0] = 0
             src_index_from_tgt[0] = 0
 
-        visited = defaultdict(int)
+        edge_visited = {(child_idx, parent_idx) : 0 for child_idx, parent_idx in self.arc_indices}
+        node_visited = defaultdict(int)
 
-        def travel_graph(node, parent_node=None, tag_with_parent=None, prohibit_nodes_indices=[]):
+        def depth_first_search(node, antecedent_nodes=[]):
+            node_visited[node.src_index] = 1
+            for child_tag, child_node in node.children:
+
+                # don't make the last node visited as children
+                if child_node.src_index in antecedent_nodes[-1:]:
+                    continue
+
+                # add the node to tree
+                if child_node.src_index not in node.tree_children: 
+                    node.tree_children[child_node.src_index] = child_tag
+                
+                if "_reversed" not in child_tag:
+                    edge_visited[(child_node.src_index, node.src_index)] = 1
+                else:
+                    edge_visited[(node.src_index, child_node.src_index)] = 1
+
+                if child_node.src_index not in antecedent_nodes and node_visited[child_node.src_index] == 0:
+                    depth_first_search(child_node, antecedent_nodes + [node.src_index])
             
+            if node.is_frontier(edge_visited):
+                for parent_tag, parent_node in node.parents:
+                    if edge_visited[(node.src_index, parent_node.src_index)] == 0:
+                        node.children.append((self.reverse_relation(parent_tag), parent_node))
 
+        # Convert tree to graph
+        num_edge_visited = 0
+        #print(self.sentence)
+        while sum(edge_visited.values()) < len(edge_visited.values()):
+            edge_visited = {(child_idx, parent_idx) : 0 for child_idx, parent_idx in self.arc_indices}
+            node_visited = defaultdict(int)
+            depth_first_search(self.top_node)
+            if num_edge_visited == sum(edge_visited.values()):
+                #print("{}".format(" ".join(self.sentence)))
+                #print("Num of isolated nodes : {}".format(sum([1 for v in edge_visited.values() if v == 0])))
+                break
+            num_edge_visited = sum(edge_visited.values())
+
+        node_visited = defaultdict(int)
+
+        def travel_converted_graph(node, parent_node=None, tag_with_parent=None):
             tgt_tokens.append(node.token)
             tgt_pos_tags.append(node.pos_tag)
 
             node_index_in_target = len(tgt_tokens) - 1
-            node_index_in_source = node.index
+            node_index_in_source = node.src_index
 
             # record this every time we visit the node.
             src_index_from_tgt[node_index_in_target] = node_index_in_source
@@ -226,10 +285,10 @@ class SDPGraph:
                 head_indices.append(0)
             else:
                 head_tags.append(tag_with_parent)
-                head_indices.append(tgt_index_from_src[parent_node.index])
+                head_indices.append(tgt_index_from_src[parent_node.src_index])
             
-            if visited[node.index] == 0:
-                visited[node.index] = 1
+            if node_visited[node.src_index] == 0:
+                node_visited[node.src_index] = 1
                 # Record the 1st time this token appeared.
                 tgt_index_from_src[node_index_in_source] = node_index_in_target
 
@@ -242,21 +301,12 @@ class SDPGraph:
                 )
                 tgt_copy_indices.append(0)
 
-                for child_tag, child_node in node.children:
-                    if child_node.index not in prohibit_nodes_indices:
-                        travel_graph(
-                            child_node,
-                            node,
-                            child_tag
-                        )
-                for parent_tag, parent_node in node.parents:
-                    if visited[parent_node.index] == 0 and parent_node.index not in prohibit_nodes_indices:
-                        travel_graph(
-                            parent_node,
-                            node,
-                            self.reverse_relation(parent_tag),
-                            [node.index]
-                        )
+                for child_node_src_index, child_tag in node.tree_children.items():
+                    travel_converted_graph(
+                        self.src_index_to_node[child_node_src_index],
+                        node,
+                        child_tag
+                    )
             else:
                 tgt_copy_mask.append(1)
                 tgt_copy_map.append(
@@ -269,7 +319,8 @@ class SDPGraph:
                     tgt_index_from_src[node_index_in_source]
                 )
 
-        travel_graph(self.top_node)
+        travel_converted_graph(self.top_node)
+        #import pdb;pdb.set_trace()
 
         if eos:
             tgt_tokens.append(eos)
@@ -337,19 +388,26 @@ class SDPNode:
             lemma,
             pos_tag
     ):
-        self.index = index
+        self.src_index = index
         self.token = token
         self.lemma = lemma
         self.pos_tag = pos_tag
         self.parents = []
         self.children = []
+        self.tree_children = {}
+
+    def is_frontier(self, edge_visited):
+        num_unvisited_incoming_edge = 0
+        for parent_tag, parent_node in self.parents:
+            num_unvisited_incoming_edge += 1 - edge_visited[(self.src_index, parent_node.src_index)]
+        return num_unvisited_incoming_edge != 0
 
     def __repr__(self):
-        string = "Id: {}\tToken : {}\tLemma : {}\tPOS : {}\n".format(self.index, self.token, self.lemma, self.pos_tag)
+        string = "Id: {}\tToken : {}\tLemma : {}\tPOS : {}\n".format(self.src_index, self.token, self.lemma, self.pos_tag)
         string += "\nParent :\n"
-        string += "\n".join(["{} <-- {}, {}".format(label, parent_node.index, parent_node.token) for label, parent_node in self.parents])
+        string += "\n".join(["{} <-- {}, {}".format(label, parent_node.src_index, parent_node.token) for label, parent_node in self.parents])
         string += "\nChildren :\n"
-        string += "\n".join(["{} --> {}, {}".format(label, child_node.index, child_node.token) for label, child_node in self.children])
+        string += "\n".join(["{} --> {}, {}".format(label, child_node.src_index, child_node.token) for label, child_node in self.children])
         return string
 
 #TODO: leave OOV tokens now since we now every token on target side is a copy from source

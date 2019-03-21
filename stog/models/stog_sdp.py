@@ -6,7 +6,8 @@ from stog.models.model import Model
 from stog.utils.logging import init_logger
 from stog.modules.token_embedders.embedding import Embedding
 from stog.modules.seq2vec_encoders.cnn_encoder import CnnEncoder
-from stog.modules.seq2seq_encoders.pytorch_seq2seq_wrapper import PytorchSeq2SeqWrapper
+from stog.modules.seq2seq_encoders.pytorch_seq2seq_wrapper \
+  import PytorchSeq2SeqWrapper
 from stog.modules.stacked_bilstm import StackedBidirectionalLstm
 from stog.modules.stacked_lstm import StackedLstm
 from stog.modules.decoders.rnn_decoder import InputFeedRNNDecoder
@@ -15,18 +16,19 @@ from stog.modules.attention import DotProductAttention
 from stog.modules.attention import MLPAttention
 from stog.modules.attention import BiaffineAttention
 from stog.modules.input_variational_dropout import InputVariationalDropout
-from stog.modules.decoders.generator import Generator
-from stog.modules.decoders.pointer_generator import PointerGenerator
 from stog.modules.decoders.copy_only_generator import CopyOnlyGenerator
-from stog.modules.decoders.deep_biaffine_graph_decoder import DeepBiaffineGraphDecoder
+from stog.modules.decoders.deep_biaffine_graph_decoder import \
+  DeepBiaffineGraphDecoder
 from stog.utils.nn import get_text_field_mask
-from stog.utils.string import START_SYMBOL, END_SYMBOL, find_similar_token, is_abstract_token
+from stog.utils.string import START_SYMBOL, END_SYMBOL, find_similar_token
 from stog.data.vocabulary import DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN
 from stog.data.tokenizers.character_tokenizer import CharacterTokenizer
 # The following imports are added for mimick testing.
 from stog.data.dataset_builder import load_dataset
 from stog.predictors.predictor import Predictor
 from stog.commands.predict import _PredictManager
+from stog.data.dataset_builder import shared_seq2seq_token_char_indexers
+from stog.data.dataset_readers import DatasetReader
 import subprocess
 import math
 
@@ -166,8 +168,8 @@ class STOGSDP(Model):
         graph_decoder_metrics = self.graph_decoder.metrics.get_metric(reset)
         metrics.update(generator_metrics)
         metrics.update(graph_decoder_metrics)
-        if 'F1' not in metrics:
-            metrics['F1'] = metrics['all_acc']
+        if 'LF' not in metrics:
+            metrics['LF'] = metrics['all_acc']
         return metrics
 
     def mimick_test(self):
@@ -176,12 +178,12 @@ class STOGSDP(Model):
             word_splitter = self.test_config.get('word_splitter', None)
 
         dataset_reader = DatasetReader.by_name(self.data_type)(
-            token_indexers=seq2seq_token_char_indexers(),
+            token_indexers=shared_seq2seq_token_char_indexers(),
             word_splitter=word_splitter
         )
 
         dataset_reader.set_evaluation()
-        predictor = Predictor.by_name('STOG')(self, dataset_reader)
+        predictor = Predictor.by_name(self.data_type)(self, dataset_reader)
         manager = _PredictManager(
             predictor,
             self.test_config['data'],
@@ -199,17 +201,26 @@ class STOGSDP(Model):
             logger.error(e, exc_info=True)
             return {}
         try:
-            logger.info('Computing the Smatch score...')
+            logger.info('Running evaluation script...')
             result = subprocess.check_output([
                 self.test_config['eval_script'],
-                self.test_config['smatch_dir'],
+                self.test_config['eval_dir'],
                 self.test_config['data'],
                 self.test_config['prediction']
             ]).decode().split()
+            result[4] = result[4][:-1]
             result = list(map(float, result))
-            return dict(PREC=result[0]*100, REC=result[1]*100, F1=result[2]*100)
+            return dict(
+                LP=result[0] * 100,
+                LR=result[1] * 100,
+                LF=result[2] * 100,
+                LM=result[3] * 100,
+                BLEU=result[4]
+            )
         except Exception as e:
-            logger.info('Exception threw out when computing smatch.')
+            logger.info(
+                'Exception threw out when computing evaluation metric.'
+            )
             logger.error(e, exc_info=True)
             return {}
 
@@ -308,7 +319,6 @@ class STOGSDP(Model):
             corefs=decoder_coref_inputs,
             mask=parser_mask
         )
-        # import pdb; pdb.set_trace()
 
         return encoder_inputs, decoder_inputs, generator_inputs, parser_inputs
 
@@ -528,7 +538,6 @@ class STOGSDP(Model):
             generator_outputs['coref_indexes'],
             generator_outputs['decoder_mask']
         )
-        #import pdb;pdb.set_trace()
         return dict(
             nodes=generator_outputs['predictions'],
             heads=parser_outputs['edge_heads'],
@@ -881,7 +890,6 @@ class STOGSDP(Model):
 
             #print(new_token_indices.view(-1))
             #print(variables["input_tokens"].view(-1))
-            #import pdb;pdb.set_trace()
             input_tokens, _predictions, pos_tags, corefs, _mask = self._update_maps_and_get_next_input(
                 step,
                 flatten(new_token_indices).squeeze(1),
@@ -1281,7 +1289,9 @@ class STOGSDP(Model):
             )
             decoder_input_size += params['decoder_char_cnn']['num_filters']
 
-        decoder_embedding_dropout = InputVariationalDropout(p=params['decoder_token_embedding']['dropout'])
+        decoder_embedding_dropout = InputVariationalDropout(
+          p=params['decoder_token_embedding']['dropout']
+        )
 
         # Source attention
         if params['source_attention']['attention_function'] == 'mlp':
@@ -1295,7 +1305,10 @@ class STOGSDP(Model):
             source_attention = DotProductAttention(
                 decoder_hidden_size=params['decoder']['hidden_size'],
                 encoder_hidden_size=params['encoder']['hidden_size'] * 2,
-                share_linear=params['source_attention'].get('share_linear', False)
+                share_linear=params['source_attention'].get(
+                    'share_linear',
+                    False
+                )
             )
 
         source_attention_layer = GlobalAttention(
@@ -1323,7 +1336,10 @@ class STOGSDP(Model):
             coref_attention = DotProductAttention(
                 decoder_hidden_size=params['decoder']['hidden_size'],
                 encoder_hidden_size=params['decoder']['hidden_size'],
-                share_linear=params['coref_attention'].get('share_linear', True)
+                share_linear=params['coref_attention'].get(
+                  'share_linear',
+                  True
+                )
             )
 
         coref_attention_layer = GlobalAttention(
@@ -1344,7 +1360,9 @@ class STOGSDP(Model):
 
         if params.get('use_aux_encoder', False):
             aux_encoder = PytorchSeq2SeqWrapper(
-                module=StackedBidirectionalLstm.from_params(params['aux_encoder']),
+                module=StackedBidirectionalLstm.from_params(
+                  params['aux_encoder']
+                ),
                 stateful=True
             )
             aux_encoder_output_dropout = InputVariationalDropout(
@@ -1364,7 +1382,8 @@ class STOGSDP(Model):
             target_copy=params.get('use_target_copy', True)
         )
 
-        graph_decoder = DeepBiaffineGraphDecoder.from_params(vocab, params['graph_decoder'])
+        graph_decoder = DeepBiaffineGraphDecoder.from_params(
+          vocab, params['graph_decoder'])
 
         # Vocab
         punctuation_ids = []
@@ -1374,13 +1393,18 @@ class STOGSDP(Model):
             if c_id != oov_id:
                 punctuation_ids.append(c_id)
 
-        logger.info('Number of token: %d' % vocab.get_vocab_size('token_ids'))
-        logger.info('Number of chars: %d' % vocab.get_vocab_size('token_characters'))
+        logger.info(
+          'Number of token: %d' % vocab.get_vocab_size('token_ids')
+        )
+        logger.info(
+          'Number of chars: %d' % vocab.get_vocab_size('token_characters')
+        )
 
         return cls(
             vocab=vocab,
             punctuation_ids=punctuation_ids,
-            use_must_copy_embedding=params.get('use_must_copy_embedding', False),
+            use_must_copy_embedding=params.get(
+              'use_must_copy_embedding', False),
             use_char_cnn=params['use_char_cnn'],
             use_coverage=params['use_coverage'],
             use_aux_encoder=params.get('use_aux_encoder', False),

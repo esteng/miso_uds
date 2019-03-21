@@ -12,11 +12,14 @@ from stog.data.instance import Instance
 from stog.data.dataset_readers.semantic_dependencies.sdp import SDPGraph
 from stog.utils.string import START_SYMBOL, END_SYMBOL
 from stog.data.tokenizers.bert_tokenizer import AMRBertTokenizer
-from stog.data.fields import TextField, SpanField, SequenceLabelField, ListField, MetadataField, Field, AdjacencyField, ArrayField
+from stog.data.fields import \
+    TextField, SpanField, SequenceLabelField,\
+    ListField, MetadataField, Field, AdjacencyField, ArrayField
 
-logger = logging.getLogger(__name__) # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-#FIELDS = ["id", "form", "lemma", "pos", "head", "deprel", "top", "pred", "frame"]
+# FIELDS =
+# ["id", "form", "lemma", "pos", "head", "deprel", "top", "pred", "frame"]
 FIELDS = ["id", "form", "lemma", "pos", "top", "pred", "frame"]
 
 def parse_sentence(sentence_blob: str) -> Tuple[List[Dict[str, str]], List[Tuple[int, int]], List[str]]:
@@ -83,7 +86,7 @@ class SemanticDependenciesDatasetReader(DatasetReader):
     """
     def __init__(self,
                  token_indexers: Dict[str, TokenIndexer] = None,
-                 word_splitter = None,
+                 word_splitter=None,
                  lazy: bool = False,
                  evaluation: bool = False) -> None:
         super().__init__(lazy)
@@ -100,7 +103,7 @@ class SemanticDependenciesDatasetReader(DatasetReader):
         self._number_bert_oov_ids = 0
         self._number_non_oov_pos_tags = 0
         self._number_pos_tags = 0
-        self._filename=""
+        self._filename = ""
     
     def set_evaluation(self):
         self._evaluation = True
@@ -111,7 +114,10 @@ class SemanticDependenciesDatasetReader(DatasetReader):
         # if `file_path` is a URL, redirect to the cache
         file_path = cached_path(file_path)
 
-        logger.info("Reading semantic dependency parsing data from: %s", file_path)
+        logger.info(
+            "Reading semantic dependency parsing data from: %s",
+            file_path
+        )
 
         with open(file_path) as sdp_file:
             line = sdp_file.readline().rstrip()
@@ -120,14 +126,16 @@ class SemanticDependenciesDatasetReader(DatasetReader):
             for annotated_sentence, directed_arc_indices, arc_tags, sentence_id in lazy_parse(sdp_file.read()):
                 # If there are no arc indices, skip this instance.
                 if not directed_arc_indices and not self._evaluation:
-                    import pdb;pdb.set_trace()
                     continue
-                tokens = [word["form"] for word in annotated_sentence]
-                pos_tags = [word["pos"] for word in annotated_sentence]
-                yield self.text_to_instance(annotated_sentence, directed_arc_indices, arc_tags, sentence_id)
+                yield self.text_to_instance(
+                    annotated_sentence,
+                    directed_arc_indices,
+                    arc_tags,
+                    sentence_id
+                )
 
     @overrides
-    def text_to_instance(self, # type: ignore
+    def text_to_instance(self,  # type: ignore
                          annotated_sentence,
                          arc_indices: List[Tuple[int, int]] = None,
                          arc_tags: List[str] = None,

@@ -9,8 +9,9 @@ from typing import Dict, Optional, List, Union
 import torch
 from stog.utils import logging
 from stog.training.tensorboard import TensorboardWriter
-from stog.utils.environment import device_mapping, peak_memory_mb, gpu_memory_mb, move_to_device
-from stog.utils.checks import  ConfigurationError
+from stog.utils.environment import \
+    device_mapping, peak_memory_mb, gpu_memory_mb, move_to_device
+from stog.utils.checks import ConfigurationError
 from stog.utils.tqdm import Tqdm
 from stog.utils.time import time_to_str
 from stog.modules.optimizer import Optimizer
@@ -19,7 +20,6 @@ from stog.utils.exception_hook import ExceptionHook
 sys.excepthook = ExceptionHook()
 
 logger = logging.init_logger()
-
 
 
 class Trainer:
@@ -34,20 +34,21 @@ class Trainer:
             optimizer,
             iterator,
             training_dataset,
-            dev_dataset = None,
-            dev_iterator = None,
-            dev_metric = '-loss',
-            device = None,
-            patience = None,
-            grad_clipping = None,
-            shuffle = True,
-            num_epochs = 20,
-            serialization_dir = None,
-            num_serialized_models_to_keep = 20,
-            model_save_interval = None,
-            summary_interval = 100,
-            batch_size = 64,
-            n_gpus = 0,
+            dev_dataset=None,
+            dev_iterator=None,
+            dev_metric='-loss',
+            device=None,
+            patience=None,
+            grad_clipping=None,
+            shuffle=True,
+            num_epochs=20,
+            serialization_dir=None,
+            num_serialized_models_to_keep=20,
+            model_save_interval=None,
+            summary_interval=100,
+            batch_size=64,
+            n_gpus=0,
+            mimick_test_epoch=50
     ):
         """
         Parameters
@@ -117,6 +118,7 @@ class Trainer:
         self._summary_interval = summary_interval
         self._batch_size = batch_size
         self._n_gpus = n_gpus
+        self._mimick_test_epoch = mimick_test_epoch
 
         self._num_trained_batches = 0
         self._serialized_paths = []
@@ -317,9 +319,15 @@ class Trainer:
             dev_generator_tqdm.set_description(description, refresh=False)
 
         if self._n_gpus > 1:
-            return self._model.module.get_metrics(reset=True, mimick_test=epoch > 50)
+            return self._model.module.get_metrics(
+                reset=True,
+                mimick_test=epoch > self._mimick_test_epoch
+            )
         else:
-            return self._model.get_metrics(reset=True, mimick_test=epoch > 50)
+            return self._model.get_metrics(
+                reset=True,
+                mimick_test=epoch > self._mimick_test_epoch
+            )
 
     def train(self):
         """Trains the supplied model with the supplied parameters.
@@ -329,9 +337,10 @@ class Trainer:
         except RuntimeError:
             traceback.print_exc()
             raise ConfigurationError(
-                "Could not recover training from the checkpoint.  Did you mean to output to "
-                "a different serialization directory or delete the existing serialization "
-                "directory?")
+                "Could not recover training from the checkpoint.  "
+                "Did you mean to output to "
+                "a different serialization directory\
+                    or delete the existing serialization directory?")
 
         self._enable_gradient_clipping()
 
@@ -358,7 +367,10 @@ class Trainer:
                     this_epoch_dev_metric = dev_metrics[self._dev_metric]
 
                     # Check dev metric to see if it's the best so far
-                    is_best_so_far = self._is_best_so_far(this_epoch_dev_metric, dev_metric_per_epoch)
+                    is_best_so_far = self._is_best_so_far(
+                        this_epoch_dev_metric,
+                        dev_metric_per_epoch
+                    )
                     if is_best_so_far:
                         best_epoch_dev_metrics = dev_metrics.copy()
                     dev_metric_per_epoch.append(this_epoch_dev_metric)
@@ -367,15 +379,24 @@ class Trainer:
                         break
 
             # Save status.
-            self._save_checkpoint(epoch, dev_metric_per_epoch, is_best=is_best_so_far)
-            self._metrics_to_tensorboard(epoch, training_metrics, dev_metrics=dev_metrics)
+            self._save_checkpoint(epoch, dev_metric_per_epoch,
+                                  is_best=is_best_so_far)
+            self._metrics_to_tensorboard(epoch, training_metrics,
+                                         dev_metrics=dev_metrics)
             self._metrics_to_console(training_metrics, dev_metrics=dev_metrics)
-            self._tensorboard.add_dev_scalar('learning_rate', self._optimizer.lr, epoch)
+            self._tensorboard.add_dev_scalar('learning_rate',
+                                             self._optimizer.lr, epoch)
 
             if is_best_so_far:
-                # We may not have had validation data, so we need to hide this behind an if.
+                # We may not have had validation data
+                # so we need to hide this behind an if.
                 metrics['best_epoch'] = epoch
-                metrics.update({f"best_dev_{k}": v for k, v in best_epoch_dev_metrics.items()})
+                metrics.update(
+                    {
+                        f"best_dev_{k}": v
+                        for k, v in best_epoch_dev_metrics.items()
+                    }
+                )
 
             # Estimate ETA.
             epoch_elapsed_time = time.time() - epoch_start_time
@@ -584,7 +605,8 @@ class Trainer:
             model_save_interval=model_save_interval,
             summary_interval=100,
             batch_size=batch_size,
-            n_gpus=n_gpus
+            n_gpus=n_gpus,
+            mimick_test_epoch=params["mimick_test"]["start_epoch"]
         )
 
         return trainer

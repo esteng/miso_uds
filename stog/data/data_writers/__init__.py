@@ -1,1 +1,0 @@
-from stog.data.data_writers.amr_writer import AbstractMeaningRepresentationDataWriter
