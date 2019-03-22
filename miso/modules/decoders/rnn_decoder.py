@@ -23,104 +23,62 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                  attention_layer,
                  source_copy_attention_layer=None,
                  coref_attention_layer=None,
+                 head_sentinels=None,
                  use_coverage=False):
         super(InputFeedRNNDecoder, self).__init__(rnn_cell, dropout)
         self.attention_layer = attention_layer
         self.source_copy_attention_layer = source_copy_attention_layer
         self.coref_attention_layer = coref_attention_layer
+        self.head_sentinels = head_sentinels
         self.use_coverage = use_coverage
 
-    def forward(self, inputs, memory_bank, mask, hidden_state, heads=None,
-                input_feed=None, target_copy_hidden_states=None, coverage=None):
+    def forward(self, inputs, memory_bank, mask, hidden_state, input_feed=None, heads=None):
         """
-
         :param inputs: [batch_size, decoder_seq_length, embedding_size]
         :param memory_bank: [batch_size, encoder_seq_length, encoder_hidden_size]
-        :param heads: [batch_size, decoder_seq_length, head_hidden_size]
         :param mask:  None or [batch_size, decoder_seq_length]
         :param hidden_state: a tuple of (state, memory) with shape [num_encoder_layers, batch_size, encoder_hidden_size]
         :param input_feed: None or [batch_size, 1, hidden_size]
-        :param target_copy_hidden_states: None or [batch_size, seq_length, hidden_size]
-        :param coverage: None or [batch_size, 1, encode_seq_length]
-        :return:
+        :param heads: a list of head indices of shape [batch_size, 1]
         """
         batch_size, sequence_length, _ = inputs.size()
-        one_step_length = [1] * batch_size
+        # Outputs
+        decoder_hidden_states = []
+        rnn_hidden_states = []
         source_copy_attentions = []
         target_copy_attentions = []
         coverage_records = []
-        decoder_hidden_states = []
-        rnn_hidden_states = []
 
+        # Internal use
+        target_copy_hidden_states = []
+        head_hidden_states = []
         if input_feed is None:
             input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
-
-        if target_copy_hidden_states is None:
-            target_copy_hidden_states = []
-
-        if self.use_coverage and coverage is None:
+        coverage = None
+        if self.use_coverage:
             coverage = inputs.new_zeros(batch_size, 1, memory_bank.size(1))
 
         for step_i, input in enumerate(inputs.split(1, dim=1)):
-            # input: [batch_size, 1, embeddings_size]
-            # input_feed: [batch_size, 1, hidden_size]
-            _input = torch.cat([input, input_feed], 2)
-            packed_input = pack_padded_sequence(_input, one_step_length, batch_first=True)
-            # hidden_state: a tuple of (state, memory) with shape [num_layers, batch_size, hidden_size]
-            packed_output, hidden_state = self.rnn_cell(packed_input, hidden_state)
-            # output: [batch_size, 1, hidden_size]
-            output, _ = pad_packed_sequence(packed_output, batch_first=True)
-            rnn_hidden_states.append(output)
-
-            if heads is None:
-                continue
-
             coverage_records.append(coverage)
-            output, std_attention, coverage = self.attention_layer(
-                output, memory_bank, heads[step_i], mask, coverage)
 
-            output = self.dropout(output)
-            input_feed = output
+            output_dict = self.one_step_forward(
+                input, memory_bank, mask, hidden_state, input_feed,
+                heads, head_hidden_states, target_copy_hidden_states, coverage, step_i, sequence_length)
 
-            if self.source_copy_attention_layer is not None:
-                _, source_copy_attention = self.source_copy_attention_layer(
-                    output, memory_bank, mask)
-                source_copy_attentions.append(source_copy_attention)
-            else:
-                source_copy_attentions.append(std_attention)
+            head_hidden_states.append(output_dict['rnn_output'])
+            target_copy_hidden_states.append(output_dict['decoder_output'])
 
-            if self.coref_attention_layer is not None:
-                if len(target_copy_hidden_states) == 0:
-                    target_copy_attention = inputs.new_zeros(batch_size, 1, sequence_length)
+            decoder_hidden_states.append(output_dict['decoder_output'])
+            rnn_hidden_states.append(output_dict['rnn_output'])
+            source_copy_attentions.append(output_dict['source_copy_attention'])
+            target_copy_attentions.append(output_dict['target_copy_attention'])
+            input_feed = output_dict['input_feed']
+            coverage = output_dict['coverage']
 
-                else:
-                    target_copy_memory = torch.cat(target_copy_hidden_states, 1)
-
-                    if sequence_length == 1:
-                        _, target_copy_attention, _ = self.coref_attention_layer(
-                            output, target_copy_memory)
-                    else:
-                        _, target_copy_attention, _ = self.coref_attention_layer(
-                            output, target_copy_memory)
-                        target_copy_attention = torch.nn.functional.pad(
-                            target_copy_attention, (0, sequence_length - step_i), 'constant', 0
-                        )
-
-                target_copy_attentions.append(target_copy_attention)
-
-            target_copy_hidden_states.append(output)
-            decoder_hidden_states.append(output)
-
-        if len(decoder_hidden_states):
-            decoder_hidden_states = torch.cat(decoder_hidden_states, 1)
-        if len(rnn_hidden_states):
-            rnn_hidden_states = torch.cat(rnn_hidden_states, 1)
-        if len(source_copy_attentions):
-            source_copy_attentions = torch.cat(source_copy_attentions, 1)
-        if len(target_copy_attentions):
-            target_copy_attentions = torch.cat(target_copy_attentions, 1)
-        else:
-            target_copy_attentions = None
+        decoder_hidden_states = torch.cat(decoder_hidden_states, 1)
+        rnn_hidden_states = torch.cat(rnn_hidden_states, 1)
+        source_copy_attentions = torch.cat(source_copy_attentions, 1)
+        target_copy_attentions = torch.cat(target_copy_attentions, 1)
         if self.use_coverage and len(coverage_records):
             coverage_records = torch.cat(coverage_records, 1)
         else:
@@ -131,8 +89,113 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             rnn_hidden_states=rnn_hidden_states,
             source_copy_attentions=source_copy_attentions,
             target_copy_attentions=target_copy_attentions,
-            coverage_records=coverage_records,
-            last_hidden_state=hidden_state,
-            input_feed=input_feed,
+            coverage_records=coverage_records
+        )
+
+    def one_step_forward(self,
+                         input,
+                         memory_bank,
+                         mask,
+                         hidden_state,
+                         input_feed,
+                         heads,
+                         head_hidden_states,
+                         target_copy_hidden_states,
+                         coverage=None,
+                         step_i=0,
+                         target_seq_length=1):
+        """
+        :param inputs: [batch_size, decoder_seq_length, embedding_size]
+        :param memory_bank: [batch_size, encoder_seq_length, encoder_hidden_size]
+        :param mask:  None or [batch_size, decoder_seq_length]
+        :param hidden_state: a tuple of (state, memory) with shape [num_encoder_layers, batch_size, encoder_hidden_size]
+        :param input_feed: None or [batch_size, 1, hidden_size]
+        :param heads: a list of head indices of shape [batch_size, 1]
+        :param head_hidden_states: [batch_size, prev_seq_length, hidden_size]
+        :param target_copy_hidden_states: [batch_size, seq_length, hidden_size]
+        :param coverage: None or [batch_size, 1, encode_seq_length]
+        :param step_i: int
+        :param target_seq_length: int
+        :return:
+        """
+        rnn_output, hidden_state = self.one_step_rnn_forward(input, hidden_state, input_feed)
+        head_hidden = None
+        # head_hidden = self.get_head_hidden(heads, step_i, head_hidden_states, input.size(0))
+
+        output, std_attention, coverage = self.attention_layer(
+            rnn_output, memory_bank, head_hidden, mask, coverage)
+
+        output = self.dropout(output)
+
+        if self.source_copy_attention_layer is not None:
+            _, source_copy_attention = self.source_copy_attention_layer(output, memory_bank, mask)
+        else:
+            source_copy_attention = std_attention
+
+        target_copy_attention = self.get_target_copy_attention(
+            output, target_copy_hidden_states, step_i, target_seq_length)
+
+        return dict(
+            decoder_output=output,
+            rnn_output=rnn_output,
+            rnn_hidden_state=hidden_state,
+            source_copy_attention=source_copy_attention,
+            target_copy_attention=target_copy_attention,
+            input_feed=output,
             coverage=coverage
         )
+
+    def one_step_rnn_forward(self, input, hidden_state, input_feed):
+        """
+        :param input: [batch_size, 1, embedding_size]
+        :param hidden_state: a tuple of (state, memory) with shape [num_encoder_layers, batch_size, encoder_hidden_size]
+        :param input_feed: [batch_size, 1, hidden_size]
+        """
+        one_step = [1] * input.size(0)
+        _input = torch.cat([input, input_feed], 2)
+        packed_input = pack_padded_sequence(_input, one_step, batch_first=True)
+        # hidden_state: a tuple of (state, memory) of shape [num_layers, batch_size, hidden_size]
+        packed_output, hidden_state = self.rnn_cell(packed_input, hidden_state)
+        # output: [batch_size, 1, hidden_size]
+        output, _ = pad_packed_sequence(packed_output, batch_first=True)
+
+        return output, hidden_state
+
+    def get_head_hidden(self, heads, step_i, hidden_states, batch_size):
+        if step_i == 0:
+            head_hidden = self.head_sentinels.new_zeros(batch_size, 1, self.head_sentinels.size(2))
+        elif step_i == 1:
+            head_hidden = self.head_sentinels.expand(batch_size, 1, -1)
+        else:
+            head_index = heads[step_i - 2]
+            batch_index = torch.arange(batch_size).view(-1, 1).type_as(head_index)
+            previous_hidden_states = torch.cat(hidden_states, dim=1)
+            head_hidden = previous_hidden_states[batch_index, head_index]
+        return head_hidden
+
+    def get_target_copy_attention(self, input, list_of_memories, step_i, target_seq_length):
+        """
+        :param input: [batch_size, 1, hidden_size]
+        :param list_of_memories: a list of memory of shape [batch_size, 1, hidden_size]
+        :param step_i: int
+        :param target_seq_length: int
+        """
+        batch_size = input.size(0)
+
+        if len(list_of_memories) == 0:
+            target_copy_attention = input.new_zeros(batch_size, 1, target_seq_length)
+        else:
+            target_copy_memory = torch.cat(list_of_memories, 1)
+
+            if target_seq_length == 1:
+                _, target_copy_attention, _ = self.coref_attention_layer(
+                    input, target_copy_memory)
+            else:
+                _, target_copy_attention, _ = self.coref_attention_layer(
+                    input, target_copy_memory)
+                target_copy_attention = torch.nn.functional.pad(
+                    target_copy_attention, (0, target_seq_length - step_i), 'constant', 0
+                )
+
+        return target_copy_attention
+
