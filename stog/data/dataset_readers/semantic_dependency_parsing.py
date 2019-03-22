@@ -241,6 +241,26 @@ class SemanticDependenciesDatasetReader(DatasetReader):
             strip_sentence_symbols=True
         )
 
+        fields["isolated_edges"] = MetadataField(
+            list_data["isolated_edges"]
+        )
+
+        fields["annotated_sentence"] = MetadataField(
+           annotated_sentence
+        )
+
+        fields["arc_tags"] = MetadataField(
+            arc_tags
+        )
+
+        fields["arc_indices"] = MetadataField(
+            arc_indices
+        )
+
+        fields["sentence_id"] = MetadataField(
+            sentence_id
+        )
+
         if self._evaluation:
             # Metadata fields, good for debugging
             fields["src_tokens_str"] = MetadataField(
@@ -263,12 +283,5 @@ class SemanticDependenciesDatasetReader(DatasetReader):
                 list_data['src_copy_invalid_ids']
             )
 
-            fields["annotated_sentence"] = MetadataField(
-               annotated_sentence 
-            )
-
-            fields["sentence_id"] = MetadataField(
-                sentence_id
-            )
 
         return Instance(fields)

@@ -205,18 +205,14 @@ class SDPGraph:
         tgt_copy_map = []
         tgt_copy_mask = []
         tgt_copy_indices = []
-        #pos_tag_lut ={
-        #    DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN,
-        #    DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN
-        #}
-        #for token, pos_tag in zip(self.get_src_tokens(), self.pos_tags):
-        #    pos_tag_lut[token] = pos_tag
 
         tgt_index_from_src = {}
         src_index_from_tgt = {}
 
         head_tags = []
         head_indices = []
+
+        isolated_edges = []
 
         if bos:
             tgt_tokens.append(bos)
@@ -263,8 +259,9 @@ class SDPGraph:
             node_visited = defaultdict(int)
             depth_first_search(self.top_node)
             if num_edge_visited == sum(edge_visited.values()):
-                #print("{}".format(" ".join(self.sentence)))
-                #print("Num of isolated nodes : {}".format(sum([1 for v in edge_visited.values() if v == 0])))
+                # print("{}".format(" ".join(self.sentence)))
+                # print("Num of isolated nodes : {}".format(sum([1 for v in edge_visited.values() if v == 0])))
+                isolated_edges = [edge for edge, visited in edge_visited.items() if visited == 0]
                 break
             num_edge_visited = sum(edge_visited.values())
 
@@ -349,23 +346,24 @@ class SDPGraph:
         )
 
         return {
-            "tgt_tokens" : tgt_tokens,
+            "tgt_tokens": tgt_tokens,
             "tgt_pos_tags": tgt_pos_tags,
-            "tgt_copy_indices" : tgt_copy_indices,
-            "tgt_copy_map" : tgt_copy_map,
-            "tgt_copy_mask" : tgt_copy_mask,
-            "src_tokens" : src_tokens,
-            "src_token_ids" : src_token_ids,
-            "src_token_subword_index" : src_token_subword_index,
-            "src_must_copy_tags" : src_must_copy_tags,
+            "tgt_copy_indices": tgt_copy_indices,
+            "tgt_copy_map": tgt_copy_map,
+            "tgt_copy_mask": tgt_copy_mask,
+            "src_tokens": src_tokens,
+            "src_token_ids": src_token_ids,
+            "src_token_subword_index": src_token_subword_index,
+            "src_must_copy_tags": src_must_copy_tags,
             "src_pos_tags": src_pos_tags,
-            "src_copy_vocab" : src_copy_vocab,
-            "src_copy_indices" : src_copy_indices,
-            "src_copy_map" : src_copy_map,
+            "src_copy_vocab": src_copy_vocab,
+            "src_copy_indices": src_copy_indices,
+            "src_copy_map": src_copy_map,
             "pos_tag_lut": pos_tag_lut,
-            "head_tags" : head_tags,
-            "head_indices" : head_indices,
-            "src_copy_invalid_ids" : src_copy_invalid_ids
+            "head_tags": head_tags,
+            "head_indices": head_indices,
+            "src_copy_invalid_ids": src_copy_invalid_ids,
+            "isolated_edges": isolated_edges
         }
     
     @staticmethod
