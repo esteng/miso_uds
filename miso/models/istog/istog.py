@@ -442,6 +442,7 @@ class ISTOG(Model):
     def tree_decode(self, memory_bank, edge_heads, edge_labels, edge_mask, node_mask):
         # Exclude the BOS symbol.
         memory_bank = memory_bank[:, 1:]
+        memory_bank = self.decoder_embedding_dropout(memory_bank)
         return self.tree_decoder.get_loss(
             memory_bank, memory_bank, edge_heads, edge_labels, edge_mask, node_mask)
 
@@ -916,7 +917,6 @@ class ISTOG(Model):
         pos_tags = pos_tags.type_as(tokens)
         corefs = torch.zeros(batch_size, 1).type_as(mask).long()
 
-        decoder_input_history = []
         rnn_outputs = []
         copy_attentions = []
         coref_attentions = []
@@ -1018,7 +1018,6 @@ class ISTOG(Model):
             )
 
             # 6. Update variables.
-            decoder_input_history += [tokens]
             rnn_outputs += [_rnn_outputs]
             coref_inputs += [_decoder_outputs]
 
