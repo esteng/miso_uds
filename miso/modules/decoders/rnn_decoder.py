@@ -65,6 +65,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                 input, memory_bank, mask, hidden_state, input_feed,
                 heads, head_hidden_states, target_copy_hidden_states, coverage, step_i, sequence_length)
 
+            hidden_state = output_dict['rnn_hidden_state']
             head_hidden_states.append(output_dict['rnn_output'])
             target_copy_hidden_states.append(output_dict['decoder_output'])
 
@@ -119,6 +120,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         :return:
         """
         rnn_output, hidden_state = self.one_step_rnn_forward(input, hidden_state, input_feed)
+
         head_hidden = None
         # head_hidden = self.get_head_hidden(heads, step_i, head_hidden_states, input.size(0))
 
