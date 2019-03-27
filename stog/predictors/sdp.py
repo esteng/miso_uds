@@ -54,6 +54,8 @@ class SDPPredictor(Predictor):
                     break
 
                 copy_index = index
+                if copy_index < 0:
+                    import pdb;pdb.set_trace()
                 nodes.append(copy_vocab.get_token_from_idx(copy_index))
                 copy_indicators.append(1)
                 nodes_src_indices.append(copy_index - 1)
@@ -144,6 +146,9 @@ class SDPPredictor(Predictor):
                 if head_idx == 0:
                     node["top"] = 1
                     num_top += 1
+                    continue
+                if head_idx - 1 not in tgt_index_to_node:
+                    # TODO Don't know what's wrong here but parser some generate impossible indices
                     continue
 
                 if "_reversed" in head_label:

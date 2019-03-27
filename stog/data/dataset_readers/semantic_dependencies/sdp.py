@@ -69,6 +69,7 @@ class SDPGraph:
         self.lemmas = []
         self.predicate_indices = []
         self.top_index = []
+        self.aux_top_indices = []
         
         if len(annotated_sentence) == 0:
             return
@@ -106,7 +107,7 @@ class SDPGraph:
         self.build_node_info(annotated_sentence)
         self.node_list = []
         self.src_index_to_node = {}
-        self._G = nx.DiGraph()
+        self._G = nx.Graph()
     
         for index in self.active_token_indices():
             self.node_list.append(
@@ -131,14 +132,59 @@ class SDPGraph:
                 self.src_index_to_node[child_idx],
                 edge_label,
             )
-            #self._G.add_edge(
-            #    self.src_index_to_node(child_idx),
-            #    self.src_index_to_node(parent_idx),
-            #    label=edge_label
-            #)
+            self._G.add_edge(
+                self.src_index_to_node[child_idx],
+                self.src_index_to_node[parent_idx],
+                label=edge_label
+            )
 
 
         self.top_node = self.src_index_to_node[self.top_index]
+        
+        self.dummy_top = SDPNode(
+            index=None,
+            token="dummy",
+            lemma="dummy",
+            pos_tag="dummy"
+        )
+
+        self.add_edge(
+            self.dummy_top,
+            self.top_node,
+            "root"
+        )
+        # If there is disconnected subgraph
+        self.aux_top_nodes = []
+        def find_aux_top_indices(isolated_edges):
+            # 1. find aux graph top
+            sub_graph_node_edges = Counter()
+            for edge, value in isolated_edges.items():
+                sub_graph_node_edges[edge[0]] += 1
+                sub_graph_node_edges[edge[1]] += 1
+                isolated_edges[edge] = 1
+                
+            return [sub_graph_node_edges.most_common(1)[0]]
+        subgraph = list(nx.connected_component_subgraphs(self._G))
+        if len(subgraph) > 1:
+            #import pdb;pdb.set_trace()
+            for graph in subgraph:
+                if self.top_node not in graph._node.keys():
+                    nodes_num_edges = Counter()
+                    for node in sorted(
+                            list(graph._node.keys()), key=lambda x: x.src_index
+                    ):
+                        nodes_num_edges[node] += len(node.children)
+
+                    self.aux_top_nodes.append(
+                        nodes_num_edges.most_common(1)[0][0]
+                    )
+
+                    self.add_edge(
+                        self.dummy_top,
+                        nodes_num_edges.most_common(1)[0][0],
+                        "root"
+                    )
+
 
     def active_token_indices(self):
         if len(self.arc_indices) == 0:
@@ -200,7 +246,8 @@ class SDPGraph:
             "pos_tag_lut": pos_tag_lut,
             "head_tags": head_tags,
             "head_indices": head_indices,
-            "src_copy_invalid_ids": src_copy_invalid_ids
+            "src_copy_invalid_ids": src_copy_invalid_ids,
+            "isolated_edges": {}
         }
 
     def get_train_data(
@@ -258,8 +305,11 @@ class SDPGraph:
             
             if node.is_frontier(edge_visited):
                 for parent_tag, parent_node in node.parents:
+                    if parent_tag == "root":
+                        continue
                     if edge_visited[(node.src_index, parent_node.src_index)] == 0:
                         node.children.append((self.reverse_relation(parent_tag), parent_node))
+
 
         # Convert tree to graph
         num_edge_visited = 0
@@ -268,17 +318,30 @@ class SDPGraph:
                 sum(edge_visited.values()) < len(edge_visited.values()):
             edge_visited = {(child_idx, parent_idx) : 0 for child_idx, parent_idx in self.arc_indices}
             node_visited = defaultdict(int)
-            depth_first_search(self.top_node)
+            depth_first_search(self.dummy_top)
             if num_edge_visited == sum(edge_visited.values()):
                 # print("{}".format(" ".join(self.sentence)))
                 # print("Num of isolated nodes : {}".format(sum([1 for v in edge_visited.values() if v == 0])))
-                isolated_edges = [edge for edge, visited in edge_visited.items() if visited == 0]
+                isolated_edges = {edge: visited for edge, visited in edge_visited.items() if visited == 0}
+                import pdb;pdb.set_trace()
+                #        "root"
+                #    )
                 break
             num_edge_visited = sum(edge_visited.values())
 
         node_visited = defaultdict(int)
 
         def travel_converted_graph(node, parent_node=None, tag_with_parent=None):
+            # 1. if node is dummy root
+            if parent_node is None:
+                for child_node_src_index, child_tag in node.tree_children.items():
+                    travel_converted_graph(
+                        self.src_index_to_node[child_node_src_index],
+                        node,
+                        child_tag
+                    )
+                return
+            # 2. normal nodes
             tgt_tokens.append(node.token)
             tgt_pos_tags.append(node.pos_tag)
 
@@ -288,7 +351,7 @@ class SDPGraph:
             # record this every time we visit the node.
             src_index_from_tgt[node_index_in_target] = node_index_in_source
 
-            if parent_node is None:
+            if tag_with_parent is "root":
                 head_tags.append("root")
                 head_indices.append(0)
             else:
@@ -328,7 +391,7 @@ class SDPGraph:
                 )
 
         if len(self.annotated_sentence) > 0 and self.top_node is not None:
-            travel_converted_graph(self.top_node)
+            travel_converted_graph(self.dummy_top)
 
         if eos:
             tgt_tokens.append(eos)
@@ -356,6 +419,8 @@ class SDPGraph:
                 [idx + 1 for idx, t in enumerate(src_tokens) if is_english_punct(t)]
         )
 
+        #if len(self.aux_top_nodes) > 0:
+        #    import pdb; pdb.set_trace()
         return {
             "tgt_tokens": tgt_tokens,
             "tgt_pos_tags": tgt_pos_tags,
@@ -406,9 +471,13 @@ class SDPNode:
         self.tree_children = {}
 
     def is_frontier(self, edge_visited):
+        if self.src_index is None:
+            return False
+
         num_unvisited_incoming_edge = 0
         for parent_tag, parent_node in self.parents:
-            num_unvisited_incoming_edge += 1 - edge_visited[(self.src_index, parent_node.src_index)]
+            if parent_tag != "root":
+                num_unvisited_incoming_edge += 1 - edge_visited[(self.src_index, parent_node.src_index)]
         return num_unvisited_incoming_edge != 0
 
     def __repr__(self):

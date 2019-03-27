@@ -60,7 +60,7 @@ def parse_sentence(sentence_blob: str) -> Tuple[List[Dict[str, str]], List[Tuple
 
     if len(predicates) == 0:
         # No predicate, empty graph
-        return [], [], [], sentence_id
+        return annotated_sentence, [], [], sentence_id
 
     for line_idx, line in enumerate(lines):
         for predicate_idx, arg in enumerate(line[len(FIELDS):]):
@@ -134,7 +134,7 @@ class SemanticDependenciesDatasetReader(DatasetReader):
                 # If there are no arc indices, skip this instance.
                 if not self._analysis \
                     and not self._evaluation\
-                        and directed_arc_indices:
+                        and not directed_arc_indices:
                     continue
 
                 yield self.text_to_instance(

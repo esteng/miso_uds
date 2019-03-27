@@ -801,6 +801,8 @@ class STOGSDP(Model):
 
             # new word probs
             word_lprobs = fold(torch.log(1e-8 + generator_output['probs'].squeeze(1)))
+            # make sure pad token will nor appear in hypo
+            # word_lprobs[:, 1, :] = -1e8
 
             new_words_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs)
             new_all_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs) 
@@ -1153,16 +1155,16 @@ class STOGSDP(Model):
             torch.full_like(copy_predictions, self.vocab.get_token_index(DEFAULT_OOV_TOKEN, "token_ids"))
 
         for i, index in enumerate(copy_predictions.tolist()):
-            try:
+            if index != 0 and index in copy_vocabs[i].idx_to_token:
                 copied_token = copy_vocabs[i].get_token_from_idx(index)
-                if index != 0:
-                    pos_tags[i] = self.vocab.get_token_index(
-                        tag_luts[i]["pos"].get_token_from_idx(index),
-                        "pos_tags"
-                    )
-            except:
+                pos_tags[i] = self.vocab.get_token_index(
+                    tag_luts[i]["pos"].get_token_from_idx(index),
+                    "pos_tags"
+                )
+            else:
                 import random
                 random_idx = random.choice([ii for ii in range(len(copy_vocabs[i].src_tokens))])
+                copy_predictions[i] = random_idx
                 copied_token = copy_vocabs[i].src_tokens[random_idx]
                 pos_tags[i] = self.vocab.get_token_index(
                     tag_luts[i]["pos"].get_token_from_idx(random_idx),
