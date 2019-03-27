@@ -5,3 +5,4 @@ from .optimizer import MultipleOptimizer, Optimizer
 from .stacked_bilstm import StackedBidirectionalLstm
 from .stacked_lstm import StackedLstm
 from .time_distributed import TimeDistributed
+from .label_smoothing import LabelSmoothing
