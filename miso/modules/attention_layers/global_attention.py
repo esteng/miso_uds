@@ -55,7 +55,7 @@ class GlobalAttention(torch.nn.Module):
        attn_type (str): type of attention to use, options [dot,general,mlp]
     """
 
-    def __init__(self, decoder_hidden_size, encoder_hidden_size, head_hidden_size, attention):
+    def __init__(self, decoder_hidden_size, encoder_hidden_size, attention):
         super(GlobalAttention, self).__init__()
         self.decoder_hidden_size = decoder_hidden_size
         self.encoder_hidden_size = encoder_hidden_size
@@ -65,19 +65,12 @@ class GlobalAttention(torch.nn.Module):
             decoder_hidden_size,
             bias=isinstance(attention, MLPAttention)
         )
-        if head_hidden_size != 0:
-            self.head_output_layer = torch.nn.Linear(
-                head_hidden_size,
-                decoder_hidden_size,
-                bias=False
-            )
 
-    def forward(self, source, memory_bank, head=None, mask=None, coverage=None):
+    def forward(self, source, memory_bank, mask=None, coverage=None):
         """
         Args:
           source (`FloatTensor`): query vectors `[batch x tgt_len x dim]`
           memory_bank (`FloatTensor`): source vectors `[batch x src_len x dim]`
-          head (`FloatTensor`): the head vectors `[batch x tgt_len x dim]`
           mask (`LongTensor`): the source context mask `[batch, length]`
         Returns:
           (`FloatTensor`, `FloatTensor`):
@@ -114,10 +107,6 @@ class GlobalAttention(torch.nn.Module):
         # concatenate
         concat_c = torch.cat([c, source], 2).view(batch_*target_l, -1)
         attn_h = self.output_layer(concat_c).view(batch_, target_l, -1)
-
-        if head is not None:
-            head_h = self.head_output_layer(head)
-            attn_h = attn_h + head_h
 
         attn_h = torch.tanh(attn_h)
 

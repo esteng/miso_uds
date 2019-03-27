@@ -966,7 +966,10 @@ class ISTOG(Model):
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
             # 2. Run tree decoder.
-            _rnn_outputs, _ = self.decoder.one_step_rnn_forward(decoder_inputs, states, input_feed)
+            head_hidden = self.decoder.get_head_hidden(edge_heads[1:], step_i, rnn_outputs, batch_size)
+            _input_feed = torch.cat([input_feed, head_hidden], dim=2)
+            _rnn_outputs, _ = self.decoder.one_step_rnn_forward(
+                decoder_inputs, states, _input_feed)
 
             if step_i != 0:
                 queries = _rnn_outputs
@@ -1225,7 +1228,6 @@ class ISTOG(Model):
         source_attention_layer = GlobalAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
             encoder_hidden_size=params['encoder']['hidden_size'] * 2,
-            head_hidden_size=params['decoder']['hidden_size'],
             attention=source_attention
         )
 
@@ -1254,7 +1256,6 @@ class ISTOG(Model):
         coref_attention_layer = GlobalAttention(
             decoder_hidden_size=params['decoder']['hidden_size'],
             encoder_hidden_size=params['decoder']['hidden_size'],
-            head_hidden_size=0,
             attention=coref_attention
         )
 
@@ -1262,7 +1263,7 @@ class ISTOG(Model):
         head_embedding_size = params['decoder']['hidden_size']
         head_sentinels = torch.nn.Parameter(torch.randn([1, 1, head_embedding_size]))
 
-        decoder_input_size += params['decoder']['hidden_size']
+        decoder_input_size += params['decoder']['hidden_size'] + head_embedding_size
         params['decoder']['input_size'] = decoder_input_size
         decoder = InputFeedRNNDecoder(
             rnn_cell=StackedLstm.from_params(params['decoder']),

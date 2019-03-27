@@ -119,18 +119,18 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         :param target_seq_length: int
         :return:
         """
+        head_hidden = self.get_head_hidden(heads, step_i, head_hidden_states, input.size(0))
+        input_feed = torch.cat([input_feed, head_hidden], dim=2)
+
         rnn_output, hidden_state = self.one_step_rnn_forward(input, hidden_state, input_feed)
 
-        head_hidden = None
-        # head_hidden = self.get_head_hidden(heads, step_i, head_hidden_states, input.size(0))
-
         output, std_attention, coverage = self.attention_layer(
-            rnn_output, memory_bank, head_hidden, mask, coverage)
-
+            rnn_output, memory_bank, mask, coverage)
         output = self.dropout(output)
 
         if self.source_copy_attention_layer is not None:
-            _, source_copy_attention = self.source_copy_attention_layer(output, memory_bank, mask)
+            _, source_copy_attention, _ = self.source_copy_attention_layer(
+                output, memory_bank, mask)
         else:
             source_copy_attention = std_attention
 
@@ -164,12 +164,11 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         return output, hidden_state
 
     def get_head_hidden(self, heads, step_i, hidden_states, batch_size):
-        if step_i == 0:
-            head_hidden = self.head_sentinels.new_zeros(batch_size, 1, self.head_sentinels.size(2))
-        elif step_i == 1:
-            head_hidden = self.head_sentinels.expand(batch_size, 1, -1)
+        if step_i < 3:
+            head_hidden = self.head_sentinels.new_zeros(
+                batch_size, 1, self.head_sentinels.size(2))
         else:
-            head_index = heads[step_i - 2]
+            head_index = heads[step_i - 3]
             batch_index = torch.arange(batch_size).view(-1, 1).type_as(head_index)
             previous_hidden_states = torch.cat(hidden_states, dim=1)
             head_hidden = previous_hidden_states[batch_index, head_index]
