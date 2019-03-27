@@ -57,6 +57,7 @@ class SDPGraph:
         self.annotated_sentence = annotated_sentence
         self.arc_indices = arc_indices
         self.arc_tags = arc_tags
+        self.top_node = None
         if evaluation or len(arc_indices) == 0 or len(arc_tags) == 0:
             self.build_node_info(annotated_sentence)
         else:
@@ -68,6 +69,9 @@ class SDPGraph:
         self.lemmas = []
         self.predicate_indices = []
         self.top_index = []
+        
+        if len(annotated_sentence) == 0:
+            return
 
         for index, item in enumerate(annotated_sentence):
             self.sentence.append(item["form"])
@@ -199,7 +203,13 @@ class SDPGraph:
             "src_copy_invalid_ids": src_copy_invalid_ids
         }
 
-    def get_train_data(self, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None):
+    def get_train_data(
+            self,
+            bos=None,
+            eos=None,
+            bert_tokenizer=None,
+            max_tgt_length=None
+    ):
         tgt_tokens = []
         tgt_pos_tags = []
         tgt_copy_map = []
@@ -254,7 +264,8 @@ class SDPGraph:
         # Convert tree to graph
         num_edge_visited = 0
         #print(self.sentence)
-        while sum(edge_visited.values()) < len(edge_visited.values()):
+        while len(edge_visited) > 0 and \
+                sum(edge_visited.values()) < len(edge_visited.values()):
             edge_visited = {(child_idx, parent_idx) : 0 for child_idx, parent_idx in self.arc_indices}
             node_visited = defaultdict(int)
             depth_first_search(self.top_node)
@@ -316,8 +327,8 @@ class SDPGraph:
                     tgt_index_from_src[node_index_in_source]
                 )
 
-        travel_converted_graph(self.top_node)
-        #import pdb;pdb.set_trace()
+        if len(self.annotated_sentence) > 0 and self.top_node is not None:
+            travel_converted_graph(self.top_node)
 
         if eos:
             tgt_tokens.append(eos)

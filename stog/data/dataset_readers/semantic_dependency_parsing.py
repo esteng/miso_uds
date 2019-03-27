@@ -47,6 +47,8 @@ def parse_sentence(sentence_blob: str) -> Tuple[List[Dict[str, str]], List[Tuple
     arc_indices = []
     arc_tags = []
     predicates = []
+    assert sentence_blob.split("\n")[0][0] == "#"
+    sentence_id = sentence_blob.split("\n")[0]
 
     lines = [line.split("\t") for line in sentence_blob.split("\n")
              if line and not line.strip().startswith("#")]
@@ -56,14 +58,16 @@ def parse_sentence(sentence_blob: str) -> Tuple[List[Dict[str, str]], List[Tuple
             predicates.append(line_idx)
         annotated_sentence.append(annotated_token)
 
+    if len(predicates) == 0:
+        # No predicate, empty graph
+        return [], [], [], sentence_id
+
     for line_idx, line in enumerate(lines):
         for predicate_idx, arg in enumerate(line[len(FIELDS):]):
             if arg != "_":
                 arc_indices.append((line_idx, predicates[predicate_idx]))
                 arc_tags.append(arg)
 
-    assert sentence_blob.split("\n")[0][0] == "#"
-    sentence_id = sentence_blob.split("\n")[0]
     return annotated_sentence, arc_indices, arc_tags, sentence_id
 
 
