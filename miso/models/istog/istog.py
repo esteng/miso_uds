@@ -928,6 +928,7 @@ class ISTOG(Model):
 
         input_feed = memory_bank.new_zeros(batch_size, 1, self.decoder.rnn_cell.hidden_size)
         coref_inputs = []
+        head_hidden_states = [input_feed]
 
         # A sparse indicator matrix mapping each node to its index in the dynamic vocab.
         # Here the maximum size of the dynamic vocab is just max_decode_length.
@@ -966,8 +967,9 @@ class ISTOG(Model):
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
             # 2. Run tree decoder.
-            head_hidden = self.decoder.get_head_hidden(edge_heads[1:], step_i, rnn_outputs, batch_size)
-            _input_feed = torch.cat([input_feed, head_hidden], dim=2)
+            head_hidden, modifier_hidden = self.decoder.get_edge_info(
+                edge_heads[1:], step_i, head_hidden_states, batch_size)
+            _input_feed = torch.cat([input_feed, head_hidden, modifier_hidden], dim=2)
             _rnn_outputs, _ = self.decoder.one_step_rnn_forward(
                 decoder_inputs, states, _input_feed)
 
@@ -987,7 +989,7 @@ class ISTOG(Model):
             # 3. Decode one step.
             decoder_output_dict = self.decoder.one_step_forward(
                 decoder_inputs, memory_bank, mask, states, input_feed,
-                edge_heads[1:], rnn_outputs, coref_inputs, coverage, step_i, 1)
+                edge_heads[1:], head_hidden_states, coref_inputs, coverage, step_i, 1)
             _decoder_outputs = decoder_output_dict['decoder_output']
             _rnn_outputs = decoder_output_dict['rnn_output']
             _copy_attentions = decoder_output_dict['source_copy_attention']
@@ -1023,6 +1025,8 @@ class ISTOG(Model):
             # 6. Update variables.
             rnn_outputs += [_rnn_outputs]
             coref_inputs += [_decoder_outputs]
+            if step_i != 0:
+                head_hidden_states += [_rnn_outputs]
 
             copy_attentions += [_copy_attentions]
             coref_attentions += [_coref_attentions]
@@ -1263,7 +1267,7 @@ class ISTOG(Model):
         head_embedding_size = params['decoder']['hidden_size']
         head_sentinels = torch.nn.Parameter(torch.randn([1, 1, head_embedding_size]))
 
-        decoder_input_size += params['decoder']['hidden_size'] + head_embedding_size
+        decoder_input_size += params['decoder']['hidden_size'] + head_embedding_size * 2
         params['decoder']['input_size'] = decoder_input_size
         decoder = InputFeedRNNDecoder(
             rnn_cell=StackedLstm.from_params(params['decoder']),
