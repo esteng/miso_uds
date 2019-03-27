@@ -104,10 +104,13 @@ class SemanticDependenciesDatasetReader(DatasetReader):
         self._number_non_oov_pos_tags = 0
         self._number_pos_tags = 0
         self._filename = ""
+        self._analysis = False
     
     def set_evaluation(self):
         self._evaluation = True
 
+    def set_analysis(self):
+        self._analysis = True
 
     @overrides
     def _read(self, file_path: str):
@@ -125,8 +128,11 @@ class SemanticDependenciesDatasetReader(DatasetReader):
             self._filename = line
             for annotated_sentence, directed_arc_indices, arc_tags, sentence_id in lazy_parse(sdp_file.read()):
                 # If there are no arc indices, skip this instance.
-                if not directed_arc_indices and not self._evaluation:
+                if not self._analysis \
+                    and not self._evaluation\
+                        and directed_arc_indices:
                     continue
+
                 yield self.text_to_instance(
                     annotated_sentence,
                     directed_arc_indices,
