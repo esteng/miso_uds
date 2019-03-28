@@ -1,6 +1,7 @@
 import torch
 
 from miso.metrics.seq2seq_metrics import Seq2SeqMetrics
+from miso.modules import LabelSmoothing
 
 
 class PointerGenerator(torch.nn.Module):
@@ -12,6 +13,8 @@ class PointerGenerator(torch.nn.Module):
 
         self.linear_pointer = torch.nn.Linear(switch_input_size, 3)
         self.sigmoid = torch.nn.Sigmoid()
+
+        self.label_smoothing = LabelSmoothing(smoothing=0.1)
 
         self.metrics = Seq2SeqMetrics()
 
@@ -107,10 +110,10 @@ class PointerGenerator(torch.nn.Module):
             target_dynamic_vocab_size=target_dynamic_vocab_size
         )
 
-    def compute_loss(self, probs, predictions, generate_targets,
-                     source_copy_targets, source_dynamic_vocab_size,
-                     target_copy_targets, target_dynamic_vocab_size,
-                     coverage_records, copy_attentions):
+    def compute_nlloss(self, probs, predictions, generate_targets,
+                       source_copy_targets, source_dynamic_vocab_size,
+                       target_copy_targets, target_dynamic_vocab_size,
+                       coverage_records, copy_attentions):
         """
         Priority: target_copy > source_copy > generate
 
@@ -180,6 +183,89 @@ class PointerGenerator(torch.nn.Module):
                   source_copy_targets_with_offset.squeeze(2) * non_target_copy_mask.long() * source_copy_mask.long() + \
                   generate_targets * non_target_copy_mask.long() * non_source_copy_mask.long()
         targets = targets * non_pad_mask.long()
+
+        pred_eq = predictions.eq(targets).mul(non_pad_mask)
+
+        num_non_pad = non_pad_mask.sum().item()
+        num_correct_pred = pred_eq.sum().item()
+
+        num_target_copy = target_copy_mask.mul(non_pad_mask).sum().item()
+        num_correct_target_copy = pred_eq.mul(target_copy_mask).sum().item()
+        num_correct_target_point = predictions.ge(self.vocab_size + source_dynamic_vocab_size).\
+            mul(target_copy_mask).mul(non_pad_mask).sum().item()
+
+        num_source_copy = source_copy_mask.mul(non_target_copy_mask).mul(non_pad_mask).sum().item()
+        num_correct_source_copy = pred_eq.mul(non_target_copy_mask).mul(source_copy_mask).sum().item()
+        num_correct_source_point = predictions.ge(self.vocab_size).mul(predictions.lt(self.vocab_size + source_dynamic_vocab_size)).\
+            mul(non_target_copy_mask).mul(source_copy_mask).mul(non_pad_mask).sum().item()
+
+        self.metrics(loss.sum().item(), num_non_pad, num_correct_pred,
+                     num_source_copy, num_correct_source_copy, num_correct_source_point,
+                     num_target_copy, num_correct_target_copy, num_correct_target_point
+                     )
+
+        return dict(
+            loss=loss.sum().div(float(num_tokens)),
+            total_loss=loss.sum(),
+            num_tokens=torch.tensor([float(num_tokens)]).type_as(loss),
+            predictions=predictions
+        )
+
+    def compute_loss(self, probs, predictions, generate_targets,
+                     source_copy_targets, source_dynamic_vocab_size,
+                     target_copy_targets, target_dynamic_vocab_size,
+                     coverage_records, copy_attentions):
+        """
+        Priority: target_copy > source_copy > generate
+
+        :param probs: probability distribution,
+            [batch_size, num_target_nodes, vocab_size + dynamic_vocab_size]
+        :param predictions: [batch_size, num_target_nodes]
+        :param generate_targets: target node index in the vocabulary,
+            [batch_size, num_target_nodes]
+        :param source_copy_targets:  target node index in the dynamic vocabulary,
+            [batch_size, num_target_nodes]
+        :param source_dynamic_vocab_size: int
+        :param target_copy_targets:  target node index in the dynamic vocabulary,
+            [batch_size, num_target_nodes]
+        :param target_dynamic_vocab_size: int
+        :param coverage_records: None or a tensor recording source-side coverages.
+            [batch_size, num_target_nodes, num_source_nodes]
+        :param copy_attentions: [batch_size, num_target_nodes, num_source_nodes]
+        """
+
+        non_pad_mask = generate_targets.ne(self.vocab_pad_idx)
+
+        source_copy_mask = source_copy_targets.ne(1) & source_copy_targets.ne(0)  # 1 is the index for unknown words
+        non_source_copy_mask = 1 - source_copy_mask
+
+        target_copy_mask = target_copy_targets.ne(0)  # 0 is the index for coref NA
+        non_target_copy_mask = 1 - target_copy_mask
+
+        # [batch_size, num_target_nodes, 1]
+        target_copy_targets_with_offset = target_copy_targets.unsqueeze(2) + self.vocab_size + source_dynamic_vocab_size
+
+        # [batch_size, num_target_nodes, 1]
+        source_copy_targets_with_offset = source_copy_targets.unsqueeze(2) + self.vocab_size
+
+        num_tokens = non_pad_mask.sum().item()
+
+        # Mask out copy targets for which copy does not happen.
+        targets = target_copy_targets_with_offset.squeeze(2) * target_copy_mask.long() + \
+                  source_copy_targets_with_offset.squeeze(2) * non_target_copy_mask.long() * source_copy_mask.long() + \
+                  generate_targets * non_target_copy_mask.long() * non_source_copy_mask.long()
+        targets = targets * non_pad_mask.long()
+
+        loss = 0
+        if coverage_records is not None:
+            coverage_loss = torch.sum(
+                torch.min(coverage_records, copy_attentions), 2).mul(non_pad_mask.float())
+            loss = coverage_loss.sum()
+
+        batch_size, num_nodes, _ = probs.size()
+        _probs = probs.view(batch_size * num_nodes, -1)
+        _targets = targets.view(batch_size * num_nodes)
+        loss = loss + self.label_smoothing((_probs + self.eps).log(), _targets)
 
         pred_eq = predictions.eq(targets).mul(non_pad_mask)
 
