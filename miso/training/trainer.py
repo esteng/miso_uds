@@ -318,9 +318,9 @@ class Trainer:
             dev_generator_tqdm.set_description(description, refresh=False)
 
         if self._n_gpus > 1:
-            return self._model.module.get_metrics(reset=True, mimick_test=epoch > 50)
+            return self._model.module.get_metrics(reset=True, mimick_test=epoch > 30)
         else:
-            return self._model.get_metrics(reset=True, mimick_test=epoch > 50)
+            return self._model.get_metrics(reset=True, mimick_test=epoch > 30)
 
     def train(self):
         """Trains the supplied model with the supplied parameters.

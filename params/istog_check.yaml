@@ -81,6 +81,13 @@ model:
     padding_index:
     dropout: 0
 
+  decoder_label_embedding:
+    num_embeddings:
+    vocab_namespace: 'head_tags'
+    embedding_dim: 50
+    padding_index: 0
+    dropout: 0
+
   decoder_char_cnn:
     embedding_dim: *decoder_char_embedding_dim
     num_filters: 50

@@ -76,6 +76,7 @@ class ISTOG(Model):
                  # Decoder
                  decoder_token_embedding,
                  decoder_pos_embedding,
+                 decoder_label_embedding,
                  decoder_coref_embedding,
                  decoder_char_embedding,
                  decoder_char_cnn,
@@ -114,6 +115,7 @@ class ISTOG(Model):
 
         self.decoder_token_embedding = decoder_token_embedding
         self.decoder_pos_embedding = decoder_pos_embedding
+        self.decoder_label_embedding = decoder_label_embedding
         self.decoder_coref_embedding = decoder_coref_embedding
         self.decoder_char_embedding = decoder_char_embedding
         self.decoder_char_cnn = decoder_char_cnn
@@ -246,10 +248,14 @@ class ISTOG(Model):
         # [batch, num_tokens, num_chars]
         decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, :-1].contiguous()
         decoder_coref_inputs = batch['tgt_indices'][:, :-1].contiguous()
+        head_labels = batch['head_tags'][:, :-3]
+        bos_head_labels = decoder_token_inputs.new_zeros(decoder_token_inputs.size(0), 2)
+        head_labels = torch.cat([bos_head_labels, head_labels], dim=1)
 
         decoder_inputs = dict(
             token=decoder_token_inputs,
             head=batch['head_indices'][:, 1:-2],
+            label=head_labels,
             pos_tag=decoder_pos_tags,
             char=decoder_char_inputs,
             coref=decoder_coref_inputs
@@ -307,6 +313,7 @@ class ISTOG(Model):
             decoder_outputs = self.decode_for_training(
                 decoder_inputs['token'],
                 decoder_inputs['head'],
+                decoder_inputs['label'],
                 decoder_inputs['pos_tag'],
                 decoder_inputs['char'],
                 decoder_inputs['coref'],
@@ -412,18 +419,23 @@ class ISTOG(Model):
             final_states=encoder_final_states
         )
 
-    def decode_for_training(self, tokens, heads, pos_tags, chars, corefs, memory_bank, mask, states):
+    def decode_for_training(self, tokens, heads, labels, pos_tags, chars, corefs, memory_bank, mask, states):
         # [batch, num_tokens, embedding_size]
         token_embeddings = self.decoder_token_embedding(tokens)
         pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
         coref_embeddings = self.decoder_coref_embedding(corefs)
+        label_embeddings = self.decoder_label_embedding(labels)
         if self.use_char_cnn:
             char_cnn_output = self._get_decoder_char_cnn_output(chars)
             decoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, coref_embeddings, char_cnn_output], 2)
+                token_embeddings,
+                pos_tag_embeddings,
+                coref_embeddings,
+                label_embeddings,
+                char_cnn_output], 2)
         else:
             decoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
+                token_embeddings, pos_tag_embeddings, coref_embeddings, label_embeddings], 2)
 
         if heads.size(0) != 0:
             heads = heads.split(1, dim=1)
@@ -916,6 +928,7 @@ class ISTOG(Model):
         tokens = tokens.type_as(mask).long()
         pos_tags = pos_tags.type_as(tokens)
         corefs = torch.zeros(batch_size, 1).type_as(mask).long()
+        bos_labels = torch.zeros(batch_size, 1).type_as(mask).long()
 
         rnn_outputs = []
         copy_attentions = []
@@ -947,6 +960,9 @@ class ISTOG(Model):
             token_embeddings = self.decoder_token_embedding(tokens)
             pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
             coref_embeddings = self.decoder_coref_embedding(corefs)
+            labels = edge_labels[-1] if len(edge_labels) != 0 else bos_labels
+            label_embeddings = self.decoder_label_embedding(labels)
+
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
                 # [batch_size, 1, num_chars]
@@ -959,10 +975,10 @@ class ISTOG(Model):
                 char_cnn_output = self._get_decoder_char_cnn_output(chars)
                 decoder_inputs = torch.cat(
                     [token_embeddings, pos_tag_embeddings,
-                     coref_embeddings, char_cnn_output], 2)
+                     coref_embeddings, label_embeddings, char_cnn_output], 2)
             else:
                 decoder_inputs = torch.cat(
-                    [token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
+                    [token_embeddings, pos_tag_embeddings, coref_embeddings, label_embeddings], 2)
 
             decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
 
@@ -1196,9 +1212,11 @@ class ISTOG(Model):
         decoder_input_size = params['decoder_token_embedding']['embedding_dim']
         decoder_input_size += params['decoder_coref_embedding']['embedding_dim']
         decoder_input_size += params['decoder_pos_embedding']['embedding_dim']
+        decoder_input_size += params['decoder_label_embedding']['embedding_dim']
         decoder_token_embedding = Embedding.from_params(vocab, params['decoder_token_embedding'])
         decoder_coref_embedding = Embedding.from_params(vocab, params['decoder_coref_embedding'])
         decoder_pos_embedding = Embedding.from_params(vocab, params['decoder_pos_embedding'])
+        decoder_label_embedding = Embedding.from_params(vocab, params['decoder_label_embedding'])
         if params['use_char_cnn']:
             decoder_char_embedding = Embedding.from_params(vocab, params['decoder_char_embedding'])
             decoder_char_cnn = CnnEncoder(
@@ -1336,6 +1354,7 @@ class ISTOG(Model):
             decoder_token_embedding=decoder_token_embedding,
             decoder_coref_embedding=decoder_coref_embedding,
             decoder_pos_embedding=decoder_pos_embedding,
+            decoder_label_embedding=decoder_label_embedding,
             decoder_char_cnn=decoder_char_cnn,
             decoder_char_embedding=decoder_char_embedding,
             decoder_embedding_dropout=decoder_embedding_dropout,
