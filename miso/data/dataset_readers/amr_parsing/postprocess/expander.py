@@ -74,7 +74,8 @@ class Expander:
         self.restore_polarity(amr)
         graph = amr.graph
         abstract_map = amr.abstract_map
-        nodes = list(graph.get_nodes())
+        nodes = [n for n, _, _ in list(graph.get_list_node(replace_copy=False))
+                 if n.copy_of is None]
         for abstract, saved_dict in abstract_map.items():
             abstract_type = saved_dict['type']
             for node in nodes:
