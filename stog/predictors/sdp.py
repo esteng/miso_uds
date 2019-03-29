@@ -48,6 +48,7 @@ class SDPPredictor(Predictor):
             copy_indicators = []
             nodes_src_indices = []
 
+            seq_len = 0 
             for i, index in enumerate(node_indexes):
                 if index == 0:
                     seq_len = i
