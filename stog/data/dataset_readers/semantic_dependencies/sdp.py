@@ -97,7 +97,7 @@ class SDPGraph:
             else:
                 self.top_index = self.top_index[0]
 
-            if self.top_index not in self.active_token_indices():
+            if self.top_index not in self.active_token_indices() and len(self.predicate_indices) > 0:
                 # There are cases that top node is not a pedicate, or even not a part of a graph
                 # We would set the first predicate as top node.
                 self.top_index = self.predicate_indices[0]
