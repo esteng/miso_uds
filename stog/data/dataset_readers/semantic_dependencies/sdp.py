@@ -1,6 +1,6 @@
 import re
 import json
-from collections import defaultdict, Counter
+from collections import defaultdict, Counter, deque
 from functools import reduce
 
 import numpy as np
@@ -148,6 +148,8 @@ class SDPGraph:
             pos_tag="dummy"
         )
 
+        self.dummy_top.set_dummy_node()
+
         self.add_edge(
             self.dummy_top,
             self.top_node,
@@ -280,67 +282,111 @@ class SDPGraph:
             tgt_index_from_src[0] = 0
             src_index_from_tgt[0] = 0
 
-        edge_visited = {(child_idx, parent_idx) : 0 for child_idx, parent_idx in self.arc_indices}
-        node_visited = defaultdict(int)
+        def reset_tracker():
+            return {
+                (
+                    self.src_index_to_node[child_idx],
+                    self.src_index_to_node[parent_idx]
+                ): 0 for child_idx, parent_idx in self.arc_indices
+            }, defaultdict(int)
+
+        edge_visited, node_visited = reset_tracker()
 
         def depth_first_search(node, antecedent_nodes=[]):
-            node_visited[node.src_index] = 1
+            node_visited[node] = 1
             for child_tag, child_node in node.children:
 
                 # don't make the last node visited as children
-                if child_node.src_index in antecedent_nodes[-1:]:
+                if child_node in antecedent_nodes[-1:]:
                     continue
 
                 # add the node to tree
-                if child_node.src_index not in node.tree_children: 
-                    node.tree_children[child_node.src_index] = child_tag
-                
-                if "_reversed" not in child_tag:
-                    edge_visited[(child_node.src_index, node.src_index)] = 1
-                else:
-                    edge_visited[(node.src_index, child_node.src_index)] = 1
+                if child_node not in node.tree_children:
+                    node.tree_children[child_node] = child_tag
 
-                if child_node.src_index not in antecedent_nodes and node_visited[child_node.src_index] == 0:
-                    depth_first_search(child_node, antecedent_nodes + [node.src_index])
-            
-            if node.is_frontier(edge_visited):
-                for parent_tag, parent_node in node.parents:
-                    if parent_tag == "root":
-                        continue
-                    if edge_visited[(node.src_index, parent_node.src_index)] == 0:
-                        node.children.append((self.reverse_relation(parent_tag), parent_node))
+                if not node.is_dummy_node():
+                    if "_reversed" not in child_tag:
+                        edge_visited[(child_node, node)] = 1
+                    else:
+                        edge_visited[(node, child_node)] = 1
 
+                if child_node not in antecedent_nodes \
+                        and node_visited[child_node] == 0:
+                    depth_first_search(child_node, antecedent_nodes + [node])
+
+        def breadth_first_search(root_node):
+            visited = set()
+            queue = deque([root_node])
+            while queue:
+                node = queue.popleft()
+                visited.add(node)
+                if node.is_frontier(edge_visited):
+                    # Reverse relation with node's parent if possible
+                    for parent_tag, parent_node in node.parents:
+                        if parent_tag == "root":
+                            # Do not reserve root
+                            continue
+                        if edge_visited[(node, parent_node)] == 0:
+                            # Only reverse the edges that have not been
+                            # visited in previous DFS.
+                            # Stop BFS once an edge is reversed
+                            node.children.append(
+                                (
+                                    self.reverse_relation(parent_tag),
+                                    parent_node
+                                )
+                            )
+                            return
+
+                for child_tag, child_node in node.children:
+                    # Search the children
+                    if child_node not in visited:
+                        queue.append(child_node)
 
         # Convert tree to graph
         num_edge_visited = 0
-        #print(self.sentence)
-        while len(edge_visited) > 0 and \
-                sum(edge_visited.values()) < len(edge_visited.values()):
-            edge_visited = {(child_idx, parent_idx) : 0 for child_idx, parent_idx in self.arc_indices}
-            node_visited = defaultdict(int)
+        num_edge_total = len(edge_visited.values())
+        while num_edge_visited < num_edge_total:
+            # 1. Deep first search on directed graph
+            # and try the best to span the tree
             depth_first_search(self.dummy_top)
-            if num_edge_visited == sum(edge_visited.values()):
-                # print("{}".format(" ".join(self.sentence)))
-                # print("Num of isolated nodes : {}".format(sum([1 for v in edge_visited.values() if v == 0])))
-                isolated_edges = {edge: visited for edge, visited in edge_visited.items() if visited == 0}
-                import pdb;pdb.set_trace()
-                #        "root"
-                #    )
-                break
+
+            # 2. Check if we have visited new edges after last iteration,
+            # If not, means that there is isolated edges we can not reach
+            # For now, it should be imposssible.
+            if num_edge_visited == sum(edge_visited.values()) \
+                    and num_edge_visited > 0:
+                # if you reach here, something must be wrong
+                isolated_edges = \
+                    {
+                        edge: visited
+                        for edge, visited in edge_visited.items()
+                        if visited == 0
+                    }
+                raise AssertionError(
+                    (
+                        "Exists isolated edges that are not visited"
+                        "when converting the graph to tree."
+                    )
+                )
+            # 3. Breadth first search to reverse the relation.
+            breadth_first_search(self.dummy_top)
+
+            # 4. Reset trackers for next iteration.
             num_edge_visited = sum(edge_visited.values())
+            edge_visited, node_visited = reset_tracker()
 
         node_visited = defaultdict(int)
 
-        def travel_converted_graph(node, parent_node=None, tag_with_parent=None):
+        def travel_converted_graph(
+                node, parent_node=None, tag_with_parent=None):
             # 1. if node is dummy root
             if parent_node is None:
-                for child_node_src_index, child_tag in node.tree_children.items():
-                    travel_converted_graph(
-                        self.src_index_to_node[child_node_src_index],
-                        node,
-                        child_tag
-                    )
+                for child_node, child_tag in node.tree_children.items():
+                    travel_converted_graph(child_node, node, child_tag)
+
                 return
+
             # 2. normal nodes
             tgt_tokens.append(node.token)
             tgt_pos_tags.append(node.pos_tag)
@@ -351,33 +397,30 @@ class SDPGraph:
             # record this every time we visit the node.
             src_index_from_tgt[node_index_in_target] = node_index_in_source
 
-            if tag_with_parent is "root":
+            if tag_with_parent == "root":
                 head_tags.append("root")
                 head_indices.append(0)
             else:
                 head_tags.append(tag_with_parent)
                 head_indices.append(tgt_index_from_src[parent_node.src_index])
             
-            if node_visited[node.src_index] == 0:
-                node_visited[node.src_index] = 1
+            if node_visited[node] == 0:
+                node_visited[node] = 1
                 # Record the 1st time this token appeared.
                 tgt_index_from_src[node_index_in_source] = node_index_in_target
 
                 tgt_copy_mask.append(0)
                 tgt_copy_map.append(
                     (
-                        node_index_in_target, 
+                        node_index_in_target,
                         node_index_in_target
                     )
                 )
                 tgt_copy_indices.append(0)
 
-                for child_node_src_index, child_tag in node.tree_children.items():
+                for child_node, child_tag in node.tree_children.items():
                     travel_converted_graph(
-                        self.src_index_to_node[child_node_src_index],
-                        node,
-                        child_tag
-                    )
+                        child_node, node, child_tag)
             else:
                 tgt_copy_mask.append(1)
                 tgt_copy_map.append(
@@ -407,20 +450,23 @@ class SDPGraph:
         src_pos_tags = self.pos_tags
 
         src_copy_vocab = RedundentSourceCopyVocabulary(src_tokens)
-        src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens, src_index_from_tgt, bos, eos)
+        src_copy_indices = src_copy_vocab.index_sequence(
+            tgt_tokens,
+            src_index_from_tgt,
+            bos, eos)
         src_copy_map = src_copy_vocab.get_copy_map()
 
         pos_tag_lut = RedundentSourceCopyVocabulary(src_pos_tags)
         if bert_tokenizer is not None:
-            src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens, True)
+            src_token_ids, src_token_subword_index = \
+                bert_tokenizer.tokenize(src_tokens, True)
 
-        src_must_copy_tags = [1 if is_abstract_token(t) else 0 for t in src_tokens]
-        src_copy_invalid_ids = set(
-                [idx + 1 for idx, t in enumerate(src_tokens) if is_english_punct(t)]
-        )
+        src_must_copy_tags = \
+            [1 if is_abstract_token(t) else 0 for t in src_tokens]
 
-        #if len(self.aux_top_nodes) > 0:
-        #    import pdb; pdb.set_trace()
+        src_copy_invalid_ids = \
+            set([idx + 1 for idx, t in enumerate(src_tokens) if is_english_punct(t)])
+
         return {
             "tgt_tokens": tgt_tokens,
             "tgt_pos_tags": tgt_pos_tags,
@@ -441,7 +487,7 @@ class SDPGraph:
             "src_copy_invalid_ids": src_copy_invalid_ids,
             "isolated_edges": isolated_edges
         }
-    
+
     @staticmethod
     def add_edge(parent_node, child_node, label):
         parent_node.children.append((label, child_node))
@@ -469,6 +515,13 @@ class SDPNode:
         self.parents = []
         self.children = []
         self.tree_children = {}
+        self._dummy_node = False
+
+    def set_dummy_node(self):
+        self._dummy_node = True
+
+    def is_dummy_node(self):
+        return self._dummy_node
 
     def is_frontier(self, edge_visited):
         if self.src_index is None:
@@ -477,16 +530,30 @@ class SDPNode:
         num_unvisited_incoming_edge = 0
         for parent_tag, parent_node in self.parents:
             if parent_tag != "root":
-                num_unvisited_incoming_edge += 1 - edge_visited[(self.src_index, parent_node.src_index)]
+                num_unvisited_incoming_edge += \
+                    1 - edge_visited[(self, parent_node)]
         return num_unvisited_incoming_edge != 0
 
-    def __repr__(self):
+    def print_details(self):
         string = "Id: {}\tToken : {}\tLemma : {}\tPOS : {}\n".format(self.src_index, self.token, self.lemma, self.pos_tag)
         string += "\nParent :\n"
         string += "\n".join(["{} <-- {}, {}".format(label, parent_node.src_index, parent_node.token) for label, parent_node in self.parents])
         string += "\nChildren :\n"
         string += "\n".join(["{} --> {}, {}".format(label, child_node.src_index, child_node.token) for label, child_node in self.children])
+    def __repr__(self):
+        string = "<{}, {}>".format(self.src_index, self.token)
         return string
+
+    def __hash__(self):
+        return hash(self.src_index)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.src_index == other.src_index
+        else:
+            return False
+
+
 
 #TODO: leave OOV tokens now since we now every token on target side is a copy from source
 #However in some case we might need a dummy node to deal with multi-top graph
