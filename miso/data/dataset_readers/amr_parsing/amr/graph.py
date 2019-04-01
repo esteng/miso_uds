@@ -87,6 +87,9 @@ class AMRGraph(penman.Graph):
 
         self._G = G
 
+    def variables(self):
+        return set(v for v, _, _ in self._triples if isinstance(v, str))
+
     def attributes(self, source=None, relation=None, target=None):
         # Refine attributes because there's a bug in penman.attributes()
         # See https://github.com/goodmami/penman/issues/29
