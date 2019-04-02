@@ -51,7 +51,6 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
         # Internal use
         target_copy_hidden_states = []
-        head_hidden_states = [inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)]
         if input_feed is None:
             input_feed = inputs.new_zeros(batch_size, 1, self.rnn_cell.hidden_size)
         coverage = None
@@ -62,13 +61,20 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             coverage_records.append(coverage)
 
             output_dict = self.one_step_forward(
-                input, memory_bank, mask, hidden_state, input_feed,
-                heads, head_hidden_states, target_copy_hidden_states, coverage, step_i, sequence_length)
+                input=input,
+                memory_bank=memory_bank,
+                mask=mask,
+                hidden_state=hidden_state,
+                input_feed=input_feed,
+                heads=heads,
+                head_hidden_states=None,
+                target_copy_hidden_states=target_copy_hidden_states,
+                coverage=coverage,
+                step_i=step_i,
+                target_seq_length=sequence_length)
 
             hidden_state = output_dict['rnn_hidden_state']
             target_copy_hidden_states.append(output_dict['decoder_output'])
-            if step_i != 0:
-                head_hidden_states.append(output_dict['rnn_output'])
 
             decoder_hidden_states.append(output_dict['decoder_output'])
             rnn_hidden_states.append(output_dict['rnn_output'])
@@ -120,9 +126,10 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         :param target_seq_length: int
         :return:
         """
-        head_hidden, modifier_hidden = self.get_edge_info(
-            heads, step_i, head_hidden_states, input.size(0))
-        input_feed = torch.cat([input_feed, head_hidden, modifier_hidden], dim=2)
+        if heads is not None:
+            head_hidden, modifier_hidden = self.get_edge_info(
+                heads, step_i, head_hidden_states, input.size(0))
+            input_feed = torch.cat([input_feed, head_hidden, modifier_hidden], dim=2)
 
         rnn_output, hidden_state = self.one_step_rnn_forward(input, hidden_state, input_feed)
 

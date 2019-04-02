@@ -12,7 +12,6 @@ class PointerGenerator(torch.nn.Module):
         self.softmax = torch.nn.Softmax(dim=-1)
 
         self.linear_pointer = torch.nn.Linear(switch_input_size, 3)
-        self.sigmoid = torch.nn.Sigmoid()
 
         self.label_smoothing = LabelSmoothing(smoothing=0.1)
 

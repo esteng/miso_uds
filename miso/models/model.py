@@ -258,6 +258,8 @@ class Model(torch.nn.Module):
         model_state = torch.load(weights_file, map_location=device_mapping(-1))
         if not isinstance(model, torch.nn.DataParallel):
             model_state = {re.sub(r'^module\.', '', k):v for k, v in model_state.items()}
+        # model_state = {k: v for k, v in model_state.items() if not re.search(
+        #     r"head_output_layer|head_sentinels", k)}
         model.load_state_dict(model_state)
         model.set_vocab(vocab)
         model.to(device)
