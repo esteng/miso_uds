@@ -98,6 +98,7 @@ def load_archive(archive_file: str,
 
     # Load config
     config = Params.from_file(os.path.join(serialization_dir, CONFIG_NAME))
+    config["model"]["data_type"] = config["data"]["type"]
     config.loading_from_archive = True
 
     if weights_file:

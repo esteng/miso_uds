@@ -6,7 +6,8 @@ from miso.modules import LabelSmoothing
 
 class PointerGenerator(torch.nn.Module):
 
-    def __init__(self, input_size, switch_input_size, vocab_size, vocab_pad_idx, force_copy):
+    def __init__(self, input_size, switch_input_size, vocab_size, vocab_pad_idx, force_copy,
+                 source_copy=True, target_copy=True):
         super(PointerGenerator, self).__init__()
         self.linear = torch.nn.Linear(input_size, vocab_size)
         self.softmax = torch.nn.Softmax(dim=-1)
@@ -20,6 +21,8 @@ class PointerGenerator(torch.nn.Module):
         self.vocab_size = vocab_size
         self.vocab_pad_idx = vocab_pad_idx
 
+        self.source_copy = source_copy
+        self.target_copy = target_copy
         self.force_copy = force_copy
 
         self.eps = 1e-20
@@ -50,8 +53,17 @@ class PointerGenerator(torch.nn.Module):
 
         # Pointer probability.
         p = torch.nn.functional.softmax(self.linear_pointer(hiddens), dim=1)
-        p_copy_source = p[:, 0].view(batch_size, num_target_nodes, 1)
-        p_copy_target = p[:, 1].view(batch_size, num_target_nodes, 1)
+
+        if self.source_copy:
+            p_copy_source = p[:, 0].view(batch_size, num_target_nodes, 1)
+        else:
+            p_copy_source = p.new_zeros(batch_size, num_target_nodes, 1)
+
+        if self.target_copy:
+            p_copy_target = p[:, 1].view(batch_size, num_target_nodes, 1)
+        else:
+            p_copy_target = p.new_zeros(batch_size, num_target_nodes, 1)
+
         p_generate = p[:, 2].view(batch_size, num_target_nodes, 1)
 
         # Probability distribution over the vocabulary.
@@ -96,6 +108,8 @@ class PointerGenerator(torch.nn.Module):
             scaled_copy_target_probs.contiguous()
         ], dim=2)
 
+        #probs = probs / (1e-9 + torch.sum(probs, dim=-1, keepdim=True))
+
         # Set the probability of coref NA to 0.
         _probs = probs.clone()
         _probs[:, :, self.vocab_size + source_dynamic_vocab_size] = 0
@@ -131,6 +145,13 @@ class PointerGenerator(torch.nn.Module):
             [batch_size, num_target_nodes, num_source_nodes]
         :param copy_attentions: [batch_size, num_target_nodes, num_source_nodes]
         """
+        if not self.source_copy:
+            source_copy_mask = source_copy_targets.gt(0)
+            source_copy_targets = source_copy_mask.type_as(source_copy_targets) 
+
+        if not self.target_copy:
+            target_copy_targets = target_copy_targets.new_zeros(target_copy_targets.size())
+
 
         non_pad_mask = generate_targets.ne(self.vocab_pad_idx)
 

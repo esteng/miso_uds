@@ -53,6 +53,9 @@ from miso.predictors.predictor import Predictor, JsonDict
 from miso.predictors import BiaffineDependencyParserPredictor, Seq2SeqPredictor, STOGPredictor
 from miso.data import Instance
 
+from stog.utils.exception_hook import ExceptionHook
+
+sys.excepthook = ExceptionHook()
 
 class Predict(Subcommand):
     def add_subparser(self, name: str, parser: argparse._SubParsersAction) -> argparse.ArgumentParser:
@@ -98,7 +101,7 @@ def _get_predictor(args: argparse.Namespace) -> Predictor:
                            device=args.cuda_device,
                            weights_file=args.weights_file)
 
-    return Predictor.from_archive(archive)
+    return Predictor.from_archive(archive, predictor_name=args.predictor)
 
 
 class _PredictManager:
@@ -110,7 +113,8 @@ class _PredictManager:
                  batch_size: int,
                  print_to_console: bool,
                  has_dataset_reader: bool,
-                 beam_size: int) -> None:
+                 beam_size: int,
+                 length_penalty: float = 1) -> None:
 
         self._predictor = predictor
         self._input_file = input_file
@@ -126,10 +130,10 @@ class _PredictManager:
             self._dataset_reader = None
 
         # TODO: there should be better ways to do this
-        if type(predictor) in (Seq2SeqPredictor, STOGPredictor):
-            self.beam_size = beam_size
-            self._predictor._model.set_beam_size(self.beam_size)
-            self._predictor._model.set_decoder_token_indexers(self._dataset_reader._token_indexers)
+        self.beam_size = beam_size
+        self._predictor._model.set_beam_size(self.beam_size)
+        self._predictor._model.set_length_penalty(length_penalty)
+        self._predictor._model.set_decoder_token_indexers(self._dataset_reader._token_indexers)
 
     def _predict_json(self, batch_data: List[JsonDict]) -> Iterator[str]:
         if len(batch_data) == 1:
@@ -205,7 +209,8 @@ def _predict(args: argparse.Namespace) -> None:
                               args.batch_size,
                               not args.silent,
                               args.use_dataset_reader,
-                              args.beam_size)
+                              args.beam_size,
+                              args.length_penalty)
     manager.run()
 
 
@@ -235,12 +240,18 @@ if __name__ == "__main__":
 
     parser.add_argument('--predictor',
                            type=str,
-                           help='optionally specify a specific predictor to use')
+                           required=True,
+                           help='Specify a specific predictor to use')
 
     parser.add_argument('--beam-size',
                         type=int,
                         default=1,
                         help="Beam size for seq2seq decoding")
+    
+    parser.add_argument('--length-penalty',
+                        type=float,
+                        default=0,
+                        help="The length penalty used for decoding")
 
     args = parser.parse_args()
 

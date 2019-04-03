@@ -3,7 +3,6 @@ torch==0.4.1
 h5py
 boto3
 pytorch-pretrained-bert
-allennlp
 
 # Data processing
 spacy
@@ -18,6 +17,7 @@ word2number
 bs4
 lxml
 networkx
+ipython   
 
 # Write logs for training visualisation with the Tensorboard application
 # Install the Tensorboard application separately (part of tensorflow) to view them.

@@ -23,7 +23,7 @@ from miso.utils.string import START_SYMBOL, END_SYMBOL
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-@DatasetReader.register("amr_trees")
+@DatasetReader.register("abstract_meaning_representations")
 class AbstractMeaningRepresentationDatasetReader(DatasetReader):
     '''
     Dataset reader for AMR data
@@ -81,7 +81,7 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
 
         fields: Dict[str, Field] = {}
 
-        max_tgt_length = None if self._evaluation else 60
+        max_tgt_length = None #if self._evaluation else 80
 
         list_data = amr.graph.get_istog_data(
             amr, START_SYMBOL, END_SYMBOL, self._word_splitter, max_tgt_length)
@@ -113,21 +113,23 @@ class AbstractMeaningRepresentationDatasetReader(DatasetReader):
             token_indexers={k: v for k, v in self._token_indexers.items() if 'decoder' in k}
         )
 
-        fields["src_pos_tags"] = SequenceLabelField(
-            labels=list_data["src_pos_tags"],
-            sequence_field=fields["src_tokens"],
-            label_namespace="pos_tags"
-        )
+        if list_data["src_pos_tags"] is not None:
+            fields["src_pos_tags"] = SequenceLabelField(
+                labels=list_data["src_pos_tags"],
+                sequence_field=fields["src_tokens"],
+                label_namespace="pos_tags"
+            )
 
-        fields["tgt_pos_tags"] = SequenceLabelField(
-            labels=list_data["tgt_pos_tags"],
-            sequence_field=fields["tgt_tokens"],
-            label_namespace="pos_tags"
-        )
+        if list_data["tgt_pos_tags"] is not None:
+            fields["tgt_pos_tags"] = SequenceLabelField(
+                labels=list_data["tgt_pos_tags"],
+                sequence_field=fields["tgt_tokens"],
+                label_namespace="pos_tags"
+            )
 
-        self._number_pos_tags += len(list_data['tgt_pos_tags'])
-        self._number_non_oov_pos_tags += len(
-            [tag for tag in list_data['tgt_pos_tags'] if tag != '@@UNKNOWN@@'])
+            self._number_pos_tags += len(list_data['tgt_pos_tags'])
+            self._number_non_oov_pos_tags += len(
+                [tag for tag in list_data['tgt_pos_tags'] if tag != '@@UNKNOWN@@'])
 
         fields["tgt_indices"] = SequenceLabelField(
             labels=list_data["tgt_indices"],

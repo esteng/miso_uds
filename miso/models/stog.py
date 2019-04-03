@@ -23,7 +23,7 @@ from miso.utils.string import START_SYMBOL, END_SYMBOL, find_similar_token, is_a
 from miso.data.vocabulary import DEFAULT_OOV_TOKEN, DEFAULT_PADDING_TOKEN
 from miso.data.tokenizers.character_tokenizer import CharacterTokenizer
 # The following imports are added for mimick testing.
-from miso.data.dataset_builder import load_dataset_reader
+from miso.data.dataset_builder import load_dataset
 from miso.predictors.predictor import Predictor
 from miso.commands.predict import _PredictManager
 import subprocess
@@ -62,6 +62,11 @@ class STOG(Model):
                  use_coverage,
                  use_aux_encoder,
                  use_bert,
+                 use_pos_tags,
+                 use_source_embedding,
+                 use_coref_embedding,
+                 use_source_copy,
+                 use_target_copy,
                  max_decode_length,
                  # Encoder
                  bert_encoder,
@@ -88,7 +93,9 @@ class STOG(Model):
                  generator,
                  # Graph decoder
                  graph_decoder,
-                 test_config
+                 test_config,
+                 #Mimicking Test
+                 data_type
                  ):
         super(STOG, self).__init__()
 
@@ -99,6 +106,11 @@ class STOG(Model):
         self.use_coverage = use_coverage
         self.use_aux_encoder = use_aux_encoder
         self.use_bert = use_bert
+        self.use_pos_tags = use_pos_tags
+        self.use_source_embedding = use_source_embedding
+        self.use_coref_embedding = use_coref_embedding
+        self.use_source_copy = use_source_copy
+        self.use_target_copy = use_target_copy
         self.max_decode_length = max_decode_length
 
         self.bert_encoder = bert_encoder
@@ -131,8 +143,15 @@ class STOG(Model):
 
         self.test_config = test_config
 
+        self.length_penalty = 0
+
+        self.data_type = data_type
+
     def set_beam_size(self, beam_size):
         self.beam_size = beam_size
+
+    def set_length_penalty(self, length_penalty):
+        self.length_penalty = length_penalty
 
     def set_decoder_token_indexers(self, token_indexers):
         self.decoder_token_indexers = token_indexers
@@ -154,7 +173,12 @@ class STOG(Model):
         word_splitter = None
         if self.use_bert:
             word_splitter = self.test_config.get('word_splitter', None)
-        dataset_reader = load_dataset_reader('AMR', word_splitter=word_splitter)
+
+        dataset_reader = DatasetReader.by_name(self.data_type)(
+            token_indexers=seq2seq_token_char_indexers(),
+            word_splitter=word_splitter
+        )
+
         dataset_reader.set_evaluation()
         predictor = Predictor.by_name('STOG')(self, dataset_reader)
         manager = _PredictManager(
@@ -223,7 +247,7 @@ class STOG(Model):
         if encoder_token_subword_index is not None:
             encoder_token_subword_index = encoder_token_subword_index.long()
         encoder_token_inputs = batch['src_tokens']['encoder_tokens']
-        encoder_pos_tags = batch['src_pos_tags']
+        encoder_pos_tags = batch.get('src_pos_tags', None)
         encoder_must_copy_tags = batch['src_must_copy_tags']
         # [batch, num_tokens, num_chars]
         encoder_char_inputs = batch['src_tokens']['encoder_characters']
@@ -242,7 +266,10 @@ class STOG(Model):
 
         # [batch, num_tokens]
         decoder_token_inputs = batch['tgt_tokens']['decoder_tokens'][:, :-1].contiguous()
-        decoder_pos_tags = batch['tgt_pos_tags'][:, :-1]
+        if 'tgt_pos_tags' in batch:
+            decoder_pos_tags = batch['tgt_pos_tags'][:, :-1]
+        else:
+            decoder_pos_tags = None
         # [batch, num_tokens, num_chars]
         decoder_char_inputs = batch['tgt_tokens']['decoder_characters'][:, :-1].contiguous()
         decoder_coref_inputs = batch['tgt_indices'][:, :-1].contiguous()
@@ -390,9 +417,13 @@ class STOG(Model):
                 bert_embeddings = bert_embeddings[:, 1:-1]
             encoder_inputs += [bert_embeddings]
 
-        token_embeddings = self.encoder_token_embedding(tokens)
-        pos_tag_embeddings = self.encoder_pos_embedding(pos_tags)
-        encoder_inputs += [token_embeddings, pos_tag_embeddings]
+        if self.use_source_embedding:
+            token_embeddings = self.encoder_token_embedding(tokens)
+            encoder_inputs += [token_embeddings]
+
+        if self.use_pos_tags:
+            pos_tag_embeddings = self.encoder_pos_embedding(pos_tags)
+            encoder_inputs += [pos_tag_embeddings]
 
         if self.use_must_copy_embedding:
             must_copy_tag_embeddings = self.encoder_must_copy_embedding(must_copy_tags)
@@ -423,15 +454,22 @@ class STOG(Model):
             self, tokens, pos_tags, chars, corefs, memory_bank, mask, states, tgt_mask):
         # [batch, num_tokens, embedding_size]
         token_embeddings = self.decoder_token_embedding(tokens)
-        pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
-        coref_embeddings = self.decoder_coref_embedding(corefs)
+        decoder_inputs = [token_embeddings]
+
+        if self.use_pos_tags:
+            pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
+            decoder_inputs.append(pos_tag_embeddings)
+
+        if self.use_coref_embedding:
+            coref_embeddings = self.decoder_coref_embedding(corefs)
+            decoder_inputs.append(coref_embeddings) 
+
         if self.use_char_cnn:
             char_cnn_output = self._get_decoder_char_cnn_output(chars)
-            decoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, coref_embeddings, char_cnn_output], 2)
-        else:
-            decoder_inputs = torch.cat([
-                token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
+            decoder_inputs.append(char_cnn_output)
+
+        decoder_inputs = torch.cat(decoder_inputs, 2)
+
         decoder_inputs = self.decoder_embedding_dropout(decoder_inputs)
         decoder_outputs = self.decoder(decoder_inputs, memory_bank, mask, states)
 
@@ -600,9 +638,18 @@ class STOG(Model):
                 beam_buffer[key][:, :, step] = fold(tensor.squeeze(1))
 
         def get_decoder_input(tokens, pos_tags, corefs):
+            decoder_inputs = []
+
             token_embeddings = self.decoder_token_embedding(tokens)
-            pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
-            coref_embeddings = self.decoder_coref_embedding(corefs)
+            decoder_inputs.append(token_embeddings)
+
+            if self.use_pos_tags:
+                pos_tag_embeddings = self.decoder_pos_embedding(pos_tags)
+                decoder_inputs.append(pos_tag_embeddings)
+
+            if self.use_coref_embedding:
+                coref_embeddings = self.decoder_coref_embedding(corefs)
+                decoder_inputs.append(coref_embeddings)
 
             if self.use_char_cnn:
                 # TODO: get chars from tokens.
@@ -628,12 +675,9 @@ class STOG(Model):
                     )
 
                 char_cnn_output = self._get_decoder_char_cnn_output(chars)
-                decoder_inputs = torch.cat(
-                    [token_embeddings, pos_tag_embeddings,
-                     coref_embeddings, char_cnn_output], 2)
-            else:
-                decoder_inputs = torch.cat(
-                    [token_embeddings, pos_tag_embeddings, coref_embeddings], 2)
+                decoder_inputs.append(char_cnn_output)
+
+            decoder_inputs = torch.cat(decoder_inputs, 2)
 
             return self.decoder_embedding_dropout(decoder_inputs)
 
@@ -760,18 +804,16 @@ class STOG(Model):
             # new word probs
             word_lprobs = fold(torch.log(1e-8 + generator_output['probs'].squeeze(1)))
 
+            new_words_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs)
+            new_all_scores = word_lprobs + beam_buffer["scores"].expand_as(word_lprobs) 
+
             if self.use_coverage:
                 coverage_loss = torch.sum(
                     torch.min(coverage, _copy_attentions),
                     dim=2
                 )
-            else:
-                coverage_loss = word_lprobs.new_zeros(batch_size, beam_size, 1)
 
-            new_all_scores = \
-                word_lprobs \
-                + beam_buffer["scores"].expand_as(word_lprobs) \
-                - coverage_loss.view(batch_size, beam_size, 1).expand_as(word_lprobs)
+                new_all_scores -= coverage_loss.view(batch_size, beam_size, 1).expand_as(word_lprobs)
 
             # top beam_size hypos
             # new_hypo_indices : [batch_size, beam_size * 2]
@@ -796,7 +838,7 @@ class STOG(Model):
                 for index in eos_beam_indices_offset.tolist():
                     eos_batch_idx = int(index / beam_size)
                     eos_beam_idx = index % beam_size
-                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / (step + 1)
+                    hypo_score = float(new_hypo_scores[eos_batch_idx, eos_beam_idx]) / ((step + 1) ** self.length_penalty)
                     if step > 0 and hypo_score > bucket_max_score[eos_batch_idx] and eos_beam_idx == 0:
                         bucket_max_score[eos_batch_idx] = hypo_score
                         bucket[eos_batch_idx] += [
@@ -886,8 +928,6 @@ class STOG(Model):
             )
             if self.use_coverage:
                 variables["coverage"] = beam_select_1d(coverage, beam_indices)
-            else:
-                variables["coverage"] = None
 
 
         for batch_idx, item in enumerate(bucket):
@@ -1175,17 +1215,23 @@ class STOG(Model):
 
         # Encoder
         encoder_input_size = 0
+
         bert_encoder = None
         if params.get('use_bert', False):
-            bert_encoder = Seq2SeqBertEncoder.from_pretrained(params['bert']['pretrained_model_dir'])
-            encoder_input_size += params['bert']['hidden_size']
+            bert_encoder = Seq2SeqBertEncoder.from_pretrained(params['bert'])
+            encoder_input_size += bert_encoder.pooler.dense.out_features
             for p in bert_encoder.parameters():
                 p.requires_grad = False
 
-        encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
-        encoder_input_size += params['encoder_token_embedding']['embedding_dim']
-        encoder_pos_embedding = Embedding.from_params(vocab, params['encoder_pos_embedding'])
-        encoder_input_size += params['encoder_pos_embedding']['embedding_dim']
+        encoder_token_embedding = None
+        if params.get('use_source_embedding', True):
+            encoder_token_embedding = Embedding.from_params(vocab, params['encoder_token_embedding'])
+            encoder_input_size += params['encoder_token_embedding']['embedding_dim']
+
+        encoder_pos_embedding = None
+        if params.get('use_pos_tags', False):
+            encoder_pos_embedding = Embedding.from_params(vocab, params['encoder_pos_embedding'])
+            encoder_input_size += params['encoder_pos_embedding']['embedding_dim']
 
         encoder_must_copy_embedding = None
         if params.get('use_must_copy_embedding', False):
@@ -1193,7 +1239,9 @@ class STOG(Model):
             vocab, params['encoder_must_copy_embedding'])
             encoder_input_size += params['encoder_must_copy_embedding']['embedding_dim']
 
-        if params['use_char_cnn']:
+        encoder_char_embedding = None
+        encoder_char_cnn = None
+        if params.get('use_char_cnn', False):
             encoder_char_embedding = Embedding.from_params(vocab, params['encoder_char_embedding'])
             encoder_char_cnn = CnnEncoder(
                 embedding_dim=params['encoder_char_cnn']['embedding_dim'],
@@ -1202,9 +1250,6 @@ class STOG(Model):
                 conv_layer_activation=torch.tanh
             )
             encoder_input_size += params['encoder_char_cnn']['num_filters']
-        else:
-            encoder_char_embedding = None
-            encoder_char_cnn = None
 
         encoder_embedding_dropout = InputVariationalDropout(p=params['encoder_token_embedding']['dropout'])
 
@@ -1217,12 +1262,22 @@ class STOG(Model):
 
         # Decoder
         decoder_input_size = params['decoder']['hidden_size']
+
         decoder_input_size += params['decoder_token_embedding']['embedding_dim']
-        decoder_input_size += params['decoder_coref_embedding']['embedding_dim']
-        decoder_input_size += params['decoder_pos_embedding']['embedding_dim']
         decoder_token_embedding = Embedding.from_params(vocab, params['decoder_token_embedding'])
-        decoder_coref_embedding = Embedding.from_params(vocab, params['decoder_coref_embedding'])
-        decoder_pos_embedding = Embedding.from_params(vocab, params['decoder_pos_embedding'])
+
+        decoder_pos_embedding = None
+        if params.get('use_pos_tags', False):
+            decoder_pos_embedding = Embedding.from_params(vocab, params['decoder_pos_embedding'])
+            decoder_input_size += params['decoder_pos_embedding']['embedding_dim']
+
+        decoder_coref_embedding = None
+        if params.get('use_coref_embedding', True):
+            decoder_coref_embedding = Embedding.from_params(vocab, params['decoder_coref_embedding'])
+            decoder_input_size += params['decoder_coref_embedding']['embedding_dim']
+
+        decoder_char_embedding = None
+        decoder_char_cnn = None
         if params['use_char_cnn']:
             decoder_char_embedding = Embedding.from_params(vocab, params['decoder_char_embedding'])
             decoder_char_cnn = CnnEncoder(
@@ -1232,9 +1287,6 @@ class STOG(Model):
                 conv_layer_activation=torch.tanh
             )
             decoder_input_size += params['decoder_char_cnn']['num_filters']
-        else:
-            decoder_char_embedding = None
-            decoder_char_cnn = None
 
         decoder_embedding_dropout = InputVariationalDropout(p=params['decoder_token_embedding']['dropout'])
 
@@ -1315,7 +1367,9 @@ class STOG(Model):
             vocab_size=vocab.get_vocab_size('decoder_token_ids'),
             force_copy=params['generator'].get('force_copy', True),
             # TODO: Set the following indices.
-            vocab_pad_idx=0
+            vocab_pad_idx=0,
+            source_copy=params.get('use_source_copy', True),
+            target_copy=params.get('use_target_copy', True)
         )
 
         graph_decoder = DeepBiaffineGraphDecoder.from_params(vocab, params['graph_decoder'])
@@ -1341,6 +1395,11 @@ class STOG(Model):
             use_coverage=params['use_coverage'],
             use_aux_encoder=params.get('use_aux_encoder', False),
             use_bert=params.get('use_bert', False),
+            use_pos_tags=params.get('use_pos_tags', False),
+            use_source_embedding=params.get('use_source_embedding', True),
+            use_coref_embedding=params.get('use_coref_embedding', True),
+            use_source_copy=params.get('use_source_copy', True),
+            use_target_copy=params.get('use_target_copy', True),
             max_decode_length=params.get('max_decode_length', 50),
             bert_encoder=bert_encoder,
             encoder_token_embedding=encoder_token_embedding,
@@ -1362,6 +1421,7 @@ class STOG(Model):
             aux_encoder_output_dropout=aux_encoder_output_dropout,
             generator=generator,
             graph_decoder=graph_decoder,
-            test_config=params.get('mimick_test', None)
+            test_config=params.get('mimick_test', None),
+            data_type=params["data_type"]
         )
 
