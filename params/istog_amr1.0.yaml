@@ -2,7 +2,7 @@
 
 # Device-sensitive parameters
 amr_data_dir: &amr_data_dir data/AMR/amr_1.0
-glove: &glove /home/sheng/data/glove/glove.840B.300d.zip
+glove: &glove /export/ssd/sheng/data/glove/glove.840B.300d.zip
 
 
 # Model parameters
@@ -12,10 +12,10 @@ model:
   use_anonym_indicator: True
   use_coverage: True
   use_aux_encoder: False
-  use_bert: False
+  use_bert: True
 
   bert:
-    pretrained_model_dir: /home/sheng/data/bert-base-cased
+    pretrained_model_dir: /export/ssd/sheng/data/bert-base-cased
     hidden_size: 768
 
   encoder_token_embedding:
@@ -136,7 +136,7 @@ model:
     batch_size: 32
     eval_script: miso/data/dataset_readers/amr_parsing/scripts/eval_test.sh
     smatch_dir: tools/amr-evaluation-tool-enhanced
-    word_splitter: &word_splitter /home/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
+    word_splitter: &word_splitter /export/ssd/sheng/data/bert-base-cased/bert-base-cased-vocab.txt
 
 
 # Vocabulary
@@ -159,7 +159,7 @@ data:
   data_type: AMR
   batch_first: True
   iterator:
-    train_batch_size: &train_batch_size 32
+    train_batch_size: &train_batch_size 128
     test_batch_size: 32
     iter_type: BucketIterator
     sorting_keys:  # (field, padding type)
