@@ -62,17 +62,17 @@ class Wikification:
                 saved_dict = abstract_map[instance]
                 instance_type = saved_dict['type']
                 # amr_type = graph.get_name_node_type(node)
-                cached_wiki = self._spotlight_wiki[amr.sentence]
+                cached_wiki = self._spotlight_wiki.get(amr.sentence, None)
                 if instance_type == 'named-entity':
                     self.name_node_count += 1
                     wiki = '-'
                     span = strip(saved_dict['span'])
-                    if span.lower() in self.nationality_map:
+                    if cached_wiki and span.lower() in self.nationality_map:
                         country = self.nationality_map[span.lower()]
                         wiki = self.wikify(country, cached_wiki)
-                    if wiki == '-':
+                    if cached_wiki and wiki == '-':
                         wiki = self.wikify(span, cached_wiki)
-                    if wiki == '-':
+                    if cached_wiki and wiki == '-':
                         span_no_space = joint_dash(span)
                         wiki = self.wikify(span_no_space, cached_wiki)
                     graph.set_name_node_wiki(node, wiki)
