@@ -628,6 +628,17 @@ class ISTOG(Model):
             pad_token
         )
 
+        beam_buffer["edge_labels"] = mask.new_full(
+            (batch_size, beam_size, self.max_decode_length),
+            pad_token
+        )
+
+        beam_buffer["edge_heads"] = mask.new_full(
+            (batch_size, beam_size, self.max_decode_length),
+            pad_token
+        )
+
+
         beam_buffer["coref_indexes"] = memory_bank.new_zeros(
             batch_size,
             beam_size,
@@ -666,7 +677,12 @@ class ISTOG(Model):
 
         variables["corefs"] = mask.new_zeros(batch_size * beam_size, 1)
 
-        variables["input_feed"] = None
+        variables["input_feed"] = memory_bank.new_zeros(
+            batch_size * beam_size,
+            1,
+            self.decoder.rnn_cell.hidden_size
+        )
+
         variables["coref_inputs"] = []
         variables["states"] = [item.index_select(1, new_order) for item in states]
 
@@ -699,27 +715,62 @@ class ISTOG(Model):
             )
 
             # 2. Decode one stepi.
-            decoder_output_dict = self.decoder(
+            _rnn_outputs, _ = self.decoder.one_step_rnn_forward(
+                decoder_inputs,
+                variables["states"],
+                variables["input_feed"]
+            )
+
+            if step != 0:
+                queries = _rnn_outputs
+                if step == 1:
+                    keys, edge_mask = None, None
+                else:
+                    keys = flatten(beam_buffer["decoder_rnn_memory_bank"])[
+                        :, 1:step, :
+                    ]
+                    coref_indexes_flatten = flatten(
+                        beam_buffer["coref_indexes"]
+                    )
+                    coref_history = \
+                        coref_indexes_flatten[:, :step - 1]
+                    coref_current = \
+                        coref_indexes_flatten[:, step - 1].unsqueeze(1)
+                    edge_mask = coref_history.ne(coref_current).unsqueeze(1)
+                heads, labels = self.tree_decoder(queries, keys, edge_mask)
+
+                update_tensor_buff(
+                    "edge_heads", step, beam_indices, heads, False
+                )
+                update_tensor_buff(
+                    "edge_labels", step, beam_indices, labels, False
+                )
+                #edge_heads += [heads]
+                #edge_labels += [labels]
+
+            decoder_output_dict = self.decoder.one_step_forward(
                 decoder_inputs,
                 memory_bank.index_select(0, new_order),
                 mask.index_select(0, new_order),
                 variables["states"],
                 variables["input_feed"],
+                None,
+                None,
                 variables["coref_inputs"],
-                variables["coverage"]
+                variables["coverage"],
+                step,
+                1
             )
 
-
-            _decoder_outputs = decoder_output_dict['decoder_hidden_states']
-            _rnn_outputs = decoder_output_dict['rnn_hidden_states']
-            #coref_inputs = decoder_output_dict['coref_inputs']
-            #_source_attentions = decoder_output_dict['source_attentions']
-            _copy_attentions = decoder_output_dict['source_copy_attentions']
-            _coref_attentions = decoder_output_dict['target_copy_attentions']
-            states = decoder_output_dict['last_hidden_state']
+            _decoder_outputs = decoder_output_dict['decoder_output']
+            _rnn_outputs = decoder_output_dict['rnn_output']
+            _copy_attentions = decoder_output_dict['source_copy_attention']
+            _coref_attentions = decoder_output_dict['target_copy_attention']
+            states = decoder_output_dict['rnn_hidden_state']
             input_feed = decoder_output_dict['input_feed']
             coverage = decoder_output_dict['coverage']
-            coverage_records = decoder_output_dict['coverage_records']
+
+            #coverage_records = decoder_output_dict['coverage_records']
 
             # 3. Run pointer/generator.instance.fields['src_copy_vocab'].metadata
             if step == 0:
@@ -840,17 +891,29 @@ class ISTOG(Model):
 
             beam_buffer["scores"] = new_hypo_scores.unsqueeze(2)
 
-            update_tensor_buff("decoder_inputs", step, beam_indices, decoder_inputs)
-            update_tensor_buff("decoder_memory_bank", step, beam_indices, _decoder_outputs)
-            update_tensor_buff("decoder_rnn_memory_bank", step, beam_indices, _rnn_outputs)
+            update_tensor_buff(
+                "decoder_inputs", step, beam_indices, decoder_inputs
+            )
+            update_tensor_buff(
+                "decoder_memory_bank", step, beam_indices, _decoder_outputs
+            )
+            update_tensor_buff(
+                "decoder_rnn_memory_bank", step, beam_indices, _rnn_outputs
+            )
 
             #update_tensor_buff("source_attentions", step, _source_attentions)
             #update_tensor_buff("copy_attentions", step, _copy_attentions)
             #update_tensor_buff("coref_attentions", step, _coref_attentions)
 
-            update_tensor_buff("predictions", step, beam_indices,_predictions, False)
-            update_tensor_buff("coref_indexes", step, beam_indices, corefs, False)
-            update_tensor_buff("decoder_mask", step, beam_indices, _mask, False)
+            update_tensor_buff(
+                "predictions", step, beam_indices, _predictions, False
+            )
+            update_tensor_buff(
+                "coref_indexes", step, beam_indices, corefs, False
+            )
+            update_tensor_buff(
+                "decoder_mask", step, beam_indices, _mask, False
+            )
 
             variables["input_tokens"] = input_tokens
             variables["pos_tags"] = pos_tags
@@ -859,6 +922,7 @@ class ISTOG(Model):
             variables["states"] = [
                 state.index_select(1, new_order * beam_size + beam_indices.view(-1)) for state in states]
             variables["input_feed"] = beam_select_1d(input_feed, beam_indices)
+            variables["coref_inputs"].append(_decoder_outputs)
             variables["coref_inputs"] = list(
                 beam_select_1d(
                     torch.cat(variables["coref_inputs"], 1),
@@ -887,17 +951,20 @@ class ISTOG(Model):
                 dim=0
             )
 
-        return_dict["decoder_mask"] = 1 - return_dict["decoder_mask"]
 
-        return_dict["decoder_inputs"] = return_dict["decoder_inputs"][:, 1:]
-        return_dict["decoder_memory_bank"] = return_dict["decoder_memory_bank"][:, 1:]
-        return_dict["decoder_rnn_memory_bank"] = return_dict["decoder_rnn_memory_bank"][:, 1:]
+        #return_dict["decoder_inputs"] = return_dict["decoder_inputs"][:, 1:]
+        #return_dict["decoder_memory_bank"] = return_dict["decoder_memory_bank"][:, 1:]
+        #return_dict["decoder_rnn_memory_bank"] = return_dict["decoder_rnn_memory_bank"][:, 1:]
+
+        #return_dict["decoder_mask"] = 1 - return_dict["decoder_mask"]
 
         return_dict["predictions"] = return_dict["predictions"][:, :-1]
         return_dict["predictions"][return_dict["predictions"] == pad_token] = eos_token
+        return_dict["edge_heads"] = return_dict["edge_heads"][:, 1:]
+        return_dict["edge_labels"] = return_dict["edge_labels"][:, 1:]
         return_dict["coref_indexes"] = return_dict["coref_indexes"][:, :-1]
         return_dict["decoder_mask"] = return_dict["predictions"] != eos_token#return_dict["decoder_mask"][:, :-1]
-        return_dict["scores"] = torch.div(return_dict["scores"], return_dict["decoder_mask"].sum(1, keepdim=True).type_as(return_dict["scores"]))
+        #return_dict["scores"] = torch.div(return_dict["scores"], return_dict["decoder_mask"].sum(1, keepdim=True).type_as(return_dict["scores"]))
 
         return return_dict
 
