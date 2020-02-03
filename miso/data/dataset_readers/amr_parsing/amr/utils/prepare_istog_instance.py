@@ -83,7 +83,9 @@ def prepare_istog_instance(
     tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(src_tokens, src_pos_tags, tgt_tokens)
 
     if bert_tokenizer is not None:
-        src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens, True)
+        bert_tokenizer_ret = bert_tokenizer.tokenize(src_tokens, True)
+        src_token_ids = bert_tokenizer_ret["token_ids"]
+        src_token_subword_index = bert_tokenizer_ret["token_recovery_matrix"]
 
     src_anonym_indicators = [1 if is_abstract_token(t) else 0 for t in src_tokens]
     src_copy_invalid_ids = set(src_copy_vocab.index_sequence(
