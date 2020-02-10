@@ -2,15 +2,13 @@ from typing import Optional, Tuple
 import torch
 from torch.nn.utils.rnn import PackedSequence
 
-from miso.modules.augmented_lstm import AugmentedLstm
-from miso.utils.checks import ConfigurationError
+from allennlp.modules.augmented_lstm import AugmentedLstm
+from allennlp.common.registrable import Registrable
+from allennlp.common.checks import ConfigurationError
 
 
-class StackedLstm(torch.nn.Module):
+class StackedLstm(torch.nn.Module, Registrable):
     """
-    Adopted from AllenNLP:
-        https://github.com/allenai/allennlp/blob/v0.6.1/allennlp/modules/stacked_bidirectional_lstm.py
-
     A standard stacked LSTM where the LSTM layers
     are concatenated between each layer. The only difference between
     this and a regular LSTM is the application of
@@ -96,13 +94,3 @@ class StackedLstm(torch.nn.Module):
 
         final_state_tuple = [torch.cat(state_list, 0) for state_list in zip(*final_states)]
         return output_sequence, final_state_tuple
-
-    @classmethod
-    def from_params(cls, params):
-        return cls(
-            input_size=params['input_size'],
-            hidden_size=params['hidden_size'],
-            num_layers=params['num_layers'],
-            recurrent_dropout_probability=params.get('dropout', 0.0),
-            use_highway=params.get('use_highway', True)
-        )
