@@ -1,8 +1,9 @@
-overrides
-torch==0.4.1
+torch==1.2.0
+allennlp==0.9.0
 h5py
 boto3
-pytorch-pretrained-bert
+overrides
+numpy
 
 # Data processing
 spacy

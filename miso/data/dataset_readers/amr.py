@@ -39,7 +39,7 @@ class AMRDatasetReader(DatasetReader):
 
     def report(self):
         if self._num_subtokens != 0:
-            logger.info('BERT OOV  rate: {0:.4f} ({1}/{2})'.format(
+            logger.info('Subtoken OOV rate: {0:.4f} ({1}/{2})'.format(
                 self._num_subtoken_oovs / self._num_subtokens, self._num_subtoken_oovs, self._num_subtokens,
             ))
 
