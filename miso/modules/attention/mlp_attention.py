@@ -1,59 +1,63 @@
 import torch
+from overrides import overrides
+
+from .attention import Attention
 
 
-class MLPAttention(torch.nn.Module):
+@Attention.register("mlp")
+class MLPAttention(Attention):
 
-    def __init__(self, decoder_hidden_size, encoder_hidden_size, attention_hidden_size, coverage=False, use_concat=False):
-        super(MLPAttention, self).__init__()
-        self.hidden_size = attention_hidden_size
-        self.query_linear = torch.nn.Linear(decoder_hidden_size, self.hidden_size, bias=True)
-        self.context_linear = torch.nn.Linear(encoder_hidden_size, self.hidden_size, bias=False)
-        self.output_linear = torch.nn.Linear(self.hidden_size, 1, bias=False)
-        if coverage:
-            self.coverage_linear = torch.nn.Linear(1, self.hidden_size, bias=False)
-        self.use_concat = use_concat
-        if self.use_concat:
-            self.concat_linear = torch.nn.Linear(
-                decoder_hidden_size, self.hidden_size, bias=False)
+    def __init__(self,
+                 query_vector_dim: int,
+                 key_vector_dim: int,
+                 hidden_vector_dim: int,
+                 use_coverage: bool = False) -> None:
+        super().__init__()
+        self.query_linear = torch.nn.Linear(query_vector_dim, hidden_vector_dim, bias=True)
+        self.key_linear = torch.nn.Linear(key_vector_dim, hidden_vector_dim, bias=False)
+        self.output_linear = torch.nn.Linear(hidden_vector_dim, 1, bias=False)
+        if use_coverage:
+            self.coverage_linear = torch.nn.Linear(1, hidden_vector_dim, bias=False)
+        self._hidden_vector_dim = hidden_vector_dim
+        self._use_coverage = use_coverage
 
-    def forward(self, decoder_input, encoder_input, coverage=None):
+    @property
+    def hidden_vector_dim(self) -> int:
+        return self._hidden_vector_dim
+
+    @property
+    def use_coverage(self) -> bool:
+        return self._use_coverage
+
+    @overrides
+    def forward(self,
+                query: torch.Tensor,
+                key: torch.Tensor,
+                coverage: torch.Tensor = None) -> torch.Tensor:
         """
-        :param decoder_input:  [batch, decoder_seq_length, decoder_hidden_size]
-        :param encoder_input:  [batch, encoder_seq_length, encoder_hidden_size]
-        :param coverage: [batch, encoder_seq_length]
-        :return:  [batch, decoder_seq_length, encoder_seq_length]
+        :param query:  [batch_size, query_seq_length, query_vector_dim].
+        :param key:  [batch_size, key_seq_length, key_vector_dim].
+        :param coverage: [batch_size, key_seq_length]
+        :return:  [batch_size, query_seq_length, key_seq_length]
         """
-        batch_size, decoder_seq_length, decoder_hidden_size = decoder_input.size()
-        batch_size, encoder_seq_length, encoder_hidden_size = encoder_input.size()
+        batch_size, query_seq_length, query_vector_dim = query.size()
+        batch_size, key_seq_length, key_vector_dim = key.size()
 
-        decoder_features = self.query_linear(decoder_input)
-        decoder_features = decoder_features.unsqueeze(2).expand(
-            batch_size, decoder_seq_length, encoder_seq_length, self.hidden_size)
-        encoder_features = self.context_linear(encoder_input)
-        encoder_features = encoder_features.unsqueeze(1).expand(
-            batch_size, decoder_seq_length, encoder_seq_length, self.hidden_size)
-        attn_features = decoder_features + encoder_features
+        query_linear_output = self.query_linear(query).unsqueeze(2).expand(
+            batch_size, query_seq_length, key_seq_length, self._hidden_vector_dim
+        )
+        key_linear_output = self.key_linear(key).unsqueeze(1).expand(
+            batch_size, query_seq_length, key_seq_length, self._hidden_vector_dim)
 
-        if coverage is not None:
-            coverage_features = self.coverage_linear(
-                coverage.view(batch_size, 1, encoder_seq_length, 1)).expand(
-                batch_size, decoder_seq_length, encoder_seq_length, self.hidden_size)
-            attn_features = attn_features + coverage_features
+        activation_input = query_linear_output + key_linear_output
 
-        if self.use_concat:
-            # concat_input = torch.cat([
-            #     decoder_input.unsqueeze(2).expand(
-            #         batch_size, decoder_seq_length, encoder_seq_length, decoder_hid# den_size),
-            #     encoder_input.unsqueeze(1).expand(
-            #         batch_size, decoder_seq_length, encoder_seq_length, encoder_hidden_size)
-            # ], dim=3)
-            concat_input = (decoder_input.unsqueeze(2).expand(
-                batch_size, decoder_seq_length, encoder_seq_length, decoder_hidden_size) *
-                            encoder_input.unsqueeze(1).expand(
-                batch_size, decoder_seq_length, encoder_seq_length, encoder_hidden_size))
-            concat_features = self.concat_linear(concat_input)
-            attn_features = attn_features + concat_features
+        if self._use_coverage:
+            coverage_linear_output = self.coverage_linear(coverage.view(batch_size, 1, key_seq_length, 1))
+            coverage_linear_output = coverage_linear_output.expand(
+                batch_size, query_seq_length, key_seq_length, self._hidden_vector_dim
+            )
+            activation_input = activation_input + coverage_linear_output
 
-        e = torch.tanh(attn_features)
-        scores = self.output_linear(e).squeeze(3)
-        return scores
+        attention_weights = self.output_linear(torch.tanh(activation_input)).squeeze(3)
+
+        return attention_weights

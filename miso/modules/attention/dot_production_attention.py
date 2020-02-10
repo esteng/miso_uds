@@ -1,16 +1,26 @@
 import torch
+from overrides import overrides
+
+from .attention import Attention
 
 
-class DotProductAttention(torch.nn.Module):
+@Attention.register("dot_product")
+class DotProductAttention(Attention):
 
-    def __init__(self, decoder_hidden_size, encoder_hidden_size, share_linear=True):
+    def __init__(self,
+                 decoder_hidden_size: int,
+                 encoder_hidden_size: int,
+                 share_linear: bool =True) -> None:
         super(DotProductAttention, self).__init__()
         self.decoder_hidden_size = decoder_hidden_size
         self.encoder_hidden_size = encoder_hidden_size
         self.linear_layer = torch.nn.Linear(decoder_hidden_size, encoder_hidden_size, bias=False)
         self.share_linear = share_linear
 
-    def forward(self, decoder_input, encoder_input):
+    @overrides
+    def forward(self,
+                decoder_input: torch.Tensor,
+                encoder_input: torch.Tensor) -> torch.Tensor:
         """
         :param decoder_input:  [batch, decoder_seq_length, decoder_hidden_size]
         :param encoder_input:  [batch, encoder_seq_length, encoder_hidden_size]

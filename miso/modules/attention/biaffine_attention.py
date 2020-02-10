@@ -1,9 +1,12 @@
+from overrides import overrides
 import torch
-import torch.nn as nn
 from torch.nn.parameter import Parameter
 
+from .attention import Attention
 
-class BiaffineAttention(nn.Module):
+
+@Attention.register("biaffine")
+class BiaffineAttention(Attention):
     """
     Adopted from NeuroNLP2:
         https://github.com/XuezheMax/NeuroNLP2/blob/master/neuronlp2/nn/modules/attention.py
@@ -11,83 +14,73 @@ class BiaffineAttention(nn.Module):
     Bi-Affine attention layer.
     """
 
-    def __init__(self, input_size_encoder, input_size_decoder, num_labels=1, biaffine=True, **kwargs):
-        """
-        Args:
-            input_size_encoder: int
-                the dimension of the encoder input.
-            input_size_decoder: int
-                the dimension of the decoder input.
-            num_labels: int
-                the number of labels of the crf layer
-            biaffine: bool
-                if apply bi-affine parameter.
-            **kwargs:
-        """
+    def __init__(self,
+                 query_vector_dim: int,
+                 key_vector_dim: int,
+                 num_labels: int = 1,
+                 use_linear: bool = True) -> None:
         super(BiaffineAttention, self).__init__()
-        self.input_size_encoder = input_size_encoder
-        self.input_size_decoder = input_size_decoder
+        self.query_vector_dim = query_vector_dim
+        self.key_vector_dim = key_vector_dim
         self.num_labels = num_labels
-        self.biaffine = biaffine
+        self._use_linear = use_linear
 
-        self.W_d = Parameter(torch.Tensor(self.num_labels, self.input_size_decoder))
-        self.W_e = Parameter(torch.Tensor(self.num_labels, self.input_size_encoder))
-        self.b = Parameter(torch.Tensor(self.num_labels, 1, 1))
-        if self.biaffine:
-            self.U = Parameter(torch.Tensor(self.num_labels, self.input_size_decoder, self.input_size_encoder))
+        self.W_q = Parameter(torch.Tensor(num_labels, query_vector_dim))
+        self.W_k = Parameter(torch.Tensor(num_labels, key_vector_dim))
+        self.b = Parameter(torch.Tensor(num_labels, 1, 1))
+        if use_linear:
+            self.U = Parameter(torch.Tensor(num_labels, query_vector_dim, key_vector_dim))
         else:
             self.register_parameter('U', None)
 
         self.reset_parameters()
 
-    def reset_parameters(self):
-        nn.init.xavier_normal_(self.W_d)
-        nn.init.xavier_normal_(self.W_e)
-        nn.init.constant_(self.b, 0.)
-        if self.biaffine:
-            nn.init.xavier_uniform_(self.U)
+    def reset_parameters(self) -> None:
+        torch.nn.init.xavier_normal_(self.W_q)
+        torch.nn.init.xavier_normal_(self.W_k)
+        torch.nn.init.constant_(self.b, 0.)
+        if self._use_biaffine:
+            torch.nn.init.xavier_uniform_(self.U)
 
-    def forward(self, input_d, input_e, mask_d=None, mask_e=None):
+    @overrides
+    def forward(self,
+                query: torch.Tensor,
+                key: torch.Tensor,
+                query_mask: torch.Tensor = None,
+                key_mask: torch.Tensor = None) -> torch.Tensor:
         """
         Args:
-            input_d: Tensor
-                the decoder input tensor with shape = [batch, length_decoder, input_size]
-            input_e: Tensor
-                the child input tensor with shape = [batch, length_encoder, input_size]
-            mask_d: Tensor or None
-                the mask tensor for decoder with shape = [batch, length_decoder]
-            mask_e: Tensor or None
-                the mask tensor for encoder with shape = [batch, length_encoder]
-        Returns: Tensor
-            the energy tensor with shape = [batch, num_label, length, length]
+            query: [batch_size, query_length, query_vector_dim]
+            key: [batch_size, key_length, key_vector_dim]
+            query_mask: None or [batch_size, query_length]
+            key_mask: None or [batch_size, key_length]
+        Returns:
+            the energy tensor with shape = [batch_size, num_labels, query_length, key_length]
         """
-        assert input_d.size(0) == input_e.size(0), 'batch sizes of encoder and decoder are requires to be equal.'
-        batch, length_decoder, _ = input_d.size()
-        _, length_encoder, _ = input_e.size()
+        batch_size, query_length, _ = query.size()
+        _, key_length, _ = key.size()
 
-        # compute decoder part: [num_label, input_size_decoder] * [batch, input_size_decoder, length_decoder]
-        # the output shape is [batch, num_label, length_decoder]
-        out_d = torch.matmul(self.W_d, input_d.transpose(1, 2)).unsqueeze(3)
+        # Input: [num_labels, query_vector_dim] * [batch_size, query_vector_dim, query_length]
+        # Output: [batch_size, num_labels, query_length, 1]
+        query_linear_output = torch.matmul(self.W_q, query.transpose(1, 2)).unsqueeze(3)
 
-        # compute decoder part: [num_label, input_size_encoder] * [batch, input_size_encoder, length_encoder]
-        # the output shape is [batch, num_label, length_encoder]
-        out_e = torch.matmul(self.W_e, input_e.transpose(1, 2)).unsqueeze(2)
+        # Input: [num_labels, key_vector_dim] * [batch_size, key_vector_dim, key_length]
+        # Output: [batch_size, num_labels, 1, key_length]
+        key_linear_output = torch.matmul(self.W_k, key.transpose(1, 2)).unsqueeze(2)
 
-        # output shape [batch, num_label, length_decoder, length_encoder]
-        if self.biaffine:
-            # compute bi-affine part
-            # [batch, 1, length_decoder, input_size_decoder] * [num_labels, input_size_decoder, input_size_encoder]
-            # output shape [batch, num_label, length_decoder, input_size_encoder]
-            output = torch.matmul(input_d.unsqueeze(1), self.U)
-            # [batch, num_label, length_decoder, input_size_encoder] * [batch, 1, input_size_encoder, length_encoder]
-            # output shape [batch, num_label, length_decoder, length_encoder]
-            output = torch.matmul(output, input_e.unsqueeze(1).transpose(2, 3))
+        if self._use_linear:
+            # Input: [batch_size, 1, query_length, query_vector_dim] * [num_labels, query_vector_dim, key_vector_dim]
+            # Output: [batch_size, num_labels, query_length, key_vector_dim]
+            bilinear_output = torch.matmul(query.unsqueeze(1), self.U)
+            # Input: [batch_size, num_labels, query_length, key_vector_dim]*[batch_size, 1, key_vector_dim, key_length]
+            # Output: [batch_size, num_labels, query_length, key_length]
+            blinear_output = torch.matmul(bilinear_output, key.unsqueeze(1).transpose(2, 3))
 
-            output = output + out_d + out_e + self.b
+            output = blinear_output + query_linear_output + key_linear_output + self.b
         else:
-            output = out_d + out_d + self.b
+            output = query_linear_output + key_linear_output + self.b
 
-        if mask_d is not None and mask_e is not None:
-            output = output * mask_d.unsqueeze(1).unsqueeze(3) * mask_e.unsqueeze(1).unsqueeze(2)
+        if query_mask is not None and key_mask is not None:
+            output = output * query_mask.unsqueeze(1).unsqueeze(3) * key_mask.unsqueeze(1).unsqueeze(2)
 
         return output
