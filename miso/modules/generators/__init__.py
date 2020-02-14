@@ -1,0 +1,1 @@
+from .extended_pointer_generator import ExtendedPointerGenerator
