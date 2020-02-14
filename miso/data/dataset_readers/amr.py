@@ -21,16 +21,18 @@ class AMRDatasetReader(DatasetReader):
     AMR dataset reader.
     """
     def __init__(self,
-                 source_token_indexers: Dict[str, TokenIndexer] = None,
-                 target_token_indexers: Dict[str, TokenIndexer] = None,
+                 source_token_indexers: Dict[str, TokenIndexer],
+                 target_token_indexers: Dict[str, TokenIndexer],
+                 generation_token_indexers: Dict[str, TokenIndexer],
                  tokenizer: Tokenizer = None,
                  evaluation: bool = False,
                  lazy: bool = False) -> None:
 
         super().__init__(lazy=lazy)
-        self._edge_type_indexers = {"edge_types": SingleIdTokenIndexer(namespace="edge_types")}
         self._source_token_indexers = source_token_indexers
         self._target_token_indexers = target_token_indexers
+        self._generation_token_indexers = generation_token_indexers
+        self._edge_type_indexers = {"edge_types": SingleIdTokenIndexer(namespace="edge_types")}
         self._tokenizer = tokenizer
         self._num_subtokens = 0
         self._num_subtoken_oovs = 0
@@ -88,32 +90,39 @@ class AMRDatasetReader(DatasetReader):
             )
 
         # Target-side input.
+        # (exclude the last one <EOS>.)
         field_dict["target_tokens"] = TextField(
-            tokens=[Token(x) for x in list_data["tgt_tokens"]],
+            tokens=[Token(x) for x in list_data["tgt_tokens"][:-1]],
             token_indexers=self._target_token_indexers
         )
 
         if list_data["tgt_pos_tags"] is not None:
             field_dict["target_pos_tags"] = SequenceLabelField(
-                labels=list_data["tgt_pos_tags"],
+                labels=list_data["tgt_pos_tags"][:-1],
                 sequence_field=field_dict["target_tokens"],
                 label_namespace="pos_tags"
             )
 
         field_dict["target_node_indices"] = SequenceLabelField(
-            labels=list_data["tgt_indices"],
+            labels=list_data["tgt_indices"][:-1],
             sequence_field=field_dict["target_tokens"],
             label_namespace="node_indices",
         )
 
         # Target-side output.
+        # Include <BOS> here because we want it in the generation vocabulary such that
+        # at the inference starting stage, <BOS> can be correctly initialized.
+        field_dict["generation_outputs"] = TextField(
+            tokens=[Token(x) for x in list_data["tgt_tokens_to_generate"]],
+            token_indexers=self._generation_token_indexers
+        )
         field_dict["target_copy_indices"] = SequenceLabelField(
             labels=list_data["tgt_copy_indices"],
             sequence_field=field_dict["target_tokens"],
-            label_namespace="node_indices",
+            label_namespace="target_copy_indices",
         )
 
-        field_dict["target_copy_map"] = AdjacencyField(
+        field_dict["target_attention_map"] = AdjacencyField(  # TODO: replace it with ArrayField.
             indices=list_data["tgt_copy_map"],
             sequence_field=field_dict["target_tokens"],
             padding_value=0
@@ -122,10 +131,10 @@ class AMRDatasetReader(DatasetReader):
         field_dict["source_copy_indices"] = SequenceLabelField(
             labels=list_data["src_copy_indices"],
             sequence_field=field_dict["target_tokens"],
-            label_namespace="source_copy_target_tags",
+            label_namespace="source_copy_indices",
         )
 
-        field_dict["source_copy_map"] = AdjacencyField(
+        field_dict["source_attention_map"] = AdjacencyField(  # TODO: replace it with ArrayField.
             indices=list_data["src_copy_map"],
             sequence_field=TextField(
                 [Token(x) for x in list_data["src_copy_vocab"].get_special_tok_list() + list_data["src_tokens"]], None
@@ -138,10 +147,10 @@ class AMRDatasetReader(DatasetReader):
             token_indexers=self._edge_type_indexers
         )
 
-        field_dict["head_indices"] = SequenceLabelField(
+        field_dict["edge_heads"] = SequenceLabelField(
             labels=list_data["head_indices"],
             sequence_field=field_dict["edge_types"],
-            label_namespace="head_indices"
+            label_namespace="edge_heads"
         )
 
         if list_data.get('node_mask', None) is not None:

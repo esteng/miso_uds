@@ -1,8 +1,7 @@
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 import numpy as np
-
-from miso.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
+from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 from miso.utils.string import find_similar_token, is_abstract_token, is_english_punct
 from miso.data.dataset_readers.amr_parsing.amr.src_copy_vocab import SourceCopyVocabulary
 
@@ -104,10 +103,21 @@ def prepare_istog_instance(
             if node_indices[i] != node_indices[j]:
                 edge_mask[i, j] = 1
 
+    # tgt_tokens_to_generate
+    tgt_tokens_to_generate = tgt_tokens[:]
+    # Replace all tokens that can be copied with OOV.
+    for i, index in enumerate(src_copy_indices):
+        if index == src_copy_vocab.token_to_idx[src_copy_vocab.unk_token]:
+            tgt_tokens_to_generate[i] = DEFAULT_OOV_TOKEN
+    for i, index in enumerate(tgt_copy_indices):
+        if index != 0:
+            tgt_tokens_to_generate[i] = DEFAULT_OOV_TOKEN
+
     return {
         "tgt_tokens": tgt_tokens,
         "tgt_indices": tgt_indices,
         "tgt_pos_tags": tgt_pos_tags,
+        "tgt_tokens_to_generate": tgt_tokens_to_generate,
         "tgt_copy_indices": tgt_copy_indices,
         "tgt_copy_map": tgt_copy_map,
         "src_tokens": src_tokens,
