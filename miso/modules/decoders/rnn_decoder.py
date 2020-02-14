@@ -1,5 +1,6 @@
 from typing import Tuple, Dict, Optional
 
+from overrides import overrides
 import torch
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -25,6 +26,7 @@ class RNNDecoder(torch.nn.Module, Registrable):
         self.use_coverage = source_attention_layer.attention_func.use_coverage
         self.hidden_vector_dim = self.rnn_cell.hidden_size
 
+    @overrides
     def forward(self,
                 inputs: torch.Tensor,
                 source_memory_bank: torch.Tensor,
@@ -41,6 +43,7 @@ class RNNDecoder(torch.nn.Module, Registrable):
         """
         # Output.
         attentional_tensors = []
+        rnn_outputs = []
         source_attention_weights = []
         target_attention_weights = []
         coverage_history = []
@@ -76,12 +79,14 @@ class RNNDecoder(torch.nn.Module, Registrable):
             coverage = one_step_output["coverage"]
 
             attentional_tensors.append(one_step_output["attentional_tensor"])
+            rnn_outputs.append(one_step_output["rnn_output"])
             source_attention_weights.append(one_step_output["source_attention_weights"])
             target_attention_weights.append(one_step_output["target_attention_weights"])
             coverage_history.append(coverage)
 
         # [batch_size, input_seq_length, vector_dim]
         attentional_tensors = torch.cat(attentional_tensors, 1)
+        rnn_outputs = torch.cat(rnn_outputs, 1)
         # [batch_size, input_seq_length, source_seq_length]
         source_attention_weights = torch.cat(source_attention_weights, 1)
         # [batch_size, input_seq_length, target_seq_length]
@@ -94,6 +99,7 @@ class RNNDecoder(torch.nn.Module, Registrable):
 
         return dict(
             attentional_tensors=attentional_tensors,
+            rnn_outputs=rnn_outputs,
             source_attention_weights=source_attention_weights,
             target_attention_weights=target_attention_weights,
             coverage_history=coverage_history
@@ -134,7 +140,6 @@ class RNNDecoder(torch.nn.Module, Registrable):
         packed_input = pack_padded_sequence(concat_input, [1] * batch_size, batch_first=True)
         packed_output, hidden_state = self.rnn_cell(packed_input, hidden_state)
         rnn_output, _ = pad_packed_sequence(packed_output, batch_first=True)
-        rnn_output = self.dropout(rnn_output)
 
         # source-side attention.
         source_attention_output = self.source_attention_layer(
@@ -151,6 +156,7 @@ class RNNDecoder(torch.nn.Module, Registrable):
 
         return dict(
             attentional_tensor=attentional_tensor,
+            rnn_output=rnn_output,
             source_attention_weights=source_attention_weights,
             target_attention_weights=target_attention_weights,
             hidden_state=hidden_state,
