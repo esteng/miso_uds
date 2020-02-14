@@ -5,6 +5,8 @@ from allennlp.modules.seq2seq_encoders import _Seq2SeqWrapper
 from allennlp.modules.encoder_base import RnnStateStorage
 from allennlp.modules.stacked_bidirectional_lstm import StackedBidirectionalLstm
 
+from .seq2seq_bert_encoder import Seq2SeqBertEncoder
+
 
 class _PytorchSeq2SeqWrapper(PytorchSeq2SeqWrapper):
     """

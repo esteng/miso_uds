@@ -22,21 +22,21 @@ class Seq2SeqBertEncoder(BaseBertWrapper):
                 token_type_ids: torch.Tensor = None,
                 attention_mask: torch.Tensor = None,
                 output_all_encoded_layers: bool = True,
-                token_subword_index: torch.LongTensor = None) -> torch.Tensor:
+                token_recovery_matrix: torch.LongTensor = None) -> torch.Tensor:
         """
         :param input_ids: same as it in BertModel
         :param token_type_ids: same as it in BertModel
         :param attention_mask: same as it in BertModel
         :param output_all_encoded_layers: same as it in BertModel
-        :param token_subword_index: [batch_size, num_tokens, num_subwords]
+        :param token_recovery_matrix: [batch_size, num_tokens, num_subwords]
         """
         # encoded_layers: [batch_size, num_subword_pieces, hidden_size]
         encoded_layers, _ = self.bert_model(
             input_ids, token_type_ids, attention_mask, output_all_encoded_layers)
-        if token_subword_index is None:
+        if token_recovery_matrix is None:
             return encoded_layers
         else:
-            return average_pooling(encoded_layers, token_subword_index)
+            return average_pooling(encoded_layers, token_recovery_matrix)
 
 
 def average_pooling(encoded_layers: torch.FloatTensor,
