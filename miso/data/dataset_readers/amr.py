@@ -154,10 +154,14 @@ class AMRDatasetReader(DatasetReader):
         )
 
         if list_data.get('node_mask', None) is not None:
-            field_dict['node_mask'] = ArrayField(list_data['node_mask'])
+            # Valid nodes are 1; pads are 0.
+            field_dict['valid_node_mask'] = ArrayField(list_data['node_mask'])
 
         if list_data.get('edge_mask', None) is not None:
-            field_dict['edge_mask'] = ArrayField(list_data['edge_mask'])
+            # A matrix of shape [num_nodes, num_nodes] where entry (i, j) is 1
+            # if and only if (1) j < i and (2) j is not an antecedent of i.
+            # TODO: try to remove the second constrain.
+            field_dict['edge_head_mask'] = ArrayField(list_data['edge_mask'])
 
         if self.eval:
             # Metadata fields for debugging
