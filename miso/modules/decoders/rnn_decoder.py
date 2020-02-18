@@ -23,7 +23,7 @@ class RNNDecoder(torch.nn.Module, Registrable):
         self.source_attention_layer = source_attention_layer
         self.target_attention_layer = target_attention_layer
         self.dropout = InputVariationalDropout(dropout)
-        self.use_coverage = source_attention_layer.attention_func.use_coverage
+        self.use_coverage = source_attention_layer.attention.use_coverage
         self.hidden_vector_dim = self.rnn_cell.hidden_size
 
     @overrides

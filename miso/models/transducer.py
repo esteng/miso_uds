@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 class TransductiveParser(Model):
 
     def __init__(self,
+                 vocab: Vocabulary,
                  # source-side
                  bert_encoder: Seq2SeqBertEncoder,
                  encoder_token_embedder: TextFieldEmbedder,
@@ -37,12 +38,11 @@ class TransductiveParser(Model):
                  extended_pointer_generator: ExtendedPointerGenerator,
                  tree_parser: DeepTreeParser,
                  # misc
-                 vocab: Vocabulary,
                  target_output_namespace: str,
                  edge_type_namespace: str,
-                 dropout: float,
-                 beam_size: int,
-                 max_decoding_length: int,
+                 dropout: float = 0.0,
+                 beam_size: int = 5,
+                 max_decoding_length: int = 50,
                  eps: float = 1e-20,
                  ) -> None:
         super().__init__()
@@ -123,7 +123,7 @@ class TransductiveParser(Model):
     @overrides
     def forward(self, **raw_inputs: Dict) -> Dict[str, torch.Tensor]:
         inputs = self._prepare_inputs(raw_inputs)
-        if self.training:
+        if True:  # self.training:
             return self._training_forward(inputs)
 
     def _compute_edge_prediction_loss(self,
@@ -278,7 +278,7 @@ class TransductiveParser(Model):
             self._encoder_pos_embedding(pos_tags),
             self._encoder_anonymization_embedding(anonymization_tags)
         ]
-        if subtoken_ids is not None:
+        if subtoken_ids is not None and self._bert_encoder is not None:
             bert_embeddings = self._bert_encoder(
                 input_ids=subtoken_ids,
                 attention_mask=subtoken_ids.ne(0),
