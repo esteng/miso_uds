@@ -1,6 +1,6 @@
 import json
 
-from .attachment_score import AttachmentScores
+from .extended_pointer_generator_metrics import ExtendedPointerGeneratorMetrics
 
 from miso.utils import logging
 
