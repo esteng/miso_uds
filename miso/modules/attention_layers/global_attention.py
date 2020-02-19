@@ -1,5 +1,6 @@
 from typing import Dict
 
+from overrides import overrides
 import torch
 from allennlp.nn.util import masked_softmax
 
@@ -15,16 +16,16 @@ class GlobalAttention(AttentionLayer):
                  key_vector_dim: int,
                  output_vector_dim: int,
                  attention: Attention) -> None:
-        super().__init__()
+        super().__init__(attention)
         self.query_vector_dim = query_vector_dim
         self.key_vector_dim = key_vector_dim
-        self.attention = attention
         self.output_layer = torch.nn.Linear(
             query_vector_dim + key_vector_dim,
             output_vector_dim,
             bias=True
         )
 
+    @overrides
     def forward(self,
                 query: torch.Tensor,
                 key: torch.Tensor,

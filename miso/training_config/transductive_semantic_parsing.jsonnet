@@ -1,3 +1,5 @@
+local data_dir = "data/AMR/amr_2.0/";
+local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
 
 {
   dataset_reader: {
@@ -31,8 +33,8 @@
       }
     },
   },
-  train_data_path: data_dir + "train.json",
-  validataion_data_path: data_dir + "dev.json",
+  train_data_path: data_dir + "train_amr.txt.features.preproc",
+  validation_data_path: data_dir + "dev_amr.txt.features.preproc",
   test_data_path: null,
   datasets_for_vocab_creation: [
     "train"
@@ -60,7 +62,7 @@
         tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
-          pretrained_file: glove_embeddings,
+          # pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -104,7 +106,7 @@
         tokens: {
           type: "embedding",
           vocab_namespace: "target_tokens",
-          pretrained_file: glove_embeddings,
+          # pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -125,7 +127,7 @@
       },
     },
     decoder_node_index_embedding: {
-      vocab_namespace: "node_indices",
+      # vocab_namespace: "node_indices",
       num_embeddings: 200,
       embedding_dim: 50,
     },
@@ -199,6 +201,7 @@
     batch_size: 64,
   },
   validation_iterator: {
+    type: "basic",
     batch_size: 64,
   },
 
@@ -226,6 +229,3 @@
   numpy_seed: 1,
   pytorch_seed: 1,
 }
-
-local data_dir = "";
-local glove_embeddings = "";

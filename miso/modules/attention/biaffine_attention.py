@@ -18,17 +18,17 @@ class BiaffineAttention(Attention):
                  query_vector_dim: int,
                  key_vector_dim: int,
                  num_labels: int = 1,
-                 use_linear: bool = True) -> None:
+                 use_bilinear: bool = True) -> None:
         super(BiaffineAttention, self).__init__()
         self.query_vector_dim = query_vector_dim
         self.key_vector_dim = key_vector_dim
         self.num_labels = num_labels
-        self._use_linear = use_linear
+        self._use_bilinear = use_bilinear
 
         self.W_q = Parameter(torch.Tensor(num_labels, query_vector_dim))
         self.W_k = Parameter(torch.Tensor(num_labels, key_vector_dim))
         self.b = Parameter(torch.Tensor(num_labels, 1, 1))
-        if use_linear:
+        if use_bilinear:
             self.U = Parameter(torch.Tensor(num_labels, query_vector_dim, key_vector_dim))
         else:
             self.register_parameter('U', None)
@@ -39,7 +39,7 @@ class BiaffineAttention(Attention):
         torch.nn.init.xavier_normal_(self.W_q)
         torch.nn.init.xavier_normal_(self.W_k)
         torch.nn.init.constant_(self.b, 0.)
-        if self._use_biaffine:
+        if self._use_bilinear:
             torch.nn.init.xavier_uniform_(self.U)
 
     @overrides

@@ -48,7 +48,9 @@ class AMRDatasetReader(DatasetReader):
     @overrides
     def _read(self, file_path):
         logger.info("Reading instances from lines in file at: %s", file_path)
-        for amr in AMRIO.read(file_path):
+        for i, amr in enumerate(AMRIO.read(file_path)):
+            if i > 2000:
+                break
             yield self.text_to_instance(amr)
         self.report()
 
@@ -118,19 +120,19 @@ class AMRDatasetReader(DatasetReader):
         )
         field_dict["target_copy_indices"] = SequenceLabelField(
             labels=list_data["tgt_copy_indices"],
-            sequence_field=field_dict["target_tokens"],
+            sequence_field=field_dict["generation_outputs"],
             label_namespace="target_copy_indices",
         )
 
         field_dict["target_attention_map"] = AdjacencyField(  # TODO: replace it with ArrayField.
             indices=list_data["tgt_copy_map"],
-            sequence_field=field_dict["target_tokens"],
+            sequence_field=field_dict["generation_outputs"],
             padding_value=0
         )
 
         field_dict["source_copy_indices"] = SequenceLabelField(
             labels=list_data["src_copy_indices"],
-            sequence_field=field_dict["target_tokens"],
+            sequence_field=field_dict["generation_outputs"],
             label_namespace="source_copy_indices",
         )
 

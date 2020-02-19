@@ -45,7 +45,7 @@ class TransductiveParser(Model):
                  max_decoding_length: int = 50,
                  eps: float = 1e-20,
                  ) -> None:
-        super().__init__()
+        super().__init__(vocab=vocab)
         # source-side
         self._bert_encoder = bert_encoder
         self._encoder_token_embedder = encoder_token_embedder
@@ -65,7 +65,6 @@ class TransductiveParser(Model):
         self._node_pred_metrics = ExtendedPointerGeneratorMetrics()
         self._edge_pred_metrics = AttachmentScores()
 
-        self._vocab = vocab
         self._dropout = InputVariationalDropout(p=dropout)
         self._beam_size = beam_size
         self._max_decoding_length = max_decoding_length
@@ -74,14 +73,14 @@ class TransductiveParser(Model):
         # dynamic initialization
         self._target_output_namespace = target_output_namespace
         self._edge_type_namespace = edge_type_namespace
-        self._vocab_size = self._vocab.get_vocab_size(target_output_namespace)
-        self._vocab_pad_index = self._vocab.get_token_index(DEFAULT_PADDING_TOKEN, target_output_namespace)
-        self._vocab_bos_index = self._vocab.get_token_index(START_SYMBOL, target_output_namespace)
+        self._vocab_size = self.vocab.get_vocab_size(target_output_namespace)
+        self._vocab_pad_index = self.vocab.get_token_index(DEFAULT_PADDING_TOKEN, target_output_namespace)
+        self._vocab_bos_index = self.vocab.get_token_index(START_SYMBOL, target_output_namespace)
         self._extended_pointer_generator.reset_vocab_linear(
             vocab_size=vocab.get_vocab_size(target_output_namespace),
             vocab_pad_index=self._vocab_pad_index
         )
-        self._tree_parser.reset_edge_label_bilinear(num_labels=vocab.get_vocab_size(edge_type_namespace))
+        self._tree_parser.reset_edge_type_bilinear(num_labels=vocab.get_vocab_size(edge_type_namespace))
 
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
