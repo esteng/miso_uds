@@ -6,8 +6,8 @@ import numpy as np
 import penman
 import networkx as nx
 from penman import Triple
+from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 
-from miso.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 from miso.data.dataset_readers.amr_parsing.graph_repair import GraphRepair
 from miso.utils.string import find_similar_token, is_abstract_token, is_english_punct
 from miso.utils import logging
@@ -516,7 +516,7 @@ class AMRGraph(penman.Graph):
             tgt_tokens.append(str(token))
 
         for node, relation, parent_node in node_list:
-            
+
             if len(node.attributes) > 1 and visited[node] == 0:
                 node_to_idx[node].append(len(tgt_tokens) + len(node.attributes) -1)
                 for attr in node.attributes:
@@ -649,11 +649,11 @@ class AMRGraph(penman.Graph):
             ,
             amr.reorder
         )
-    
+
     def reorder_dict(self, data_dict, reorder_list=None):
         if reorder_list is None:
             return data_dict
-   
+
         #print(data_dict["tgt_copy_indices"])
         #print(data_dict["tgt_copy_mask"])
         #print(data_dict["tgt_copy_indices"])
@@ -700,7 +700,7 @@ class AMRGraph(penman.Graph):
         for token_idx, copy_idx in enumerate(data_dict["tgt_copy_indices"]):
             if copy_idx == 0:
                 continue
-            
+
             if copy_idx not in real_copy_idx_map:
                 if copy_idx >= token_idx:
                     new_copy_indices[copy_idx] = token_idx
@@ -715,7 +715,7 @@ class AMRGraph(penman.Graph):
 
         data_dict["tgt_copy_indices"] = new_copy_indices
         #data_dict["tgt_copy_indices"] = [0 for i in new_copy_indices]
-       
+
         # 4. Target copy map
         new_copy_map = []
         for token_idx, copy_idx in enumerate(data_dict["tgt_copy_indices"]):
@@ -738,7 +738,7 @@ class AMRGraph(penman.Graph):
                 tgt_copy_mask[copy_idx] = 1
                 tgt_copy_mask[real_idx] = 1
         data_dict["tgt_copy_mask"] = tgt_copy_mask
-        
+
         # 5. Source Copy
         #print(data_dict["src_copy_indices"])
         data_dict["src_copy_indices"] = data_dict["src_copy_vocab"].index_sequence(data_dict["tgt_tokens"])
@@ -752,7 +752,7 @@ class AMRGraph(penman.Graph):
         data_dict["head_tags"] = [data_dict["head_tags"][reorder_reverse_map[idx]] for idx in range(len(data_dict["head_tags"]))]
         #print(data_dict["head_tags"])
         #print(data_dict["head_indices"])
-        data_dict["head_indices"] = [ 
+        data_dict["head_indices"] = [
             reorder_map[data_dict["head_indices"][reorder_reverse_map[new_idx]] - 1] + 1 for new_idx in range(len(data_dict["head_indices"]))
         ]
         #print(data_dict["head_indices"])
@@ -765,7 +765,7 @@ class AMRGraph(penman.Graph):
         #print(data_dict["tgt_copy_mask"])
         #print(data_dict["tgt_copy_indices"])
         #import pdb;pdb.set_trace()
-        
+
         return data_dict
 
 

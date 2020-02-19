@@ -1,6 +1,6 @@
 import json
 
-from miso.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
+from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 
 
 class SourceCopyVocabulary:

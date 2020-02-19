@@ -1,6 +1,6 @@
 from collections import Counter, defaultdict
 
-from miso.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
+from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 from miso.utils.string import find_similar_token, is_abstract_token, is_english_punct
 from miso.data.dataset_readers.amr_parsing.amr.src_copy_vocab import SourceCopyVocabulary
 
