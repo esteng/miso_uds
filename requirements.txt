@@ -1,16 +1,6 @@
 torch==1.2.0
 allennlp==0.9.0
-h5py
-boto3
-overrides
-numpy
-
-# Data processing
-spacy
-ftfy
-nltk
 conllu
-pyyaml
 pycorenlp
 penman
 editdistance
@@ -18,8 +8,3 @@ word2number
 bs4
 lxml
 networkx
-ipython   
-
-# Write logs for training visualisation with the Tensorboard application
-# Install the Tensorboard application separately (part of tensorflow) to view them.
-tensorboardX==1.2
