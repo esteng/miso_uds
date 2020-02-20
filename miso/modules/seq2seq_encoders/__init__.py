@@ -3,7 +3,8 @@ from allennlp.common.checks import ConfigurationError
 from allennlp.modules.seq2seq_encoders import PytorchSeq2SeqWrapper, Seq2SeqEncoder
 from allennlp.modules.seq2seq_encoders import _Seq2SeqWrapper
 from allennlp.modules.encoder_base import RnnStateStorage
-from allennlp.modules.stacked_bidirectional_lstm import StackedBidirectionalLstm
+
+from miso.modules.stacked_bilstm import MisoStackedBidirectionalLstm
 
 from .seq2seq_bert_encoder import Seq2SeqBertEncoder
 
@@ -43,4 +44,4 @@ class _MisoSeq2SeqWrapper(_Seq2SeqWrapper):
 
 
 # pylint: disable=protected-access
-Seq2SeqEncoder.register("miso_stacked_bilstm")(_MisoSeq2SeqWrapper(StackedBidirectionalLstm))
+Seq2SeqEncoder.register("miso_stacked_bilstm")(_MisoSeq2SeqWrapper(MisoStackedBidirectionalLstm))
