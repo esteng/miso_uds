@@ -91,8 +91,66 @@ class TransductiveParser(Model):
         metrics.update(edge_pred_metrics)
         return metrics
 
+    def _pprint(self, inputs: Dict, index: int = 1) -> None:
+        logger.info("==== Source-side Input ====")
+        logger.info("source tokens:")
+        source_tokens = inputs["source_tokens"]["source_tokens"][index].tolist()
+        logger.info("\t" + " ".join(map(lambda x: self.vocab.get_token_from_index(x, "source_tokens"), source_tokens)))
+        logger.info("\t" + str(source_tokens))
+        logger.info("source_pos_tags:")
+        source_pos_tags = inputs["source_pos_tags"][index].tolist()
+        logger.info("\t" + " ".join(map(
+            lambda x: self.vocab.get_token_from_index(x, "pos_tags"), source_pos_tags)))
+        logger.info("source_anonymiaztion_tags:")
+        anonymization_tags = inputs["source_anonymization_tags"][index].tolist()
+        logger.info("\t" + str(anonymization_tags))
+
+        logger.info("==== Target-side Input ====")
+        logger.info("target tokens:")
+        target_tokens = inputs["target_tokens"]["target_tokens"][index].tolist()
+        logger.info("\t" + " ".join(map(lambda x: self.vocab.get_token_from_index(x, "target_tokens"), target_tokens)))
+        logger.info("\t" + str(target_tokens))
+        logger.info("target_pos_tags:")
+        target_pos_tags = inputs["target_pos_tags"][index].tolist()
+        logger.info("\t" + " ".join(map(
+            lambda x: self.vocab.get_token_from_index(x, "pos_tags"), target_pos_tags)))
+        logger.info("target_node_indices:")
+        node_indices = inputs["target_node_indices"][index].tolist()
+        logger.info("\t" + str(node_indices))
+
+        logger.info("==== Output ====")
+        logger.info("generation_outputs:")
+        generation_tokens = inputs["generation_outputs"]["generation_tokens"][index].tolist()
+        logger.info("\t" + " ".join(
+            map(lambda x: self.vocab.get_token_from_index(x, "generation_tokens"), generation_tokens)))
+        logger.info("\t" + str(generation_tokens))
+        logger.info("target_copy_indices:")
+        target_copy_indices = inputs["target_copy_indices"][index].tolist()
+        logger.info("\t" + str(target_copy_indices))
+        logger.info("source_copy_indices:")
+        source_copy_indices = inputs["source_copy_indices"][index].tolist()
+        logger.info("\t" + str(source_copy_indices))
+        logger.info("edge_heads:")
+        edge_heads = inputs["edge_heads"][index].tolist()
+        logger.info("\t" + str(edge_heads))
+        logger.info("edge_types:")
+        edge_types = inputs["edge_types"]["edge_types"][index].tolist()
+        logger.info("\t" + " ".join(
+            map(lambda x: self.vocab.get_token_from_index(x, "edge_types"), edge_types)))
+
+        logger.info("==== Misc ====")
+        logger.info("target attention map:")
+        target_attention_map = inputs["target_attention_map"][index]
+        logger.info(target_attention_map)
+        logger.info("source attention map:")
+        source_attention_map = inputs["source_attention_map"][index]
+        logger.info(source_attention_map)
+        logger.info("edge head mask:")
+        edge_head_mask = inputs["edge_head_mask"][index]
+        logger.info(edge_head_mask)
+
     def _prepare_inputs(self, raw_inputs: Dict) -> Dict:
-        inputs = raw_inputs[:]
+        inputs = raw_inputs.copy()
         source_subtoken_ids = raw_inputs.get("source_subtoken_ids", None)
         if source_subtoken_ids is None:
             inputs["source_subtoken_ids"] = None
@@ -116,6 +174,8 @@ class TransductiveParser(Model):
         inputs["source_attention_map"] = raw_inputs["source_attention_map"][:, 1:-1]
 
         inputs["source_dynamic_vocab_size"] = inputs["source_attention_map"].size(2)
+
+        self._pprint(inputs)
 
         return inputs
 
