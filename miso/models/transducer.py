@@ -7,6 +7,7 @@ from allennlp.data import Vocabulary
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder, Embedding, InputVariationalDropout, Seq2SeqEncoder
 from allennlp.training.metrics import AttachmentScores
+from allennlp.nn.util import get_text_field_mask
 from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN
 from allennlp.common.util import START_SYMBOL, END_SYMBOL
 
@@ -14,6 +15,7 @@ from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder
 from miso.modules.decoders import RNNDecoder
 from miso.modules.generators import ExtendedPointerGenerator
 from miso.modules.parsers import DeepTreeParser
+from miso.modules.label_smoothing import LabelSmoothing
 from miso.metrics import ExtendedPointerGeneratorMetrics
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -38,6 +40,7 @@ class TransductiveParser(Model):
                  extended_pointer_generator: ExtendedPointerGenerator,
                  tree_parser: DeepTreeParser,
                  # misc
+                 label_smoothing: LabelSmoothing,
                  target_output_namespace: str,
                  edge_type_namespace: str,
                  dropout: float = 0.0,
@@ -65,6 +68,7 @@ class TransductiveParser(Model):
         self._node_pred_metrics = ExtendedPointerGeneratorMetrics()
         self._edge_pred_metrics = AttachmentScores()
 
+        self._label_smoothing = label_smoothing
         self._dropout = InputVariationalDropout(p=dropout)
         self._beam_size = beam_size
         self._max_decoding_length = max_decoding_length
@@ -81,6 +85,7 @@ class TransductiveParser(Model):
             vocab_pad_index=self._vocab_pad_index
         )
         self._tree_parser.reset_edge_type_bilinear(num_labels=vocab.get_vocab_size(edge_type_namespace))
+        self._label_smoothing.reset_parameters(pad_index=self._vocab_pad_index)
 
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
@@ -120,7 +125,7 @@ class TransductiveParser(Model):
 
         logger.info("==== Output ====")
         logger.info("generation_outputs:")
-        generation_tokens = inputs["generation_outputs"]["generation_tokens"][index].tolist()
+        generation_tokens = inputs["generation_outputs"][index].tolist()
         logger.info("\t" + " ".join(
             map(lambda x: self.vocab.get_token_from_index(x, "generation_tokens"), generation_tokens)))
         logger.info("\t" + str(generation_tokens))
@@ -134,7 +139,7 @@ class TransductiveParser(Model):
         edge_heads = inputs["edge_heads"][index].tolist()
         logger.info("\t" + str(edge_heads))
         logger.info("edge_types:")
-        edge_types = inputs["edge_types"]["edge_types"][index].tolist()
+        edge_types = inputs["edge_types"][index].tolist()
         logger.info("\t" + " ".join(
             map(lambda x: self.vocab.get_token_from_index(x, "edge_types"), edge_types)))
 
@@ -151,6 +156,7 @@ class TransductiveParser(Model):
 
     def _prepare_inputs(self, raw_inputs: Dict) -> Dict:
         inputs = raw_inputs.copy()
+        inputs["source_mask"] = get_text_field_mask(raw_inputs["source_tokens"])
         source_subtoken_ids = raw_inputs.get("source_subtoken_ids", None)
         if source_subtoken_ids is None:
             inputs["source_subtoken_ids"] = None
@@ -163,7 +169,7 @@ class TransductiveParser(Model):
             inputs["source_token_recovery_matrix"] = source_token_recovery_matrix.long()
 
         # Exclude <BOS>.
-        inputs["generation_outputs"] = raw_inputs["generation_outputs"]["tokens"][:, 1:]
+        inputs["generation_outputs"] = raw_inputs["generation_outputs"]["generation_tokens"][:, 1:]
         inputs["source_copy_indices"] = raw_inputs["source_copy_indices"][:, 1:]
         inputs["target_copy_indices"] = raw_inputs["target_copy_indices"][:, 1:]
 
@@ -175,7 +181,9 @@ class TransductiveParser(Model):
 
         inputs["source_dynamic_vocab_size"] = inputs["source_attention_map"].size(2)
 
-        self._pprint(inputs)
+        inputs["edge_types"] = raw_inputs["edge_types"]["edge_types"]
+
+        # self._pprint(inputs)
 
         return inputs
 
@@ -213,7 +221,7 @@ class TransductiveParser(Model):
         gold_edge_type_ll = edge_type_ll[batch_indices, node_indices, gold_edge_types]
         # Set the ll of invalid nodes to 0.
         num_nodes = valid_node_mask.sum().float()
-        valid_node_mask = valid_node_mask.byte()
+        valid_node_mask = valid_node_mask.bool()
         gold_edge_head_ll.masked_fill_(~valid_node_mask, 0)
         gold_edge_type_ll.masked_fill_(~valid_node_mask, 0)
         # Negative log-likelihood.
@@ -277,7 +285,7 @@ class TransductiveParser(Model):
         # Compute loss.
         log_prob_dist = (prob_dist.view(batch_size * target_length, -1) + self._eps).log()
         flat_hybrid_targets = hybrid_targets.view(batch_size * target_length)
-        loss = self.label_smoothing(log_prob_dist, flat_hybrid_targets)
+        loss = self._label_smoothing(log_prob_dist, flat_hybrid_targets)
         # Coverage loss.
         if coverage_history is not None:
             coverage_loss = torch.sum(torch.min(coverage_history, source_attention_weights), 2)
@@ -352,8 +360,8 @@ class TransductiveParser(Model):
         encoder_outputs = self._encoder(encoder_inputs, mask)
         encoder_outputs = self._dropout(encoder_outputs)
         # A tuple of (state, memory) with shape [num_layers, batch, encoder_output_size]
-        encoder_final_states = self.encoder.get_final_states()
-        self.encoder.reset_states()
+        encoder_final_states = self._encoder.get_final_states()
+        self._encoder.reset_states()
 
         return dict(
             encoder_outputs=encoder_outputs,
@@ -410,7 +418,7 @@ class TransductiveParser(Model):
         )
         edge_prediction_outputs = self._parse(
             rnn_outputs=decoding_outputs["rnn_outputs"],
-            edge_head_mask=inputs["edge_mask"],
+            edge_head_mask=inputs["edge_head_mask"],
             edge_heads=inputs["edge_heads"]
         )
         node_pred_loss = self._compute_node_prediction_loss(

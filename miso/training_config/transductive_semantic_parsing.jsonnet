@@ -59,14 +59,14 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     bert_encoder: null,
     encoder_token_embedder: {
       token_embedders: {
-        tokens: {
+        source_tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
           # pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
-        token_characters: {
+        source_token_characters: {
           type: "character_encoding",
           embedding: {
             vocab_namespace: "source_token_characters",
@@ -103,14 +103,14 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
     decoder_token_embedder: {
       token_embedders: {
-        tokens: {
+        target_tokens: {
           type: "embedding",
           vocab_namespace: "target_tokens",
           # pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
-        token_characters: {
+        target_token_characters: {
           type: "character_encoding",
           embedding: {
             vocab_namespace: "target_token_characters",
@@ -187,6 +187,9 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
         query_vector_dim: 256,
         key_vector_dim: 256,
       },
+    },
+    label_smoothing: {
+        smoothing: 0.1,
     },
     dropout: 0.33,
     target_output_namespace: "generation_tokens",

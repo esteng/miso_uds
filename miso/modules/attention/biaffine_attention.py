@@ -68,7 +68,7 @@ class BiaffineAttention(Attention):
         # Output: [batch_size, num_labels, 1, key_length]
         key_linear_output = torch.matmul(self.W_k, key.transpose(1, 2)).unsqueeze(2)
 
-        if self._use_linear:
+        if self._use_bilinear:
             # Input: [batch_size, 1, query_length, query_vector_dim] * [num_labels, query_vector_dim, key_vector_dim]
             # Output: [batch_size, num_labels, query_length, key_vector_dim]
             bilinear_output = torch.matmul(query.unsqueeze(1), self.U)

@@ -16,11 +16,13 @@ class LabelSmoothing(torch.nn.Module, Registrable):
         self._confidence = 1.0 - smoothing
 
     def reset_parameters(self,
-                         pad_index: int = 0,
-                         smoothing: float = 0.0) -> None:
-        self._pad_index = pad_index
-        self._smoothing = smoothing
-        self._confidence = 1.0 - smoothing
+                         pad_index: int = None,
+                         smoothing: float = None) -> None:
+        if pad_index is not None:
+            self._pad_index = pad_index
+        if smoothing is not None:
+            self._smoothing = smoothing
+            self._confidence = 1.0 - smoothing
 
     @overrides
     def forward(self,
@@ -32,8 +34,8 @@ class LabelSmoothing(torch.nn.Module, Registrable):
         """
         vocab_size = x.size(1)
         true_dist = torch.zeros_like(x)
-        true_dist.fill_(self.smoothing / (vocab_size - 2))  # Exclude pad and target.
-        true_dist.scatter_(1, target.unsqueeze(1), self.confidence)
+        true_dist.fill_(self._smoothing / (vocab_size - 2))  # Exclude pad and target.
+        true_dist.scatter_(1, target.unsqueeze(1), self._confidence)
         true_dist[:, self._pad_index] = 0
         mask = target.eq(self._pad_index)
         true_dist.masked_fill_(mask.unsqueeze(1), 0.0)

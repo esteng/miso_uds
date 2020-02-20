@@ -21,7 +21,7 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         super().__init__()
         self.edge_head_query_linear = torch.nn.Linear(query_vector_dim, edge_head_vector_dim)
         self.edge_head_key_linear = torch.nn.Linear(key_vector_dim, edge_head_vector_dim)
-        self.edge_type__query_linear = torch.nn.Linear(query_vector_dim, edge_type_vector_dim)
+        self.edge_type_query_linear = torch.nn.Linear(query_vector_dim, edge_type_vector_dim)
         self.edge_type_key_linear = torch.nn.Linear(key_vector_dim, edge_type_vector_dim)
         self.attention = attention
         self.sentinel = torch.nn.Parameter(torch.randn([1, 1, key_vector_dim]))
@@ -76,67 +76,6 @@ class DeepTreeParser(torch.nn.Module, Registrable):
             outputs["edge_type_ll"] = masked_log_softmax(edge_type_score, None, dim=2)
 
         return outputs
-
-    def get_loss(self,
-                 queries: torch.FloatTensor,
-                 keys: torch.FloatTensor,
-                 edge_heads: torch.LongTensor,
-                 edge_labels: torch.LongTensor,
-                 mask: torch.ByteTensor = None,
-                 query_mask: torch.ByteTensor = None
-                 ):
-        """
-        Compute the loss.
-        :param queries: [batch_size, query_length, hidden_size]
-        :param keys: [batch_size, key_length, hidden_size]
-        :param edge_heads: [batch_size, query_length]
-                        head indices start from 1.
-        :param edge_labels: [batch_size, query_length]
-        :param mask: None or [batch_size, query_length, key_length]
-                        1 indicates a valid position; otherwise, 0.
-        :param query_mask: None or [batch_size, query_length]
-                        1 indicates a valid position; otherwise, 0.
-        :return:
-        """
-        batch_size, query_length, _ = queries.size()
-        keys, mask = self._add_sentinel(queries, keys, mask)
-        edge_query_hiddens, edge_key_hiddens, label_query_hiddens, label_key_hiddens = self._mlp(queries, keys)
-
-        # [batch_size, query_length, key_length]
-        edge_scores = self._get_edge_scores(edge_query_hiddens, edge_key_hiddens)
-        edge_head_ll = masked_log_softmax(edge_scores, mask, dim=2)
-
-        # [batch_size, query_length, num_labels]
-        label_scores = self._get_label_scores(label_query_hiddens, label_key_hiddens, edge_heads)
-        edge_label_ll = torch.nn.functional.log_softmax(label_scores, dim=2)
-
-        batch_index = torch.arange(0, batch_size).view(batch_size, 1).type_as(edge_heads)
-        modifier_index = torch.arange(0, query_length).view(
-            1, query_length).expand(batch_size, query_length).type_as(edge_heads)
-        # [batch_size, query_length]
-        gold_edge_head_ll = edge_head_ll[batch_index, modifier_index, edge_heads]
-        gold_edge_label_ll = edge_label_ll[batch_index, modifier_index, edge_labels]
-        if query_mask is not None:
-            gold_edge_head_ll.masked_fill_(1 - query_mask, 0)
-            gold_edge_label_ll.masked_fill_(1 - query_mask, 0)
-
-        edge_head_nll = - gold_edge_head_ll.sum()
-        edge_label_nll = - gold_edge_label_ll.sum()
-        num_instances = query_mask.sum().float()
-
-        pred_heads, pred_labels = self._decode(
-            label_query_hiddens, label_key_hiddens, edge_scores, mask)
-
-        self.metrics(pred_heads, pred_labels, edge_heads, edge_labels, query_mask,
-                     edge_head_nll.item(), edge_label_nll.item())
-
-        return dict(
-            edge_heads=pred_heads,
-            edge_labels=pred_labels,
-            loss=(edge_head_nll + edge_label_nll) / num_instances,
-            total_loss=edge_head_nll + edge_label_nll,
-            num_instances=num_instances
-        )
 
     def _add_sentinel(self,
                       query: torch.FloatTensor,
@@ -251,7 +190,7 @@ class DeepTreeParser(torch.nn.Module, Registrable):
             edge_head: [batch_size, query_length]
             edge_type: [batch_size, query_length]
         """
-        edge_head_score = edge_head_score.masked_fill_(~edge_head_mask.byte(), self._minus_inf)
+        edge_head_score = edge_head_score.masked_fill_(~edge_head_mask.bool(), self._minus_inf)
         _, edge_head = edge_head_score.max(dim=2)
 
         edge_type_score = self._get_edge_type_score(query, key, edge_head)

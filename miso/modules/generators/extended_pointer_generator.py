@@ -66,7 +66,7 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
         # Vocab generation.
         # [batch_size, target_length, vocab_size]
         scores = self.vocab_linear(inputs)
-        scores[:, :, self.vocab_pad_index] = -float('inf')
+        scores[:, :, self._vocab_pad_index] = -float('inf')
         vocab_prob_dist = torch.nn.functional.softmax(scores, dim=2)
         vocab_prob_part = torch.mul(vocab_prob_dist, generation_switch.expand_as(vocab_prob_dist))
         hybrid_prob_dist.append(vocab_prob_part)

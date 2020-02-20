@@ -40,7 +40,7 @@ class ExtendedPointerGeneratorMetrics(Metric):
                  valid_source_copy_mask: torch.Tensor,
                  target_copy_indices: torch.Tensor,
                  valid_target_copy_mask: torch.Tensor) -> None:
-        loss, prediction, generation_output, valid_generation_mask, \
+        loss, prediction, generation_outputs, valid_generation_mask, \
             source_copy_indices, valid_source_copy_mask, \
             target_copy_indices, valid_target_copy_mask = self.unwrap_to_tensors(
                 loss, prediction, generation_outputs, valid_generation_mask,
