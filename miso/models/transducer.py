@@ -1,5 +1,6 @@
 from typing import Dict, Tuple
 import logging
+from collections import OrderedDict
 
 from overrides import overrides
 import torch
@@ -89,14 +90,22 @@ class TransductiveParser(Model):
 
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
-        metrics = dict()
         node_pred_metrics = self._node_pred_metrics.get_metric(reset)
         edge_pred_metrics = self._edge_pred_metrics.get_metric(reset)
-        metrics.update(node_pred_metrics)
-        metrics.update(edge_pred_metrics)
-        return metrics
+        return OrderedDict(
+            ppl=node_pred_metrics["ppl"],
+            node_pred=node_pred_metrics["accuracy"] * 100,
+            generate=node_pred_metrics["generate"] * 100,
+            src_copy=node_pred_metrics["src_copy"] * 100,
+            tgt_copy=node_pred_metrics["tgt_copy"] * 100,
+            gen_freq=node_pred_metrics["gen_freq"] * 100,
+            src_freq=node_pred_metrics["src_freq"] * 100,
+            tgt_freq=node_pred_metrics["tgt_freq"] * 100,
+            uas=edge_pred_metrics["UAS"] * 100,
+            las=edge_pred_metrics["LAS"] * 100,
+        )
 
-    def _pprint(self, inputs: Dict, index: int = 1) -> None:
+    def _pprint(self, inputs: Dict, index: int = 0) -> None:
         logger.info("==== Source-side Input ====")
         logger.info("source tokens:")
         source_tokens = inputs["source_tokens"]["source_tokens"][index].tolist()
@@ -237,7 +246,8 @@ class TransductiveParser(Model):
 
         return dict(
             loss=loss,
-            num_nodes=num_nodes
+            num_nodes=num_nodes,
+            loss_per_node=loss/num_nodes,
         )
 
     def _compute_node_prediction_loss(self,
@@ -291,6 +301,7 @@ class TransductiveParser(Model):
             coverage_loss = torch.sum(torch.min(coverage_history, source_attention_weights), 2)
             coverage_loss = (coverage_loss * not_pad_mask.float()).sum()
             loss = loss + coverage_loss
+
         # Update metric stats.
         self._node_pred_metrics(
             loss=loss,
@@ -305,7 +316,8 @@ class TransductiveParser(Model):
 
         return dict(
             loss=loss,
-            num_nodes=num_nodes
+            num_nodes=num_nodes,
+            loss_per_node=loss/num_nodes,
         )
 
     def _decode(self,
@@ -439,5 +451,5 @@ class TransductiveParser(Model):
             gold_edge_types=inputs["edge_types"],
             valid_node_mask=inputs["valid_node_mask"]
         )
-        loss = node_pred_loss["loss"] + edge_pred_loss["loss"]
+        loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"]
         return dict(loss=loss)

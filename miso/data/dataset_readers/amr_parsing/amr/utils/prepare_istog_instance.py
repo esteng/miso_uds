@@ -107,7 +107,7 @@ def prepare_istog_instance(
     tgt_tokens_to_generate = tgt_tokens[:]
     # Replace all tokens that can be copied with OOV.
     for i, index in enumerate(src_copy_indices):
-        if index == src_copy_vocab.token_to_idx[src_copy_vocab.unk_token]:
+        if index != src_copy_vocab.token_to_idx[src_copy_vocab.unk_token]:
             tgt_tokens_to_generate[i] = DEFAULT_OOV_TOKEN
     for i, index in enumerate(tgt_copy_indices):
         if index != 0:

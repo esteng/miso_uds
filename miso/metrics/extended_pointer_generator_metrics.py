@@ -44,7 +44,7 @@ class ExtendedPointerGeneratorMetrics(Metric):
             source_copy_indices, valid_source_copy_mask, \
             target_copy_indices, valid_target_copy_mask = self.unwrap_to_tensors(
                 loss, prediction, generation_outputs, valid_generation_mask,
-                source_copy_indices, valid_source_copy_mask, target_copy_indices, valid_source_copy_mask
+                source_copy_indices, valid_source_copy_mask, target_copy_indices, valid_target_copy_mask
         )
         # Generation.
         correct_generation_count = (generation_outputs.eq(prediction) & valid_generation_mask).sum().item()
@@ -79,8 +79,10 @@ class ExtendedPointerGeneratorMetrics(Metric):
     def get_metric(self, reset: bool = False) -> Dict:
         metrics = {
             "accuracy": accuracy(self._correct_hybrid_count, self._hybrid_count),
+            "generate": accuracy(self._correct_generation_count, self._generation_count),
             "src_copy": accuracy(self._correct_source_copy_count, self._source_copy_count),
             "tgt_copy": accuracy(self._correct_target_copy_count, self._target_copy_count),
+            "gen_freq": accuracy(self._generation_count, self._hybrid_count),
             "src_freq": accuracy(self._source_copy_count, self._hybrid_count),
             "tgt_freq": accuracy(self._target_copy_count, self._hybrid_count),
             "ppl": self.ppl
@@ -106,4 +108,4 @@ def accuracy(correct_count: float, total_count: float) -> float:
     """ compute accuracy """
     if total_count == 0:
         return 0.0
-    return 100 * (correct_count / total_count)
+    return correct_count / total_count
