@@ -164,6 +164,37 @@ class TransductiveParser(Model):
         logger.info(edge_head_mask)
 
     def _prepare_inputs(self, raw_inputs: Dict) -> Dict:
+        """
+        Prepare inputs as below:
+            source_tokens:          PERSON could help himself
+            source_pos_tags:            NP    MD   VB     PP
+            source_anonymization_tags:   1     0    0      0
+            (source_dynamic_vocab: {0: pad, 1: UNK, 2: PERSON, 3: could, 4: help, 5: himself})
+
+            target_tokens:          <BOS> possible help person PERSON person
+            target_pos_tags:          UNK      UNK   VB    UNK     NP    UNK
+            target_node_indices:        0        1    2      3      4      3
+            (target_dynamic_vocab: {0: UNK, 1: possible, 2: help, 3: person, 4: PERSON})
+
+            generation_outputs:         possible  UNK person  UNK person <EOS>
+            source_copy_indices                1    4      1    2      1     1
+            target_copy_indices:               0    0      0    0      3     0
+            edge_heads:                        0    1      2    3      2     0
+            edge_types:                     root arg0   arg0 name   arg1   pad
+
+            source_attention_map:                   p U P c h h
+                                       PERSON       0 0 1 0 0 0
+                                       could        0 0 0 1 0 0
+                                       help         0 0 0 0 1 0
+                                       himself      0 0 0 0 0 1
+
+            target_attention_map:                   S p h p P
+                                       possible     0 1 0 0 0
+                                       help         0 0 1 0 0
+                                       person       0 0 0 1 0
+                                       Person       0 0 0 0 1
+                                       person       0 0 0 1 0
+        """
         inputs = raw_inputs.copy()
         inputs["source_mask"] = get_text_field_mask(raw_inputs["source_tokens"])
         source_subtoken_ids = raw_inputs.get("source_subtoken_ids", None)
@@ -183,7 +214,7 @@ class TransductiveParser(Model):
         inputs["target_copy_indices"] = raw_inputs["target_copy_indices"][:, 1:]
 
         # [batch, target_seq_length, target_seq_length + 1(sentinel)]
-        inputs["target_attention_map"] = raw_inputs["target_attention_map"][:, 1:]  # exclude BOS
+        inputs["target_attention_map"] = raw_inputs["target_attention_map"][:, 1:]  # exclude UNK
         # [batch, 1(unk) + source_seq_length, dynamic_vocab_size]
         # Exclude unk and the last pad.
         inputs["source_attention_map"] = raw_inputs["source_attention_map"][:, 1:-1]
