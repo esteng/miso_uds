@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import List, Dict, Tuple
 import logging
 from collections import OrderedDict
 
@@ -9,7 +9,6 @@ from allennlp.data.fields import TextField
 from allennlp.data.dataset import Batch
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder, Embedding, InputVariationalDropout, Seq2SeqEncoder
-from allennlp.nn.beam_search import BeamSearch
 from allennlp.training.metrics import AttachmentScores
 from allennlp.nn.util import get_text_field_mask
 from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
@@ -20,6 +19,7 @@ from miso.modules.decoders import RNNDecoder
 from miso.modules.generators import ExtendedPointerGenerator
 from miso.modules.parsers import DeepTreeParser
 from miso.modules.label_smoothing import LabelSmoothing
+from miso.nn.beam_search import BeamSearch
 from miso.metrics import ExtendedPointerGeneratorMetrics
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -235,9 +235,9 @@ class TransductiveParser(Model):
         return inputs
 
     @overrides
-    def forward(self, **raw_inputs: Dict) -> Dict[str, torch.Tensor]:
+    def forward(self, **raw_inputs: Dict) -> Dict:
         inputs = self._prepare_inputs(raw_inputs)
-        if True:  # self.training:
+        if self.training:
             return self._training_forward(inputs)
         else:
             return self._test_forward(inputs)
@@ -423,14 +423,14 @@ class TransductiveParser(Model):
     def _parse(self,
                rnn_outputs: torch.Tensor,
                edge_head_mask: torch.Tensor,
-               edge_heads: torch.Tensor) -> Dict:
+               edge_heads: torch.Tensor = None) -> Dict:
         """
         Based on the vector representation for each node, predict its head and edge type.
         :param rnn_outputs: vector representations of nodes, including <BOS>.
             [batch_size, target_length + 1, hidden_vector_dim].
         :param edge_head_mask: mask used in the edge head search.
             [batch_size, target_length, target_length].
-        :param edge_heads: gold head indices, [batch_size, target_length]
+        :param edge_heads: None or gold head indices, [batch_size, target_length]
         """
         # Exclude <BOS>.
         # <EOS> is already excluded in ``_prepare_inputs''.
@@ -456,33 +456,37 @@ class TransductiveParser(Model):
             "source_mask": inputs["source_mask"],
             "source_attention_map": inputs["source_attention_map"],
             "target_attention_map": inputs["source_attention_map"].new_zeros(
-                (batch_size, self._max_decoding_length, self._max_decoding_length))
+                (batch_size, self._max_decoding_length, self._max_decoding_length + 1))
         }
-        meta_data = {
+        auxiliaries = {
             "batch_size": batch_size,
-            "last_decoding_step": 0,  # At <BOS>, we set it to -1.
+            "last_decoding_step": -1,  # At <BOS>, we set it to -1.
             "source_dynamic_vocab_size": inputs["source_dynamic_vocab_size"],
             "instance_meta": inputs["instance_meta"]
         }
-        return start_predictions, start_state, meta_data
+        return start_predictions, start_state, auxiliaries
 
     def _prepare_next_inputs(self,
                              predictions: torch.Tensor,
                              target_attention_map: torch.Tensor,
-                             meta_data: Dict) -> Dict:
+                             meta_data: List[Dict],
+                             batch_size: int,
+                             last_decoding_step: int,
+                             source_dynamic_vocab_size: int) -> Dict:
         """
         Read out a group of hybrid predictions. Based on different ways of node prediction,
         find the corresponding token, node index and pos tags. Prepare the tensorized inputs
         for the next decoding step. Update the target attention map, target dynamic vocab, etc.
-        :param predictions: [group_size]
+        :param predictions: [group_size,]
         :param target_attention_map: [group_size, target_length, target_dynamic_vocab_size].
-        :param meta_data: a list of different kinds of meta data.
+        :param meta_data: meta data for each instance.
+        :param batch_size: int.
+        :param last_decoding_step: the decoding step starts from 0, so the last decoding step
+            starts from -1.
+        :param source_dynamic_vocab_size: int.
         """
-        batch_size = meta_data["batch_size"]
-        last_decoding_step = meta_data["last_decoding_step"]
-        source_dynamic_vocab_size = meta_data["source_dynamic_vocab_size"]
         # On the default, if a new node is created via either generation or source-side copy,
-        # its node index will be last_decoding_step + 1. One offset between the last decoding
+        # its node index will be last_decoding_step + 1. One shift between the last decoding
         # step and the default node index is because node index 0 is reserved for no target copy.
         # See `_prepare_inputs` for detail.
         default_node_index = last_decoding_step + 1
@@ -493,13 +497,13 @@ class TransductiveParser(Model):
             else:
                 return instance_i
 
-        instances = []
+        token_instances = []
         node_indices = torch.zeros_like(predictions)
         pos_tags = torch.zeros_like(predictions)
         for i, index in enumerate(predictions.tolist()):
-            meta = meta_data["instance_meta"][batch_index(i)]
-            pos_tag_lut = meta["pos_tag_lut"]
-            target_dynamic_vocab = meta["target_dynamic_vocab"]
+            instance_meta = meta_data[batch_index(i)]
+            pos_tag_lut = instance_meta["pos_tag_lut"]
+            target_dynamic_vocab = instance_meta["target_dynamic_vocab"]
             # Generation.
             if index < self._vocab_size:
                 token = self.vocab.get_token_from_index(index, self._target_output_namespace)
@@ -508,7 +512,7 @@ class TransductiveParser(Model):
             # Source-side copy.
             elif self._vocab_size <= index < self._vocab_size + source_dynamic_vocab_size:
                 index -= self._vocab_size
-                source_dynamic_vocab = meta["source_dynamic_vocab"]
+                source_dynamic_vocab = instance_meta["source_dynamic_vocab"]
                 token = source_dynamic_vocab.get_token_from_idx(index)
                 node_index = default_node_index
                 pos_tag = pos_tag_lut.get(token, DEFAULT_OOV_TOKEN)
@@ -519,8 +523,8 @@ class TransductiveParser(Model):
                 node_index = index
                 pos_tag = pos_tag_lut.get(token, DEFAULT_OOV_TOKEN)
 
-            target_token = TextField([Token(token)], meta["target_token_indexers"])
-            instances.append(Instance({"target_tokens": target_token}))
+            target_token = TextField([Token(token)], instance_meta["target_token_indexers"])
+            token_instances.append(Instance({"target_tokens": target_token}))
             node_indices[i] = node_index
             pos_tags[i] = self.vocab.get_token_index(pos_tag, self._pos_tag_namespace)
             if last_decoding_step != -1:  # At <BOS>, we set the last decoding step to -1.
@@ -528,7 +532,7 @@ class TransductiveParser(Model):
                 target_dynamic_vocab[node_index] = token
 
         # Covert tokens to tensors.
-        batch = Batch(instances)
+        batch = Batch(token_instances)
         batch.index_instances(self.vocab)
         padding_lengths = batch.get_padding_lengths()
         tokens = {}
@@ -537,19 +541,58 @@ class TransductiveParser(Model):
 
         return dict(
             tokens=tokens,
+            # [group_size, 1]
             node_indices=node_indices.unsqueeze(1),
             pos_tags=pos_tags.unsqueeze(1),
         )
 
-    def _take_one_step_test_forward(self,
-                                    last_predictions: torch.Tensor,
-                                    state: Dict[str, torch.Tensor],
-                                    meta_data: Dict
-                                    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    def _read_node_predictions(self,
+                               predictions: torch.Tensor,
+                               meta_data: List[Dict],
+                               source_dynamic_vocab_size: int):
+        """
+        :param predictions: [batch_size, max_steps].
+        :return:
+            node_predictions: [batch_size, max_steps].
+            edge_head_mask: [batch_size, max_steps, max_steps].
+        """
+        batch_size, max_steps = predictions.size()
+        node_predictions = []
+        edge_head_mask = predictions.new_ones((batch_size, max_steps, max_steps))
+        edge_head_mask = torch.tril(edge_head_mask, diagonal=-1).long()
+        for i in range(batch_size):
+            nodes = []
+            instance_meta = meta_data[i]
+            source_dynamic_vocab = instance_meta["source_dynamic_vocab"]
+            target_dynamic_vocab = instance_meta["target_dynamic_vocab"]
+            prediction_list = predictions[i].tolist()
+            for j, index in enumerate(prediction_list):
+                if index == self._vocab_eos_index:
+                    break
+                if index < self._vocab_size:
+                    node = self.vocab.get_token_from_index(index, self._target_output_namespace)
+                elif self._vocab_size <= index < self._vocab_size + source_dynamic_vocab_size:
+                    node = source_dynamic_vocab.get_token_from_idx(index - self._vocab_size)
+                else:
+                    node = target_dynamic_vocab[index - self._vocab_size - source_dynamic_vocab_size]
+                    for k, antecedent in enumerate(prediction_list[:j]):
+                        if index == antecedent:
+                            edge_head_mask[i, j, k] = 0
+                nodes.append(node)
+            node_predictions.append(nodes)
+        return node_predictions, edge_head_mask
+
+    def _take_one_step_node_prediction(self,
+                                       last_predictions: torch.Tensor,
+                                       state: Dict[str, torch.Tensor],
+                                       auxiliaries: Dict) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         inputs = self._prepare_next_inputs(
             predictions=last_predictions,
             target_attention_map=state["target_attention_map"],
-            meta_data=meta_data
+            meta_data=auxiliaries["instance_meta"],
+            batch_size=auxiliaries["batch_size"],
+            last_decoding_step=auxiliaries["last_decoding_step"],
+            source_dynamic_vocab_size=auxiliaries["source_dynamic_vocab_size"]
         )
 
         decoder_inputs = torch.cat([
@@ -567,7 +610,7 @@ class TransductiveParser(Model):
             source_memory_bank=state["source_memory_bank"],
             source_mask=state["source_mask"],
             target_memory_bank=state.get("target_memory_bank", None),
-            decoding_step=meta_data["last_decoding_step"] + 1,
+            decoding_step=auxiliaries["last_decoding_step"] + 1,
             total_decoding_steps=self._max_decoding_length,
             input_feed=state.get("input_feed", None),
             hidden_state=hidden_states,
@@ -577,15 +620,12 @@ class TransductiveParser(Model):
         state["coverage"] = decoding_outputs["coverage"]
         state["hidden_state_1"] = decoding_outputs["hidden_state"][0].permute(1, 0, 2)
         state["hidden_state_2"] = decoding_outputs["hidden_state"][1].permute(1, 0, 2)
+        state["rnn_output"] = decoding_outputs["rnn_output"]
         if state.get("target_memory_bank", None) is None:
             state["target_memory_bank"] = decoding_outputs["attentional_tensor"]
-            state["rnn_outputs"] = decoding_outputs["rnn_output"]
         else:
             state["target_memory_bank"] = torch.cat(
                 [state["target_memory_bank"], decoding_outputs["attentional_tensor"]], 1
-            )
-            state["rnn_outputs"] = torch.cat(
-                [state["rnn_outputs"], decoding_outputs["rnn_output"]], 1
             )
 
         node_prediction_outputs = self._extended_pointer_generator(
@@ -595,12 +635,13 @@ class TransductiveParser(Model):
             source_attention_map=state["source_attention_map"],
             target_attention_map=state["target_attention_map"]
         )
-        _, node_predictions = node_prediction_outputs["hybrid_prob_dist"].max(2)
+        log_probs = (node_prediction_outputs["hybrid_prob_dist"] + self._eps).log()
 
-        meta_data["last_decoding_step"] += 1
-        return node_predictions, state
+        auxiliaries["last_decoding_step"] += 1
 
-    def _test_forward(self, inputs: Dict):
+        return log_probs, state
+
+    def _test_forward(self, inputs: Dict) -> Dict:
         encoding_outputs = self._encode(
             tokens=inputs["source_tokens"],
             pos_tags=inputs["source_pos_tags"],
@@ -609,13 +650,36 @@ class TransductiveParser(Model):
             token_recovery_matrix=inputs["source_token_recovery_matrix"],
             mask=inputs["source_mask"]
         )
-        start_predictions, start_state, meta_data = self._prepare_decoding_start_state(
-            inputs, encoding_outputs
-        )
-        all_predictions, log_probs = self._beam_search.search(
+
+        start_predictions, start_state, auxiliaries = self._prepare_decoding_start_state(inputs, encoding_outputs)
+        # all_predictions: [batch_size, beam_size, max_steps]
+        # rnn_outputs: [batch_size, beam_size, max_steps, hidden_vector_dim]
+        # log_probs: [batch_size, beam_size]
+        all_predictions, rnn_outputs, log_probs = self._beam_search.search(
             start_predictions=start_predictions,
             start_state=start_state,
-            step=lambda x, y: self._take_one_step_test_forward(x, y, meta_data)
+            step=lambda x, y: self._take_one_step_test_forward(x, y, auxiliaries),
+            tracked_state_name="rnn_output"
+        )
+        node_predictions, edge_head_mask = self._read_node_predictions(
+            # Remove the last one because we can't get the RNN state for the last one.
+            predictions=all_predictions[:, 0, :-1],
+            meta_data=inputs["instance_meta"],
+            source_dynamic_vocab_size=inputs["source_dynamic_vocab_size"]
+        )
+
+        edge_predictions = self._parse(
+            # Remove the first RNN state because it represents <BOS>.
+            rnn_outputs=rnn_outputs[:, 0],
+            edge_head_mask=edge_head_mask
+        )
+
+        edge_head_predictions, edge_type_predictions = self._read_edge_predictions(edge_predictions)
+
+        return dict(
+            node_predictions=node_predictions,
+            edge_head_predictions=edge_head_predictions,
+            edge_type_predictions=edge_type_predictions
         )
 
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
