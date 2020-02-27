@@ -72,6 +72,9 @@ class TransductiveParser(Model):
         # metrics
         self._node_pred_metrics = ExtendedPointerGeneratorMetrics()
         self._edge_pred_metrics = AttachmentScores()
+        self.val_smatch_f1 = None
+        self.val_smatch_precision = None
+        self.val_smatch_recall = None
 
         self._label_smoothing = label_smoothing
         self._dropout = InputVariationalDropout(p=dropout)
@@ -99,18 +102,20 @@ class TransductiveParser(Model):
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         node_pred_metrics = self._node_pred_metrics.get_metric(reset)
         edge_pred_metrics = self._edge_pred_metrics.get_metric(reset)
-        return OrderedDict(
+        metrics = OrderedDict(
             ppl=node_pred_metrics["ppl"],
             node_pred=node_pred_metrics["accuracy"] * 100,
             generate=node_pred_metrics["generate"] * 100,
             src_copy=node_pred_metrics["src_copy"] * 100,
             tgt_copy=node_pred_metrics["tgt_copy"] * 100,
-            gen_freq=node_pred_metrics["gen_freq"] * 100,
-            src_freq=node_pred_metrics["src_freq"] * 100,
-            tgt_freq=node_pred_metrics["tgt_freq"] * 100,
             uas=edge_pred_metrics["UAS"] * 100,
             las=edge_pred_metrics["LAS"] * 100,
         )
+        if self.val_smatch_f1 is not None:
+            metrics["smatch_f1"] = self.val_smatch_f1
+        if reset:
+            self.val_smatch_f1, self.val_smatch_precision, self.val_smatch_recall = None, None, None
+        return metrics
 
     def _pprint(self, inputs: Dict, index: int = 0) -> None:
         logger.info("==== Source-side Input ====")
@@ -523,6 +528,9 @@ class TransductiveParser(Model):
                 node_index = index
                 pos_tag = pos_tag_lut.get(token, DEFAULT_OOV_TOKEN)
 
+            # Start from 1 because 0 is reserved for the sentinel.
+            target_dynamic_vocab[i + 1] = token
+
             target_token = TextField([Token(token)], instance_meta["target_token_indexers"])
             token_instances.append(Instance({"target_tokens": target_token}))
             node_indices[i] = node_index
@@ -546,9 +554,9 @@ class TransductiveParser(Model):
             pos_tags=pos_tags.unsqueeze(1),
         )
 
-    def _read_edge_prediction(self,
-                              edge_predictions: Dict[str, torch.Tensor]) -> Tuple[List[List[int]], List[List[str]]]:
-        edge_head_predictions = (edge_predictions["edge_heads"] - 1).tolist()
+    def _read_edge_predictions(self,
+                               edge_predictions: Dict[str, torch.Tensor]) -> Tuple[List[List[int]], List[List[str]]]:
+        edge_head_predictions = edge_predictions["edge_heads"].tolist()
         edge_type_predictions = []
         for edge_types in edge_predictions["edge_types"].tolist():
             edge_type_predictions.append([
@@ -583,7 +591,6 @@ class TransductiveParser(Model):
             for j, index in enumerate(prediction_list):
                 if index == self._vocab_eos_index:
                     break
-                node_index = None
                 if index < self._vocab_size:
                     node = self.vocab.get_token_from_index(index, self._target_output_namespace)
                     node_index = j
@@ -592,11 +599,14 @@ class TransductiveParser(Model):
                     node_index = j
                 else:
                     node = target_dynamic_vocab[index - self._vocab_size - source_dynamic_vocab_size]
-                    for k, antecedent in enumerate(prediction_list[:j]):
-                        if index == antecedent:
+                    target_dynamic_vocab_index = index - self._vocab_size - source_dynamic_vocab_size
+                    # Valid target_dynamic_vocab_index starts from 1; 0 is reserved for sentinel.
+                    # Minus 1 to ensure node indices created here are consistent with node indices
+                    # created by pre-defined vocab and source-side copy.
+                    node_index = target_dynamic_vocab_index - 1
+                    for k, prev_node_index in enumerate(node_indices):
+                        if node_index == prev_node_index:
                             edge_head_mask[i, j, k] = 0
-                            if node_index is None:
-                                node_index = node_indices[k]
                 nodes.append(node)
                 node_indices.append(node_index)
             node_predictions.append(nodes)
@@ -698,9 +708,10 @@ class TransductiveParser(Model):
         edge_head_predictions, edge_type_predictions = self._read_edge_predictions(edge_predictions)
 
         return dict(
-            node_predictions=node_predictions,
-            edge_head_predictions=edge_head_predictions,
-            edge_type_predictions=edge_type_predictions
+            nodes=node_predictions,
+            node_indices=node_index_predictions,
+            edge_heads=edge_head_predictions,
+            edge_types=edge_type_predictions
         )
 
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:

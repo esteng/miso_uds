@@ -165,13 +165,13 @@ class AMRDatasetReader(DatasetReader):
             # TODO: try to remove the second constrain.
             field_dict['edge_head_mask'] = ArrayField(list_data['edge_mask'])
 
-        if self.eval:
-            # Metadata fields for debugging
-            field_dict["source_tokens_str"] = MetadataField(list_data["src_tokens"])
-            field_dict["target_tokens_str"] = MetadataField(list_data.get("tgt_tokens", []))
-            field_dict["source_copy_vocab"] = MetadataField(list_data["src_copy_vocab"])
-            field_dict["tag_lut"] = MetadataField(dict(pos=list_data["pos_tag_lut"]))
-            field_dict["source_copy_invalid_ids"] = MetadataField(list_data['src_copy_invalid_ids'])
-            field_dict["amr"] = MetadataField(amr)
+        # Metadata for validation and test.
+        field_dict["instance_meta"] = MetadataField(dict(
+            pos_tag_lut=list_data["pos_tag_lut"],
+            source_dynamic_vocab=list_data["src_copy_vocab"],
+            target_dynamic_vocab={},
+            target_token_indexers=self._target_token_indexers,
+            gold_amr=amr
+        ))
 
         return Instance(field_dict)
