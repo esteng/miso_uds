@@ -546,22 +546,36 @@ class TransductiveParser(Model):
             pos_tags=pos_tags.unsqueeze(1),
         )
 
+    def _read_edge_prediction(self,
+                              edge_predictions: Dict[str, torch.Tensor]) -> Tuple[List[List[int]], List[List[str]]]:
+        edge_head_predictions = (edge_predictions["edge_heads"] - 1).tolist()
+        edge_type_predictions = []
+        for edge_types in edge_predictions["edge_types"].tolist():
+            edge_type_predictions.append([
+                self.vocab.get_token_from_index(edge_type, self._edge_type_namespace) for edge_type in edge_types]
+            )
+        return edge_head_predictions, edge_type_predictions
+
     def _read_node_predictions(self,
                                predictions: torch.Tensor,
                                meta_data: List[Dict],
-                               source_dynamic_vocab_size: int):
+                               source_dynamic_vocab_size: int
+                               ) -> Tuple[List[List[str]], List[List[int]], torch.Tensor]:
         """
         :param predictions: [batch_size, max_steps].
         :return:
             node_predictions: [batch_size, max_steps].
+            node_index_predictions: [batch_size, max_steps].
             edge_head_mask: [batch_size, max_steps, max_steps].
         """
         batch_size, max_steps = predictions.size()
         node_predictions = []
+        node_index_predictions = []
         edge_head_mask = predictions.new_ones((batch_size, max_steps, max_steps))
         edge_head_mask = torch.tril(edge_head_mask, diagonal=-1).long()
         for i in range(batch_size):
             nodes = []
+            node_indices = []
             instance_meta = meta_data[i]
             source_dynamic_vocab = instance_meta["source_dynamic_vocab"]
             target_dynamic_vocab = instance_meta["target_dynamic_vocab"]
@@ -569,18 +583,25 @@ class TransductiveParser(Model):
             for j, index in enumerate(prediction_list):
                 if index == self._vocab_eos_index:
                     break
+                node_index = None
                 if index < self._vocab_size:
                     node = self.vocab.get_token_from_index(index, self._target_output_namespace)
+                    node_index = j
                 elif self._vocab_size <= index < self._vocab_size + source_dynamic_vocab_size:
                     node = source_dynamic_vocab.get_token_from_idx(index - self._vocab_size)
+                    node_index = j
                 else:
                     node = target_dynamic_vocab[index - self._vocab_size - source_dynamic_vocab_size]
                     for k, antecedent in enumerate(prediction_list[:j]):
                         if index == antecedent:
                             edge_head_mask[i, j, k] = 0
+                            if node_index is None:
+                                node_index = node_indices[k]
                 nodes.append(node)
+                node_indices.append(node_index)
             node_predictions.append(nodes)
-        return node_predictions, edge_head_mask
+            node_index_predictions.append(node_indices)
+        return node_predictions, node_index_predictions, edge_head_mask
 
     def _take_one_step_node_prediction(self,
                                        last_predictions: torch.Tensor,
@@ -661,7 +682,7 @@ class TransductiveParser(Model):
             step=lambda x, y: self._take_one_step_test_forward(x, y, auxiliaries),
             tracked_state_name="rnn_output"
         )
-        node_predictions, edge_head_mask = self._read_node_predictions(
+        node_predictions, node_index_predictions, edge_head_mask = self._read_node_predictions(
             # Remove the last one because we can't get the RNN state for the last one.
             predictions=all_predictions[:, 0, :-1],
             meta_data=inputs["instance_meta"],
