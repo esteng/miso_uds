@@ -62,7 +62,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
         source_tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
-          # pretrained_file: glove_embeddings,
+          pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -106,7 +106,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
         target_tokens: {
           type: "embedding",
           vocab_namespace: "target_tokens",
-          # pretrained_file: glove_embeddings,
+          pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -192,6 +192,8 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
         smoothing: 0.1,
     },
     dropout: 0.33,
+    beam_size: 5,
+    max_decoding_steps: 50,
     target_output_namespace: "generation_tokens",
     edge_type_namespace: "edge_types",
   },
@@ -209,8 +211,9 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
   },
 
   trainer: {
+    type: "amr_parsing",
     num_epochs: 120,
-    patience: 10,
+    patience: 20,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -227,7 +230,11 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
       patience: 10,
     },
     no_grad: [],
-  },
+    evaluation_script_path: "scripts/amr_parsing_evaluation.sh",
+    smatch_tool_path: "smatch_tool",
+    validation_data_path: data_dir + "dev_amr.txt.features.preproc",
+    validation_prediction_path: "amr_validation.txt",
+},
   random_seed: 1,
   numpy_seed: 1,
   pytorch_seed: 1,

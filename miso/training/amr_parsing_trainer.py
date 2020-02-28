@@ -10,6 +10,7 @@ from allennlp.common import Params
 from allennlp.common.checks import ConfigurationError, parse_cuda_device
 from allennlp.training import Trainer
 from allennlp.training.trainer_pieces import TrainerPieces
+from allennlp.training.trainer_base import TrainerBase
 from allennlp.data.instance import Instance
 from allennlp.data.iterators.data_iterator import DataIterator, TensorDict
 from allennlp.models import Model
@@ -28,7 +29,7 @@ from miso.data.dataset_readers.amr_parsing.amr import AMRGraph
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-@Trainer.register("amr_parsing")
+@TrainerBase.register("amr_parsing")
 class AMRTrainer(Trainer):
 
     def __init__(self,
@@ -153,7 +154,8 @@ class AMRTrainer(Trainer):
         if self._moving_average is not None:
             self._moving_average.restore()
 
-        self._update_validation_smatch_score(val_outputs)
+        if self.smatch_tool_path is not None:
+            self._update_validation_smatch_score(val_outputs)
 
         return 0, 0
 
@@ -199,10 +201,10 @@ def _from_params(cls,  # type: ignore
     lr_scheduler_params = params.pop("learning_rate_scheduler", None)
     momentum_scheduler_params = params.pop("momentum_scheduler", None)
 
-    evaluation_script_path = params.pop("evaluation_script_path")
-    smatch_tool_path = params.pop("smatch_tool_path")
-    validation_data_path = params.pop("validation_data_path")
-    validation_prediction_path = params.pop("validataion_prediction_path")
+    evaluation_script_path = params.pop("evaluation_script_path", None)
+    smatch_tool_path = params.pop("smatch_tool_path", None)
+    validation_data_path = params.pop("validation_data_path", None)
+    validation_prediction_path = params.pop("validataion_prediction_path", None)
 
     if isinstance(cuda_device, list):
         model_device = cuda_device[0]

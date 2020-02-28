@@ -50,7 +50,7 @@ class TransductiveParser(Model):
                  edge_type_namespace: str,
                  dropout: float = 0.0,
                  beam_size: int = 5,
-                 max_decoding_length: int = 50,
+                 max_decoding_steps: int = 50,
                  eps: float = 1e-20,
                  ) -> None:
         super().__init__(vocab=vocab)
@@ -79,7 +79,7 @@ class TransductiveParser(Model):
         self._label_smoothing = label_smoothing
         self._dropout = InputVariationalDropout(p=dropout)
         self._beam_size = beam_size
-        self._max_decoding_length = max_decoding_length
+        self._max_decoding_steps = max_decoding_steps
         self._eps = eps
 
         # dynamic initialization
@@ -96,7 +96,7 @@ class TransductiveParser(Model):
         )
         self._tree_parser.reset_edge_type_bilinear(num_labels=vocab.get_vocab_size(edge_type_namespace))
         self._label_smoothing.reset_parameters(pad_index=self._vocab_pad_index)
-        self._beam_search = BeamSearch(self._vocab_eos_index, self._max_decoding_length, self._beam_size)
+        self._beam_search = BeamSearch(self._vocab_eos_index, self._max_decoding_steps, self._beam_size)
 
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
@@ -461,7 +461,7 @@ class TransductiveParser(Model):
             "source_mask": inputs["source_mask"],
             "source_attention_map": inputs["source_attention_map"],
             "target_attention_map": inputs["source_attention_map"].new_zeros(
-                (batch_size, self._max_decoding_length, self._max_decoding_length + 1))
+                (batch_size, self._max_decoding_steps, self._max_decoding_steps + 1))
         }
         auxiliaries = {
             "batch_size": batch_size,
@@ -642,7 +642,7 @@ class TransductiveParser(Model):
             source_mask=state["source_mask"],
             target_memory_bank=state.get("target_memory_bank", None),
             decoding_step=auxiliaries["last_decoding_step"] + 1,
-            total_decoding_steps=self._max_decoding_length,
+            total_decoding_steps=self._max_decoding_steps,
             input_feed=state.get("input_feed", None),
             hidden_state=hidden_states,
             coverage=state.get("coverage", None)

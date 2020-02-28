@@ -154,7 +154,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
           query_vector_dim: 512,
           key_vector_dim: 512,
           hidden_vector_dim: 128,
-          use_coverage: true,
+          use_coverage: false,
         },
       },
       target_attention_layer: {
@@ -189,9 +189,11 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
       },
     },
     label_smoothing: {
-        smoothing: 0.1,
+        smoothing: 0.0,
     },
     dropout: 0.0,
+    beam_size: 5,
+    max_decoding_steps: 50,
     target_output_namespace: "generation_tokens",
     edge_type_namespace: "edge_types",
   },
@@ -209,8 +211,9 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
   },
 
   trainer: {
+    type: "amr_parsing",
     num_epochs: 120,
-    patience: 10,
+    patience: 20,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -227,6 +230,10 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
       patience: 10,
     },
     no_grad: [],
+    evaluation_script_path: "scripts/amr_parsing_evaluation.sh",
+    smatch_tool_path: "smatch_tool",
+    validation_data_path: data_dir + "dev_amr.txt.features.preproc",
+    validation_prediction_path: "amr_validation.txt",
   },
   random_seed: 1,
   numpy_seed: 1,
