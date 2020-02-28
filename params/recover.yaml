@@ -1,3 +1,0 @@
-# Add if you want to recover, otherwise you'll get error
-environment:
-  recover: True
