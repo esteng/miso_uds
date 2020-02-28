@@ -11,7 +11,7 @@ source ${EXP_DIR}/utils.sh
 
 CHECKPOINT_DIR=ckpt
 TRAINING_CONFIG=miso/training_config/transductive_semantic_parsing.jsonnet
-TEST_DATA=test.json
+TEST_DATA=data/AMR/amr_2.0/dev_amr.txt.features.preproc
 
 
 function train() {
@@ -19,6 +19,7 @@ function train() {
     python -m allennlp.run train \
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
+    --include-package miso.training \
     --include-package miso.metrics \
     -s ${CHECKPOINT_DIR} \
     ${TRAINING_CONFIG}
@@ -27,6 +28,18 @@ function train() {
 
 function test() {
     log_info "Evaluating a transductive model for AMR parsing..."
+    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    output_file=${CHECKPOINT_DIR}/test.pred.txt
+    python -m allennlp.run predict \
+    ${model_file} ${TEST_DATA} \
+    --output-file ${output_file} \
+    --predictor "amr_parsing" \
+    --batch-size 64 \
+    --cuda-device 0 \
+    --include-package miso.data.dataset_readers \
+    --include-package miso.models \
+    --include-package miso.predictors \
+    --include-package miso.metrics
 }
 
 
