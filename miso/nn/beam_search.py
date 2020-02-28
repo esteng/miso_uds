@@ -283,7 +283,11 @@ class BeamSearch:
             reconstructed_predictions.append(cur_preds)
 
             # shape: [(batch_size, beam_size, 1, *)]
-            cur_tracked_state = tracked_states[timestep].gather(1, cur_backpointers).unsqueeze(2)
+            _, _, *last_dims = tracked_states[timestep].size()
+            expanded_cur_backpointers = cur_backpointers.\
+                view(batch_size, self.beam_size, *([1] * len(last_dims))).\
+                expand(batch_size, self.beam_size, *last_dims)
+            cur_tracked_state = tracked_states[timestep].gather(1, expanded_cur_backpointers).unsqueeze(2)
 
             reconstructed_tracked_states.append(cur_tracked_state)
 
@@ -299,7 +303,11 @@ class BeamSearch:
         all_predictions = torch.cat(list(reversed(reconstructed_predictions)), 2)
 
         # shape: [(batch_size, beam_size, 1, *)]
-        final_tracked_state = tracked_states[0].gather(1, cur_backpointers).unsqueeze(2)
+        _, _, *last_dims = tracked_states[0].size()
+        expanded_cur_backpointers = cur_backpointers.\
+            view(batch_size, self.beam_size, *([1] * len(last_dims))).\
+            expand(batch_size, self.beam_size, *last_dims)
+        final_tracked_state = tracked_states[0].gather(1, expanded_cur_backpointers).unsqueeze(2)
 
         reconstructed_tracked_states.append(final_tracked_state)
 

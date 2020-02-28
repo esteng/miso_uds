@@ -72,9 +72,9 @@ class TransductiveParser(Model):
         # metrics
         self._node_pred_metrics = ExtendedPointerGeneratorMetrics()
         self._edge_pred_metrics = AttachmentScores()
-        self.val_smatch_f1 = None
-        self.val_smatch_precision = None
-        self.val_smatch_recall = None
+        self.val_smatch_f1 = .0
+        self.val_smatch_precision = .0
+        self.val_smatch_recall = .0
 
         self._label_smoothing = label_smoothing
         self._dropout = InputVariationalDropout(p=dropout)
@@ -111,10 +111,7 @@ class TransductiveParser(Model):
             uas=edge_pred_metrics["UAS"] * 100,
             las=edge_pred_metrics["LAS"] * 100,
         )
-        if self.val_smatch_f1 is not None:
-            metrics["smatch_f1"] = self.val_smatch_f1
-        if reset:
-            self.val_smatch_f1, self.val_smatch_precision, self.val_smatch_recall = None, None, None
+        metrics["smatch_f1"] = self.val_smatch_f1
         return metrics
 
     def _pprint(self, inputs: Dict, index: int = 0) -> None:
@@ -450,9 +447,9 @@ class TransductiveParser(Model):
 
     def _prepare_decoding_start_state(self, inputs: Dict, encoding_outputs: Dict[str, torch.Tensor]) \
             -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict]:
-        batch_size = inputs["source_tokens"]["tokens"].size(0)
+        batch_size = inputs["source_tokens"]["source_tokens"].size(0)
         bos = self.vocab.get_token_index(START_SYMBOL, self._target_output_namespace)
-        start_predictions = inputs["source_tokens"]["tokens"].new_full((batch_size,), bos)
+        start_predictions = inputs["source_tokens"]["source_tokens"].new_full((batch_size,), bos)
         start_state = {
             # [batch_size, *]
             "source_memory_bank": encoding_outputs["encoder_outputs"],
@@ -648,10 +645,11 @@ class TransductiveParser(Model):
             coverage=state.get("coverage", None)
         )
         state["input_feed"] = decoding_outputs["attentional_tensor"]
-        state["coverage"] = decoding_outputs["coverage"]
         state["hidden_state_1"] = decoding_outputs["hidden_state"][0].permute(1, 0, 2)
         state["hidden_state_2"] = decoding_outputs["hidden_state"][1].permute(1, 0, 2)
-        state["rnn_output"] = decoding_outputs["rnn_output"]
+        state["rnn_output"] = decoding_outputs["rnn_output"].squeeze(1)
+        if decoding_outputs["coverage"] is not None:
+            state["coverage"] = decoding_outputs["coverage"]
         if state.get("target_memory_bank", None) is None:
             state["target_memory_bank"] = decoding_outputs["attentional_tensor"]
         else:
@@ -666,7 +664,7 @@ class TransductiveParser(Model):
             source_attention_map=state["source_attention_map"],
             target_attention_map=state["target_attention_map"]
         )
-        log_probs = (node_prediction_outputs["hybrid_prob_dist"] + self._eps).log()
+        log_probs = (node_prediction_outputs["hybrid_prob_dist"] + self._eps).squeeze(1).log()
 
         auxiliaries["last_decoding_step"] += 1
 
@@ -689,7 +687,7 @@ class TransductiveParser(Model):
         all_predictions, rnn_outputs, log_probs = self._beam_search.search(
             start_predictions=start_predictions,
             start_state=start_state,
-            step=lambda x, y: self._take_one_step_test_forward(x, y, auxiliaries),
+            step=lambda x, y: self._take_one_step_node_prediction(x, y, auxiliaries),
             tracked_state_name="rnn_output"
         )
         node_predictions, node_index_predictions, edge_head_mask = self._read_node_predictions(
@@ -708,6 +706,7 @@ class TransductiveParser(Model):
         edge_head_predictions, edge_type_predictions = self._read_edge_predictions(edge_predictions)
 
         return dict(
+            gold_amr=inputs.get("gold_amr", None),
             nodes=node_predictions,
             node_indices=node_index_predictions,
             edge_heads=edge_head_predictions,
