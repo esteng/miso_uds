@@ -278,13 +278,14 @@ class TransductiveParser(Model):
         # Negative log-likelihood.
         loss = -(gold_edge_head_ll.sum() + gold_edge_type_ll.sum())
         # Update metrics.
-        self._edge_pred_metrics(
-            predicted_indices=pred_edge_heads,
-            predicted_labels=pred_edge_types,
-            gold_indices=gold_edge_heads,
-            gold_labels=gold_edge_types,
-            mask=valid_node_mask
-        )
+        if self.training:
+            self._edge_pred_metrics(
+                predicted_indices=pred_edge_heads,
+                predicted_labels=pred_edge_types,
+                gold_indices=gold_edge_heads,
+                gold_labels=gold_edge_types,
+                mask=valid_node_mask
+            )
 
         return dict(
             loss=loss,
@@ -565,19 +566,21 @@ class TransductiveParser(Model):
                                predictions: torch.Tensor,
                                meta_data: List[Dict],
                                source_dynamic_vocab_size: int
-                               ) -> Tuple[List[List[str]], List[List[int]], torch.Tensor]:
+                               ) -> Tuple[List[List[str]], List[List[int]], torch.Tensor, torch.Tensor]:
         """
         :param predictions: [batch_size, max_steps].
         :return:
             node_predictions: [batch_size, max_steps].
             node_index_predictions: [batch_size, max_steps].
             edge_head_mask: [batch_size, max_steps, max_steps].
+            valid_node_mask: [batch_sizem max_steps].
         """
         batch_size, max_steps = predictions.size()
         node_predictions = []
         node_index_predictions = []
         edge_head_mask = predictions.new_ones((batch_size, max_steps, max_steps))
         edge_head_mask = torch.tril(edge_head_mask, diagonal=-1).long()
+        valid_node_mask = predictions.new_zeros((batch_size, max_steps, max_steps))
         for i in range(batch_size):
             nodes = []
             node_indices = []
@@ -588,6 +591,7 @@ class TransductiveParser(Model):
             for j, index in enumerate(prediction_list):
                 if index == self._vocab_eos_index:
                     break
+                valid_node_mask[i, j] = 1
                 if index < self._vocab_size:
                     node = self.vocab.get_token_from_index(index, self._target_output_namespace)
                     node_index = j
@@ -608,7 +612,7 @@ class TransductiveParser(Model):
                 node_indices.append(node_index)
             node_predictions.append(nodes)
             node_index_predictions.append(node_indices)
-        return node_predictions, node_index_predictions, edge_head_mask
+        return node_predictions, node_index_predictions, edge_head_mask, valid_node_mask
 
     def _take_one_step_node_prediction(self,
                                        last_predictions: torch.Tensor,
@@ -690,7 +694,7 @@ class TransductiveParser(Model):
             step=lambda x, y: self._take_one_step_node_prediction(x, y, auxiliaries),
             tracked_state_name="rnn_output"
         )
-        node_predictions, node_index_predictions, edge_head_mask = self._read_node_predictions(
+        node_predictions, node_index_predictions, edge_head_mask, valid_node_mask = self._read_node_predictions(
             # Remove the last one because we can't get the RNN state for the last one.
             predictions=all_predictions[:, 0, :-1],
             meta_data=inputs["instance_meta"],
@@ -705,7 +709,20 @@ class TransductiveParser(Model):
 
         edge_head_predictions, edge_type_predictions = self._read_edge_predictions(edge_predictions)
 
+        edge_pred_loss = self._compute_edge_prediction_loss(
+            edge_head_ll=edge_predictions["edge_head_ll"],
+            edge_type_ll=edge_predictions["edge_type_ll"],
+            pred_edge_heads=edge_predictions["edge_heads"],
+            pred_edge_types=edge_predictions["edge_types"],
+            gold_edge_heads=edge_predictions["edge_heads"],
+            gold_edge_types=edge_predictions["edge_types"],
+            valid_node_mask=valid_node_mask
+        )
+
+        loss = log_probs[:, 0].sum() / edge_pred_loss["num_nodes"] + edge_pred_loss["loss_per_node"]
+
         return dict(
+            loss=loss,
             gold_amr=inputs.get("gold_amr", None),
             nodes=node_predictions,
             node_indices=node_index_predictions,

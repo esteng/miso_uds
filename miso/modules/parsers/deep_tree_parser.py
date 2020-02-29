@@ -63,19 +63,23 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         edge_head_query, edge_head_key, edge_type_query, edge_type_key = self._mlp(query, key)
         # [batch_size, query_length, key_length + 1]
         edge_head_score = self._get_edge_head_score(edge_head_query, edge_head_key)
+        edge_heads, edge_types = self._greedy_search(
+            edge_type_query, edge_type_key, edge_head_score, edge_head_mask
+        )
+
         # [batch_size, query_length, num_labels]
-        edge_type_score = self._get_edge_type_score(edge_type_query, edge_type_key, gold_edge_heads)
-        edge_heads, edge_types = self._greedy_search(edge_type_query, edge_type_key, edge_head_score, edge_head_mask)
+        edge_type_score = self._get_edge_type_score(
+            edge_type_query, edge_type_key, gold_edge_heads or edge_heads
+        )
 
-        # Note: head indices start from 1.
-        outputs = {"edge_heads": edge_heads, "edge_types": edge_types}
-
-        if gold_edge_heads is not None:
+        return dict(
+            # Note: head indices start from 1.
+            edge_heads=edge_heads,
+            edge_types=edge_types,
             # Log-Likelihood.
-            outputs["edge_head_ll"] = masked_log_softmax(edge_head_score, edge_head_mask, dim=2)
-            outputs["edge_type_ll"] = masked_log_softmax(edge_type_score, None, dim=2)
-
-        return outputs
+            edge_head_ll=masked_log_softmax(edge_head_score, edge_head_mask, dim=2),
+            edge_type_ll=masked_log_softmax(edge_type_score, None, dim=2)
+        )
 
     def _add_sentinel(self,
                       query: torch.FloatTensor,
@@ -154,17 +158,15 @@ class DeepTreeParser(torch.nn.Module, Registrable):
     def _get_edge_type_score(self,
                              query: torch.FloatTensor,
                              key: torch.FloatTensor,
-                             edge_head: torch.Tensor = None) -> Optional[torch.Tensor]:
+                             edge_head: torch.Tensor) -> torch.Tensor:
         """
         Compute the edge type scores.
         :param query:  [batch_size, query_length, query_vector_dim]
         :param key: [batch_size, key_length, key_vector_dim]
-        :param edge_head: None or [batch_size, query_length]
+        :param edge_head: [batch_size, query_length]
         :return:
             label_score: None or [batch_size, query_length, num_labels]
         """
-        if edge_head is None:
-            return None
         batch_size = key.size(0)
         batch_index = torch.arange(0, batch_size).view(batch_size, 1).type_as(edge_head)
         # [batch_size, query_length, hidden_size]
