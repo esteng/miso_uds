@@ -1,16 +1,13 @@
 import os
 import re
 import json
+import logging
 
 from miso.data.dataset_readers.amr_parsing.io import AMRIO
 from miso.data.dataset_readers.amr_parsing.amr import AMRNode
 from miso.data.dataset_readers.amr_parsing.amr_concepts import Polarity, Polite
 
-from miso.utils import logging
-
-
-logger = logging.init_logger()
-
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 TRIVIAL_TOKENS = ('and', 'in', 'on', 'of', 'de', 'da')
 

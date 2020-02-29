@@ -67,10 +67,10 @@ class DeepTreeParser(torch.nn.Module, Registrable):
             edge_type_query, edge_type_key, edge_head_score, edge_head_mask
         )
 
+        if gold_edge_heads is None:
+            gold_edge_heads = edge_heads
         # [batch_size, query_length, num_labels]
-        edge_type_score = self._get_edge_type_score(
-            edge_type_query, edge_type_key, gold_edge_heads or edge_heads
-        )
+        edge_type_score = self._get_edge_type_score(edge_type_query, edge_type_key, edge_heads)
 
         return dict(
             # Note: head indices start from 1.

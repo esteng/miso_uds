@@ -74,6 +74,8 @@ class ExtendedPointerGeneratorMetrics(Metric):
     @property
     def ppl(self) -> float:
         """ compute perplexity """
+        if self._hybrid_count == 0:
+            return -1
         return math.exp(min(self._loss / self._hybrid_count, 100))
 
     def get_metric(self, reset: bool = False) -> Dict:

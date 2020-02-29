@@ -142,12 +142,13 @@ class AMRTrainer(Trainer):
                 val_loss += loss.detach().cpu().numpy()
 
             # Update the description with the latest metrics
-            val_metrics = training_util.get_metrics(self.model, 0, 0)
+            val_metrics = training_util.get_metrics(self.model, val_loss, batches_this_epoch)
             description = training_util.description_from_metrics(val_metrics)
             val_generator_tqdm.set_description(description, refresh=False)
 
             # Update the validation outputs.
-            batch_size = list(batch_output.values())[0].size(0)
+            peek = list(batch_output.values())[0]
+            batch_size = peek.size(0) if isinstance(peek, torch.Tensor) else len(peek)
             instance_separated_output: List[Dict[str, numpy.ndarray]] = [{} for _ in range(batch_size)]
             for name, value in batch_output.items():
                 if isinstance(value, torch.Tensor):

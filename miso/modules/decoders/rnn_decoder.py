@@ -7,7 +7,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from allennlp.common.registrable import Registrable
 from allennlp.modules import InputVariationalDropout
 
-from miso.modules import StackedLstm
+from miso.modules.stacked_lstm import StackedLstm
 from miso.modules.attention_layers import AttentionLayer
 
 

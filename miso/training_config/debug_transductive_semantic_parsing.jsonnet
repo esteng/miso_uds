@@ -232,7 +232,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
     no_grad: [],
     evaluation_script_path: "scripts/amr_parsing_evaluation.sh",
-    smatch_tool_path: "smatch_tool",
+    smatch_tool_path: null, # "smatch_tool",
     validation_data_path: data_dir + "dev_amr.txt.features.preproc",
     validation_prediction_path: "amr_validation.txt",
   },

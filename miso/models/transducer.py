@@ -20,7 +20,7 @@ from miso.modules.generators import ExtendedPointerGenerator
 from miso.modules.parsers import DeepTreeParser
 from miso.modules.label_smoothing import LabelSmoothing
 from miso.nn.beam_search import BeamSearch
-from miso.metrics import ExtendedPointerGeneratorMetrics
+from miso.metrics.extended_pointer_generator_metrics import ExtendedPointerGeneratorMetrics
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -570,14 +570,14 @@ class TransductiveParser(Model):
             node_predictions: [batch_size, max_steps].
             node_index_predictions: [batch_size, max_steps].
             edge_head_mask: [batch_size, max_steps, max_steps].
-            valid_node_mask: [batch_sizem max_steps].
+            valid_node_mask: [batch_size, max_steps].
         """
         batch_size, max_steps = predictions.size()
         node_predictions = []
         node_index_predictions = []
         edge_head_mask = predictions.new_ones((batch_size, max_steps, max_steps))
         edge_head_mask = torch.tril(edge_head_mask, diagonal=-1).long()
-        valid_node_mask = predictions.new_zeros((batch_size, max_steps, max_steps))
+        valid_node_mask = predictions.new_zeros((batch_size, max_steps))
         for i in range(batch_size):
             nodes = []
             node_indices = []
@@ -716,7 +716,7 @@ class TransductiveParser(Model):
             valid_node_mask=valid_node_mask
         )
 
-        loss = log_probs[:, 0].sum() / edge_pred_loss["num_nodes"] + edge_pred_loss["loss_per_node"]
+        loss = -log_probs[:, 0].sum() / edge_pred_loss["num_nodes"] + edge_pred_loss["loss_per_node"]
 
         outputs = dict(
             loss=loss,

@@ -1,9 +1,7 @@
 from collections import defaultdict
+import logging
 
-from miso.utils import logging
-
-
-logger = logging.init_logger()
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def is_similar(instances1, instances2):

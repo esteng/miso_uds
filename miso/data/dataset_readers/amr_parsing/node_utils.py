@@ -1,16 +1,16 @@
 import os
 import re
 import json
+import logging
 from collections import Counter
 
 import editdistance
 
 from miso.data.dataset_readers.amr_parsing.io import AMRIO
 from miso.data.dataset_readers.amr_parsing.propbank_reader import PropbankReader
-from miso.utils import logging
 
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-logger = logging.init_logger()
 WORDSENSE_RE = re.compile(r'-\d\d$')
 QUOTED_RE = re.compile(r'^".*"$')
 

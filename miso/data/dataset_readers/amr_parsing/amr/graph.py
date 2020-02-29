@@ -1,5 +1,6 @@
 import re
 import json
+import logging
 from collections import defaultdict, Counter
 
 import numpy as np
@@ -8,14 +9,12 @@ import networkx as nx
 from penman import Triple
 
 from miso.data.dataset_readers.amr_parsing.graph_repair import GraphRepair
-from miso.utils import logging
 
 from .node import AMRNode
 from .src_copy_vocab import SourceCopyVocabulary
 from .utils import recover_triples_from_prediction, prepare_stog_instance, prepare_istog_instance
 
-
-logger = logging.init_logger()
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 # Disable inverting ':mod' relation.
 penman.AMRCodec._inversions.pop('domain')

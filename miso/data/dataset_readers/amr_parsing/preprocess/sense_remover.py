@@ -1,12 +1,11 @@
 import re
+import logging
 
 import nltk
 
 from miso.data.dataset_readers.amr_parsing.io import AMRIO
-from miso.utils import logging
 
-
-logger = logging.init_logger()
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class SenseRemover:

@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import logging
 from collections import defaultdict
 
 import nltk
@@ -9,10 +10,8 @@ from word2number import w2n
 
 from miso.data.dataset_readers.amr_parsing.io import AMRIO
 from miso.data.dataset_readers.amr_parsing.amr_concepts import Entity, Date, Score, Quantity, Ordinal, Polarity, Polite, URL
-from miso.utils import logging
 
-
-logger = logging.init_logger()
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def resolve_conflict_entities(entities):

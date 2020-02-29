@@ -1,8 +1,36 @@
+import re
 from collections import Counter, defaultdict
 
 from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
-from miso.utils.string import find_similar_token, is_abstract_token, is_english_punct
 from miso.data.dataset_readers.amr_parsing.amr.src_copy_vocab import SourceCopyVocabulary
+
+
+def is_abstract_token(token):
+    return re.search(r'^([A-Z]+_)+\d+$', token) or re.search(r'^\d0*$', token)
+
+
+def is_english_punct(c):
+    return re.search(r'^[,.?!:;"\'-(){}\[\]]$', c)
+
+
+def find_similar_token(token, tokens):
+    token = re.sub(r'-\d\d$', '', token) # .lower())
+    for i, t in enumerate(tokens):
+        if token == t:
+            return tokens[i]
+        # t = t.lower()
+        # if (token == t or
+        #     (t.startswith(token) and len(token) > 3) or
+        #     token + 'd' == t or
+        #     token + 'ed' == t or
+        #     re.sub('ly$', 'le', t) == token or
+        #     re.sub('tive$', 'te', t) == token or
+        #     re.sub('tion$', 'te', t) == token or
+        #     re.sub('ied$', 'y', t) == token or
+        #     re.sub('ly$', '', t) == token
+        # ):
+        #     return tokens[i]
+    return None
 
 
 def trim_very_long_tgt_tokens(tgt_tokens, head_tags, head_indices, node_to_idx, max_tgt_length):

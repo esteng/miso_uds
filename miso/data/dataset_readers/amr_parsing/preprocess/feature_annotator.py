@@ -1,11 +1,9 @@
 import re
+import logging
 
 from pycorenlp import StanfordCoreNLP
 
-from miso.utils import logging
-
-
-logger = logging.init_logger()
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class FeatureAnnotator:

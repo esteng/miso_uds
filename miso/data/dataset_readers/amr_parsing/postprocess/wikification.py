@@ -2,6 +2,7 @@ import os
 import re
 import math
 import json
+import logging
 import requests
 from time import sleep
 from collections import defaultdict
@@ -9,10 +10,8 @@ from collections import defaultdict
 from bs4 import BeautifulSoup
 
 from miso.data.dataset_readers.amr_parsing.io import AMRIO
-from miso.utils import logging
 
-
-logger = logging.init_logger()
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def strip(text):
