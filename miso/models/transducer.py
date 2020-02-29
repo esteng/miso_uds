@@ -114,128 +114,6 @@ class TransductiveParser(Model):
         metrics["smatch_f1"] = self.val_smatch_f1
         return metrics
 
-    def _pprint(self, inputs: Dict, index: int = 0) -> None:
-        logger.info("==== Source-side Input ====")
-        logger.info("source tokens:")
-        source_tokens = inputs["source_tokens"]["source_tokens"][index].tolist()
-        logger.info("\t" + " ".join(map(lambda x: self.vocab.get_token_from_index(x, "source_tokens"), source_tokens)))
-        logger.info("\t" + str(source_tokens))
-        logger.info("source_pos_tags:")
-        source_pos_tags = inputs["source_pos_tags"][index].tolist()
-        logger.info("\t" + " ".join(map(
-            lambda x: self.vocab.get_token_from_index(x, "pos_tags"), source_pos_tags)))
-        logger.info("source_anonymiaztion_tags:")
-        anonymization_tags = inputs["source_anonymization_tags"][index].tolist()
-        logger.info("\t" + str(anonymization_tags))
-
-        logger.info("==== Target-side Input ====")
-        logger.info("target tokens:")
-        target_tokens = inputs["target_tokens"]["target_tokens"][index].tolist()
-        logger.info("\t" + " ".join(map(lambda x: self.vocab.get_token_from_index(x, "target_tokens"), target_tokens)))
-        logger.info("\t" + str(target_tokens))
-        logger.info("target_pos_tags:")
-        target_pos_tags = inputs["target_pos_tags"][index].tolist()
-        logger.info("\t" + " ".join(map(
-            lambda x: self.vocab.get_token_from_index(x, "pos_tags"), target_pos_tags)))
-        logger.info("target_node_indices:")
-        node_indices = inputs["target_node_indices"][index].tolist()
-        logger.info("\t" + str(node_indices))
-
-        logger.info("==== Output ====")
-        logger.info("generation_outputs:")
-        generation_tokens = inputs["generation_outputs"][index].tolist()
-        logger.info("\t" + " ".join(
-            map(lambda x: self.vocab.get_token_from_index(x, "generation_tokens"), generation_tokens)))
-        logger.info("\t" + str(generation_tokens))
-        logger.info("target_copy_indices:")
-        target_copy_indices = inputs["target_copy_indices"][index].tolist()
-        logger.info("\t" + str(target_copy_indices))
-        logger.info("source_copy_indices:")
-        source_copy_indices = inputs["source_copy_indices"][index].tolist()
-        logger.info("\t" + str(source_copy_indices))
-        logger.info("edge_heads:")
-        edge_heads = inputs["edge_heads"][index].tolist()
-        logger.info("\t" + str(edge_heads))
-        logger.info("edge_types:")
-        edge_types = inputs["edge_types"][index].tolist()
-        logger.info("\t" + " ".join(
-            map(lambda x: self.vocab.get_token_from_index(x, "edge_types"), edge_types)))
-
-        logger.info("==== Misc ====")
-        logger.info("target attention map:")
-        target_attention_map = inputs["target_attention_map"][index]
-        logger.info(target_attention_map)
-        logger.info("source attention map:")
-        source_attention_map = inputs["source_attention_map"][index]
-        logger.info(source_attention_map)
-        logger.info("edge head mask:")
-        edge_head_mask = inputs["edge_head_mask"][index]
-        logger.info(edge_head_mask)
-
-    def _prepare_inputs(self, raw_inputs: Dict) -> Dict:
-        """
-        Prepare inputs as below:
-            source_tokens:          PERSON could help himself
-            source_pos_tags:            NP    MD   VB     PP
-            source_anonymization_tags:   1     0    0      0
-            (source_dynamic_vocab: {0: pad, 1: UNK, 2: PERSON, 3: could, 4: help, 5: himself})
-
-            target_tokens:          <BOS> possible help person PERSON person
-            target_pos_tags:          UNK      UNK   VB    UNK     NP    UNK
-            target_node_indices:        0        1    2      3      4      3
-            (target_dynamic_vocab: {0: UNK, 1: possible, 2: help, 3: person, 4: PERSON})
-
-            generation_outputs:         possible  UNK person  UNK person <EOS>
-            source_copy_indices                1    4      1    2      1     1
-            target_copy_indices:               0    0      0    0      3     0
-            edge_heads:                        0    1      2    3      2     0
-            edge_types:                     root arg0   arg0 name   arg1   pad
-
-            source_attention_map:                   p U P c h h
-                                       PERSON       0 0 1 0 0 0
-                                       could        0 0 0 1 0 0
-                                       help         0 0 0 0 1 0
-                                       himself      0 0 0 0 0 1
-
-            target_attention_map:                   S p h p P
-                                       possible     0 1 0 0 0
-                                       help         0 0 1 0 0
-                                       person       0 0 0 1 0
-                                       Person       0 0 0 0 1
-                                       person       0 0 0 1 0
-        """
-        inputs = raw_inputs.copy()
-        inputs["source_mask"] = get_text_field_mask(raw_inputs["source_tokens"])
-        source_subtoken_ids = raw_inputs.get("source_subtoken_ids", None)
-        if source_subtoken_ids is None:
-            inputs["source_subtoken_ids"] = None
-        else:
-            inputs["source_subtoken_ids"] = source_subtoken_ids.long()
-        source_token_recovery_matrix = raw_inputs.get("source_token_recovery_matrix", None)
-        if source_token_recovery_matrix is None:
-            inputs["source_token_recovery_matrix"] = None
-        else:
-            inputs["source_token_recovery_matrix"] = source_token_recovery_matrix.long()
-
-        # Exclude <BOS>.
-        inputs["generation_outputs"] = raw_inputs["generation_outputs"]["generation_tokens"][:, 1:]
-        inputs["source_copy_indices"] = raw_inputs["source_copy_indices"][:, 1:]
-        inputs["target_copy_indices"] = raw_inputs["target_copy_indices"][:, 1:]
-
-        # [batch, target_seq_length, target_seq_length + 1(sentinel)]
-        inputs["target_attention_map"] = raw_inputs["target_attention_map"][:, 1:]  # exclude UNK
-        # [batch, 1(unk) + source_seq_length, dynamic_vocab_size]
-        # Exclude unk and the last pad.
-        inputs["source_attention_map"] = raw_inputs["source_attention_map"][:, 1:-1]
-
-        inputs["source_dynamic_vocab_size"] = inputs["source_attention_map"].size(2)
-
-        inputs["edge_types"] = raw_inputs["edge_types"]["edge_types"]
-
-        # self._pprint(inputs)
-
-        return inputs
-
     @overrides
     def forward(self, **raw_inputs: Dict) -> Dict:
         inputs = self._prepare_inputs(raw_inputs)
@@ -446,6 +324,64 @@ class TransductiveParser(Model):
         )
         return parser_outputs
 
+    def _pprint(self, inputs: Dict, index: int = 0) -> None:
+        logger.info("==== Source-side Input ====")
+        logger.info("source tokens:")
+        source_tokens = inputs["source_tokens"]["source_tokens"][index].tolist()
+        logger.info("\t" + " ".join(map(lambda x: self.vocab.get_token_from_index(x, "source_tokens"), source_tokens)))
+        logger.info("\t" + str(source_tokens))
+        logger.info("source_pos_tags:")
+        source_pos_tags = inputs["source_pos_tags"][index].tolist()
+        logger.info("\t" + " ".join(map(
+            lambda x: self.vocab.get_token_from_index(x, "pos_tags"), source_pos_tags)))
+        logger.info("source_anonymiaztion_tags:")
+        anonymization_tags = inputs["source_anonymization_tags"][index].tolist()
+        logger.info("\t" + str(anonymization_tags))
+
+        logger.info("==== Target-side Input ====")
+        logger.info("target tokens:")
+        target_tokens = inputs["target_tokens"]["target_tokens"][index].tolist()
+        logger.info("\t" + " ".join(map(lambda x: self.vocab.get_token_from_index(x, "target_tokens"), target_tokens)))
+        logger.info("\t" + str(target_tokens))
+        logger.info("target_pos_tags:")
+        target_pos_tags = inputs["target_pos_tags"][index].tolist()
+        logger.info("\t" + " ".join(map(
+            lambda x: self.vocab.get_token_from_index(x, "pos_tags"), target_pos_tags)))
+        logger.info("target_node_indices:")
+        node_indices = inputs["target_node_indices"][index].tolist()
+        logger.info("\t" + str(node_indices))
+
+        logger.info("==== Output ====")
+        logger.info("generation_outputs:")
+        generation_tokens = inputs["generation_outputs"][index].tolist()
+        logger.info("\t" + " ".join(
+            map(lambda x: self.vocab.get_token_from_index(x, "generation_tokens"), generation_tokens)))
+        logger.info("\t" + str(generation_tokens))
+        logger.info("target_copy_indices:")
+        target_copy_indices = inputs["target_copy_indices"][index].tolist()
+        logger.info("\t" + str(target_copy_indices))
+        logger.info("source_copy_indices:")
+        source_copy_indices = inputs["source_copy_indices"][index].tolist()
+        logger.info("\t" + str(source_copy_indices))
+        logger.info("edge_heads:")
+        edge_heads = inputs["edge_heads"][index].tolist()
+        logger.info("\t" + str(edge_heads))
+        logger.info("edge_types:")
+        edge_types = inputs["edge_types"][index].tolist()
+        logger.info("\t" + " ".join(
+            map(lambda x: self.vocab.get_token_from_index(x, "edge_types"), edge_types)))
+
+        logger.info("==== Misc ====")
+        logger.info("target attention map:")
+        target_attention_map = inputs["target_attention_map"][index]
+        logger.info(target_attention_map)
+        logger.info("source attention map:")
+        source_attention_map = inputs["source_attention_map"][index]
+        logger.info(source_attention_map)
+        logger.info("edge head mask:")
+        edge_head_mask = inputs["edge_head_mask"][index]
+        logger.info(edge_head_mask)
+
     def _prepare_decoding_start_state(self, inputs: Dict, encoding_outputs: Dict[str, torch.Tensor]) \
             -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict]:
         batch_size = inputs["source_tokens"]["source_tokens"].size(0)
@@ -468,6 +404,70 @@ class TransductiveParser(Model):
             "instance_meta": inputs["instance_meta"]
         }
         return start_predictions, start_state, auxiliaries
+
+    def _prepare_inputs(self, raw_inputs: Dict) -> Dict:
+        """
+        Prepare inputs as below:
+            source_tokens:          PERSON could help himself
+            source_pos_tags:            NP    MD   VB     PP
+            source_anonymization_tags:   1     0    0      0
+            (source_dynamic_vocab: {0: pad, 1: UNK, 2: PERSON, 3: could, 4: help, 5: himself})
+
+            target_tokens:          <BOS> possible help person PERSON person
+            target_pos_tags:          UNK      UNK   VB    UNK     NP    UNK
+            target_node_indices:        0        1    2      3      4      3
+            (target_dynamic_vocab: {0: UNK, 1: possible, 2: help, 3: person, 4: PERSON})
+
+            generation_outputs:         possible  UNK person  UNK person <EOS>
+            source_copy_indices                1    4      1    2      1     1
+            target_copy_indices:               0    0      0    0      3     0
+            edge_heads:                        0    1      2    3      2     0
+            edge_types:                     root arg0   arg0 name   arg1   pad
+
+            source_attention_map:                   p U P c h h
+                                       PERSON       0 0 1 0 0 0
+                                       could        0 0 0 1 0 0
+                                       help         0 0 0 0 1 0
+                                       himself      0 0 0 0 0 1
+
+            target_attention_map:                   S p h p P
+                                       possible     0 1 0 0 0
+                                       help         0 0 1 0 0
+                                       person       0 0 0 1 0
+                                       Person       0 0 0 0 1
+                                       person       0 0 0 1 0
+        """
+        inputs = raw_inputs.copy()
+        inputs["source_mask"] = get_text_field_mask(raw_inputs["source_tokens"])
+        source_subtoken_ids = raw_inputs.get("source_subtoken_ids", None)
+        if source_subtoken_ids is None:
+            inputs["source_subtoken_ids"] = None
+        else:
+            inputs["source_subtoken_ids"] = source_subtoken_ids.long()
+        source_token_recovery_matrix = raw_inputs.get("source_token_recovery_matrix", None)
+        if source_token_recovery_matrix is None:
+            inputs["source_token_recovery_matrix"] = None
+        else:
+            inputs["source_token_recovery_matrix"] = source_token_recovery_matrix.long()
+
+        # Exclude <BOS>.
+        inputs["generation_outputs"] = raw_inputs["generation_outputs"]["generation_tokens"][:, 1:]
+        inputs["source_copy_indices"] = raw_inputs["source_copy_indices"][:, 1:]
+        inputs["target_copy_indices"] = raw_inputs["target_copy_indices"][:, 1:]
+
+        # [batch, target_seq_length, target_seq_length + 1(sentinel)]
+        inputs["target_attention_map"] = raw_inputs["target_attention_map"][:, 1:]  # exclude UNK
+        # [batch, 1(unk) + source_seq_length, dynamic_vocab_size]
+        # Exclude unk and the last pad.
+        inputs["source_attention_map"] = raw_inputs["source_attention_map"][:, 1:-1]
+
+        inputs["source_dynamic_vocab_size"] = inputs["source_attention_map"].size(2)
+
+        inputs["edge_types"] = raw_inputs["edge_types"]["edge_types"]
+
+        # self._pprint(inputs)
+
+        return inputs
 
     def _prepare_next_inputs(self,
                              predictions: torch.Tensor,
@@ -525,9 +525,6 @@ class TransductiveParser(Model):
                 token = target_dynamic_vocab[index]
                 node_index = index
                 pos_tag = pos_tag_lut.get(token, DEFAULT_OOV_TOKEN)
-
-            # Start from 1 because 0 is reserved for the sentinel.
-            target_dynamic_vocab[i + 1] = token
 
             target_token = TextField([Token(token)], instance_meta["target_token_indexers"])
             token_instances.append(Instance({"target_tokens": target_token}))
@@ -721,14 +718,18 @@ class TransductiveParser(Model):
 
         loss = log_probs[:, 0].sum() / edge_pred_loss["num_nodes"] + edge_pred_loss["loss_per_node"]
 
-        return dict(
+        outputs = dict(
             loss=loss,
-            gold_amr=inputs.get("gold_amr", None),
             nodes=node_predictions,
             node_indices=node_index_predictions,
             edge_heads=edge_head_predictions,
             edge_types=edge_type_predictions
         )
+
+        if "gold_amr" in inputs:
+            outputs["gold_amr"] = inputs["gold_amr"]
+
+        return outputs
 
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
         encoding_outputs = self._encode(

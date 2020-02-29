@@ -125,10 +125,21 @@ class AMRTrainer(Trainer):
         num_validation_batches = math.ceil(val_iterator.get_num_batches(self._validation_data)/num_gpus)
         val_generator_tqdm = Tqdm.tqdm(val_generator,
                                        total=num_validation_batches)
+        batches_this_epoch = 0
+        val_loss = 0
         val_outputs: List[Dict[str, numpy.ndarray]] = []
         for batch_group in val_generator_tqdm:
 
             batch_output = self._validation_forward(batch_group)
+            loss = batch_output.pop("loss", None)
+            if loss is not None:
+                # You shouldn't necessarily have to compute a loss for validation, so we allow for
+                # `loss` to be None.  We need to be careful, though - `batches_this_epoch` is
+                # currently only used as the divisor for the loss function, so we can safely only
+                # count those batches for which we actually have a loss.  If this variable ever
+                # gets used for something else, we might need to change things around a bit.
+                batches_this_epoch += 1
+                val_loss += loss.detach().cpu().numpy()
 
             # Update the description with the latest metrics
             val_metrics = training_util.get_metrics(self.model, 0, 0)
@@ -157,7 +168,7 @@ class AMRTrainer(Trainer):
         if self.smatch_tool_path is not None:
             self._update_validation_smatch_score(val_outputs)
 
-        return 0, 0
+        return val_loss, batches_this_epoch
 
     @classmethod
     def from_params(cls,  # type: ignore
@@ -204,7 +215,7 @@ def _from_params(cls,  # type: ignore
     evaluation_script_path = params.pop("evaluation_script_path", None)
     smatch_tool_path = params.pop("smatch_tool_path", None)
     validation_data_path = params.pop("validation_data_path", None)
-    validation_prediction_path = params.pop("validataion_prediction_path", None)
+    validation_prediction_path = params.pop("validation_prediction_path", None)
 
     if isinstance(cuda_device, list):
         model_device = cuda_device[0]
@@ -255,8 +266,11 @@ def _from_params(cls,  # type: ignore
     log_batch_size_period = params.pop_int("log_batch_size_period", None)
 
     params.assert_empty(cls.__name__)
-    return cls(model, optimizer, iterator,
-               train_data, validation_data,
+    return cls(model=model,
+               optimizer=optimizer,
+               iterator=iterator,
+               train_dataset=train_data,
+               validation_dataset=validation_data,
                evaluation_script_path=evaluation_script_path,
                smatch_tool_path=smatch_tool_path,
                validation_data_path=validation_data_path,

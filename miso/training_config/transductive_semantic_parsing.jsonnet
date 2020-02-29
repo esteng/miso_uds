@@ -195,6 +195,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     beam_size: 5,
     max_decoding_steps: 50,
     target_output_namespace: "generation_tokens",
+    pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
   },
 
