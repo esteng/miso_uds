@@ -9,12 +9,13 @@ EXP_DIR=experiments
 # Import utility functions.
 source ${EXP_DIR}/utils.sh
 
-CHECKPOINT_DIR=ckpt
-TRAINING_CONFIG=miso/training_config/transductive_semantic_parsing.jsonnet
+CHECKPOINT_DIR=debug-ckpt
+TRAINING_CONFIG=miso/training_config/debug_transductive_semantic_parsing.jsonnet
 TEST_DATA=data/AMR/amr_2.0/dev_amr.txt.features.preproc
 
 
 function train() {
+    rm -fr ${CHECKPOINT_DIR}
     log_info "Training a new transductive model for AMR parsing..."
     python -m allennlp.run train \
     --include-package miso.data.dataset_readers \
@@ -36,6 +37,7 @@ function test() {
     --predictor "amr_parsing" \
     --batch-size 64 \
     --cuda-device 0 \
+    --use-dataset-reader \
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
     --include-package miso.predictors \

@@ -34,7 +34,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
   },
   train_data_path: data_dir + "dev_amr.txt.features.preproc",
-  validation_data_path: data_dir + "dev_amr.txt.features.preproc",
+  validation_data_path: null, # data_dir + "dev_amr.txt.features.preproc",
   test_data_path: null,
   datasets_for_vocab_creation: [
     "train"
@@ -55,7 +55,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
   },
 
   model: {
-    type: "transductive_parser",
+    type: "amr_parser",
     bert_encoder: null,
     encoder_token_embedder: {
       token_embedders: {
@@ -226,10 +226,10 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
       weight_decay: 3e-9,
       amsgrad: true,
     },
-    learning_rate_scheduler: {
-      type: "reduce_on_plateau",
-      patience: 10,
-    },
+    # learning_rate_scheduler: {
+    #   type: "reduce_on_plateau",
+    #   patience: 10,
+    # },
     no_grad: [],
     evaluation_script_path: "scripts/amr_parsing_evaluation.sh",
     smatch_tool_path: null, # "smatch_tool",
