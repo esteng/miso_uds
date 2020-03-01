@@ -21,7 +21,7 @@ components for deep learning models.
 </tr>
 <tr>
     <td><b> miso </b></td>
-    <td> The core MISO code. See [README](miso/README.md) for detail. </td>
+    <td> The core MISO code. </td>
 </tr>
 <tr>
     <td><b> scripts </b></td>
@@ -47,10 +47,18 @@ Via conda on macOS:
 ## Contributing
 
 Adding a new model to MISO is basically the same as adding a new AllenNLP model,
-so getting familar with AllenNLP would be very helpful. 
-I recommend you first going over 
+so it would be very helpful to first go over 
 [the AllenNLP tutorials](https://github.com/allenai/allennlp/tree/master/tutorials)
-before moving forward.
+before you proceed.
+
+Typically to add a new model, you'll have to implement four classes.
+
+1. `DatasetReader`, which contains the logic for reading a file of 
+data and producing a stream of `Instance`s (more about those shortly).
+2. `Model`, which is a PyTorch `Module` that takes `Tensor` inputs and produces 
+a dict of outputs (including the training loss you want to optimize).
+3. `Trainer` [Optional], which handles most of the details of training models.
+4. [Optional]
 
 ## Running a Simple Language Model Example
 
