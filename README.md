@@ -4,6 +4,18 @@
 components for deep learning models.
 - MISO is heavily based on [AllenNLP](https://github.com/allenai/allennlp).
 
+## Quick Links
+- [Codebase Overview](#codebase-overview)
+- [Installation](#installation)
+- [Contributing](#contributing)
+  * [The `DatasetReader`](#the--datasetreader-)
+  * [Defining a `Model`](#defining-a--model-)
+  * [Setting up the `Trainer`](#setting-up-the--trainer-)
+  * [Making Predictions](#making-predictions)
+- [Configuration](#configuration)
+- [Running Existing Models](#running-existing-models)
+
+
 ## Codebase Overview
 
 <table>
@@ -141,23 +153,35 @@ for an example.
 
 More examples: [AllenNLP predictors](https://github.com/allenai/allennlp/tree/master/allennlp/predictors)
 
-## Running a Simple Language Model Example
+## Configuration
 
-#### Training
+Most AllenNLP or MISO objects are constructible from JSON-like parameter objects.
+The configuration files are written in [Jsonnet](https://jsonnet.org/), 
+which is a superset of JSON with some nice features around variable substitution.
 
-Example of training (on clsp grid):
-
+If you want to use the same config file approach to the classes you implement,
+you need to register it with a type by providing a decorator like this:
+```python
+@DatasetReader.register("amr")
+class AMRDatasetReader:
+    ...
 ```
-CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m miso.commands.train params/lm.yaml
+Once this code has been run, AllenNLP knows that a dataset reader config with 
+type "amr" refers to this class. Similarly, you need to decorate your model:
+```python
+@DatasetReader.register("amr_parser")
+class AMRParser:
+    ...
 ```
 
-#### Update pre-trained model
+Now the remainder of the configuration is specified in 
+[a jsonnet file](miso/training_config/transductive_semantic_parsing.jsonnet). 
+For the most part it should be pretty straightforward; 
+one novel piece is that Jsonnet allows us to use local variables, 
+which means we can specify experimental parameters all in one place.
 
-To recover (reload) and continue training from an existing model; or to override any
-parameters, the yaml files can be chained by comma, e.g.
+## Running Existing Models
 
-```
-CUDA_VISIBLE_DEVICES=`free-gpu` python -u -m miso.commands.train params/lm.yaml,params/recover.yaml
-```
+- [AMR Parser]()
 
 
