@@ -3,6 +3,8 @@
 - MISO is a deep learning framework used in Blab that contains re-usable 
 components for deep learning models.
 - MISO is heavily based on [AllenNLP](https://github.com/allenai/allennlp).
+- MISO currently requires Python 3.6, PyTorch 1.4.0, and AllenNLP 0.9.0. 
+Check out [requirements.txt](requirements.txt) for more prerequisites.
 
 ## Quick Links
 - [Codebase Overview](#codebase-overview)
