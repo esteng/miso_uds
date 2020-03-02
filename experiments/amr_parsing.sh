@@ -9,7 +9,7 @@ EXP_DIR=experiments
 # Import utility functions.
 source ${EXP_DIR}/utils.sh
 
-CHECKPOINT_DIR=debug-ckpt
+CHECKPOINT_DIR=amr-parsing-ckpt
 TRAINING_CONFIG=miso/training_config/debug_transductive_semantic_parsing.jsonnet
 TEST_DATA=data/AMR/amr_2.0/dev_amr.txt.features.preproc
 
@@ -47,7 +47,7 @@ function test() {
 
 function check_artifacts() {
     if [[ ! -d "data/AMR/amr_2.0" ]]; then
-        tar -zxvf data/AMR/amr_2.0.tgz -C data/AMR/amr_2.0
+        tar -zxvf data/AMR/amr_2.0.tgz -C data/AMR
     fi
     if [[ ! -d "smatch_tool" ]]; then
         git clone https://github.com/ChunchuanLv/amr-evaluation-tool-enhanced.git smatch_tool
