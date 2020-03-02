@@ -16,6 +16,7 @@ Check out [requirements.txt](requirements.txt) for more prerequisites.
   * [Making Predictions](#making-predictions)
 - [Configuration](#configuration)
 - [Running Existing Models](#running-existing-models)
+  * [AMR Parsing](#amr-parsing)
 
 
 ## Codebase Overview
@@ -184,6 +185,16 @@ which means we can specify experimental parameters all in one place.
 
 ## Running Existing Models
 
-- [AMR Parser]()
+### AMR Parsing
 
+#### Training:
+```bash
+experiments/amr_parsing.sh -a train
+```
+
+#### Prediction:
+```bash
+experiments/amr_parsing.sh -a test
+```
+Check out [amr_parsing.sh](experiments/amr_parsing.sh) for more details.
 
