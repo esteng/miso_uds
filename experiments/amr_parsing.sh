@@ -45,6 +45,16 @@ function test() {
 }
 
 
+function check_artifacts() {
+    if [[ ! -d "data/AMR/amr_2.0" ]]; then
+        tar -zxvf data/AMR/amr_2.0.tgz -C data/AMR/amr_2.0
+    fi
+    if [[ ! -d "smatch_tool" ]]; then
+        git clone https://github.com/ChunchuanLv/amr-evaluation-tool-enhanced.git smatch_tool
+    fi
+}
+
+
 function usage() {
 
     echo -e 'usage: amr_parsing.sh [-h] -a action'
@@ -97,6 +107,7 @@ function parse_arguments() {
 function main() {
 
     parse_arguments "$@"
+    check_artifacts
     if [[ "${action}" == "test" ]]; then
         test
     elif [[ "${action}" == "train" ]]; then
