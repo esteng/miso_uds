@@ -20,9 +20,10 @@ from miso.models.transduction_base import Transduction
 from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder
 from miso.modules.decoders import RNNDecoder
 from miso.modules.generators import ExtendedPointerGenerator
-from miso.modules.parsers import DeepTreeParser
+from miso.modules.parsers import DeepTreeParser, DecompTreeParser
 from miso.modules.label_smoothing import LabelSmoothing
 from miso.modules.decoders.attribute_decoder import NodeAttributeDecoder 
+from miso.modules.decoders.edge_decoder import EdgeAttributeDecoder 
 from miso.nn.beam_search import BeamSearch
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
 from miso.metrics.pearson_r import pearson_r
@@ -34,7 +35,6 @@ from miso.metrics.pearson_r import pearson_r
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-
 @Model.register("decomp_parser")
 class DecompParser(Transduction):
 
@@ -44,7 +44,6 @@ class DecompParser(Transduction):
                  bert_encoder: Seq2SeqBertEncoder,
                  encoder_token_embedder: TextFieldEmbedder,
                  encoder_pos_embedding: Embedding,
-                 encoder_anonymization_embedding: Embedding,
                  encoder: Seq2SeqEncoder,
                  # target-side
                  decoder_token_embedder: TextFieldEmbedder,
@@ -52,7 +51,9 @@ class DecompParser(Transduction):
                  decoder_pos_embedding: Embedding,
                  decoder: RNNDecoder,
                  extended_pointer_generator: ExtendedPointerGenerator,
-                 tree_parser: DeepTreeParser,
+                 tree_parser: DecompTreeParser,
+                 node_attribute_module: NodeAttributeDecoder,
+                 edge_attribute_module: EdgeAttributeDecoder,
                  # misc
                  label_smoothing: LabelSmoothing,
                  target_output_namespace: str,
@@ -80,6 +81,8 @@ class DecompParser(Transduction):
                          dropout=dropout,
                          eps=eps)
 
+        self._node_attribute_module=node_attribute_module
+        self._edge_attribute_module=edge_attribute_module
         # source-side
         self._encoder_pos_embedding = encoder_pos_embedding
 
@@ -179,17 +182,39 @@ class DecompParser(Transduction):
                 # like decoder_token_inputs
                 node_attribute_truth = node_attribute_values[:,1:-1,:],
                 node_attribute_mask = node_attribute_mask[:,1:-1,:],
-                edge_attribute_truth = edge_attribute_values[:,1:-1,:],
-                edge_attribute_mask = edge_attribute_mask[:,1:-1,:]
+                edge_attribute_truth = edge_attribute_values[:,:-1,:],
+                edge_attribute_mask = edge_attribute_mask[:,:-1,:]
         ))
 
         return inputs
 
+    def _node_attribute_predict(self, rnn_outputs, tgt_attr, tgt_attr_mask):
+        pred_dict = self._node_attribute_module(rnn_outputs)
+        loss = self._node_attribute_module.compute_loss(pred_dict["pred_attributes"],
+                                                        pred_dict["pred_mask"],
+                                                        tgt_attr, 
+                                                        tgt_attr_mask)
+        return pred_dict, loss
 
+    def _edge_attribute_predict(self, query, 
+                                      key, 
+                                      edge_heads, 
+                                      tgt_attr,
+                                      tgt_attr_mask):
 
+        batch_size = key.size(0)
+        batch_index = torch.arange(0, batch_size).view(batch_size, 1).type_as(edge_heads)
+        # [batch_size, query_length, hidden_size]
+        selected_key = key[batch_index, edge_heads].contiguous()
+        query = query.contiguous()
 
+        pred_dict = self._edge_attribute_module(query, selected_key)
 
-        return encoder_inputs, decoder_inputs, generator_inputs, parser_inputs, attribute_inputs
+        loss = self._edge_attribute_module.compute_loss(pred_dict["pred_attributes"],
+                                                        pred_dict["pred_mask"],
+                                                        tgt_attr,
+                                                        tgt_attr_mask)
+        return pred_dict, loss
 
     @overrides
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
@@ -208,6 +233,7 @@ class DecompParser(Transduction):
             hidden_states=encoding_outputs["final_states"],
             mask=inputs["source_mask"]
         )
+
         node_prediction_outputs = self._extended_pointer_generator(
             inputs=decoding_outputs["attentional_tensors"],
             source_attention_weights=decoding_outputs["source_attention_weights"],
@@ -216,19 +242,27 @@ class DecompParser(Transduction):
             target_attention_map=inputs["target_attention_map"]
         )
 
-        logger.info(decoder_outputs.keys())
-        logger.info(encoder_outputs.keys())
-        sys.exit()
         # compute node attributes
-        node_attributes = self._node_attribute_module(
-            decoder_outputs[""],
-            encoder_outputs[""])
+        node_attribute_outputs = self._node_attribute_predict(
+            decoding_outputs["rnn_outputs"][:,1:-1,:],
+            inputs["node_attribute_truth"],
+            inputs["node_attribute_mask"]
+        )
 
         edge_prediction_outputs = self._parse(
             rnn_outputs=decoding_outputs["rnn_outputs"],
             edge_head_mask=inputs["edge_head_mask"],
             edge_heads=inputs["edge_heads"]
         )
+
+
+        edge_attribute_outputs = self._edge_attribute_predict(
+                edge_prediction_outputs["edge_type_query"],
+                edge_prediction_outputs["edge_type_key"],
+                edge_prediction_outputs["edge_heads"],
+                inputs["edge_attribute_truth"],
+                inputs["edge_attribute_mask"]
+                )
 
         node_pred_loss = self._compute_node_prediction_loss(
             prob_dist=node_prediction_outputs["hybrid_prob_dist"],

@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 
-from miso.modules.linear import BiLinear
-from miso.metrics import ContinuousMetric
+from miso.metrics.continuous_metrics import ContinuousMetric
+from miso.modules.linear.bilinear import BiLinear
 
 class MLP(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, n_layers):
@@ -57,6 +57,8 @@ class EdgeAttributeDecoder(torch.nn.Module):
 
     def forward(self, edge_h, edge_m):
         # do bilinear
+        print(edge_h.shape)
+        print(edge_m.shape)
         attr_output = self.attr_bilinear(edge_h, edge_m)
         mask_output = self.mask_bilinear(edge_h, edge_m)
         # cat in the original as well
@@ -89,7 +91,15 @@ class EdgeAttributeDecoder(torch.nn.Module):
             
 
 
-
+    @classmethod
+    def from_params(cls, params, **kwargs):
+        return cls(params['h_input_dim'],
+                   params['hidden_dim'],
+                   params['n_layers'],
+                   params['output_dim'],
+                   params.get("loss_multiplier", 1),
+                   params.get("loss_function",  torch.nn.MSELoss()),
+                   params.get("share_networks", False))
 
 
 

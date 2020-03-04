@@ -73,7 +73,7 @@ class NodeAttributeDecoder(torch.nn.Module):
         decoder_output: batch, target_len, input_dim
         """
         # get rid of eos
-        output = decoder_output[:,:-1,:] 
+        output = decoder_output
         boolean_output = self.boolean_network(output)
         attr_output = self.attribute_network(output)
 
@@ -99,4 +99,14 @@ class NodeAttributeDecoder(torch.nn.Module):
         self.metrics(mask_loss)
 
         return dict(loss=attr_loss + mask_loss)
-
+    
+    @classmethod
+    def from_params(cls, params, **kwargs):
+        return cls(params['input_dim'], 
+                   params['hidden_dim'], 
+                   params['output_dim'],
+                   params['n_layers'],
+                   params.get("loss_multiplier", 1),
+                   params.get("loss_function",  torch.nn.MSELoss()),
+                   params.get("activation", torch.nn.ReLU()),
+                   params.get("share_networks", False))

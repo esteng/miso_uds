@@ -90,16 +90,11 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
       vocab_namespace: "pos_tags",
       embedding_dim: 50,
     },
-    encoder_anonymization_embedding: {
-      vocab_namespace: "anonymization_tags",
-      # num_embeddings: 2,
-      embedding_dim: 30,
-    },
     encoder: {
       type: "miso_stacked_bilstm",
       batch_first: true,
       stateful: true,
-      input_size: 200 + 50 + 50 + 30,
+      input_size: 200 + 50,
       hidden_size: 256,
       num_layers: 2,
       recurrent_dropout_probability: 0.0,
@@ -141,7 +136,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
     decoder: {
       rnn_cell: {
-        input_size: 200 + 50 + 50 + 50 + 512,
+        input_size: 200 + 50 + 50 + 512,
         hidden_size: 512,
         num_layers: 2,
         recurrent_dropout_probability: 0.0,
@@ -191,6 +186,18 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
         query_vector_dim: 128,
         key_vector_dim: 128,
       },
+    },
+    node_attribute_module: {
+        input_dim: 512,
+        hidden_dim: 200,
+        output_dim: 44,
+        n_layers: 2, 
+    },
+    edge_attribute_module: {
+        h_input_dim: 64,
+        hidden_dim: 200,
+        output_dim: 14,
+        n_layers: 2, 
     },
     label_smoothing: {
         smoothing: 0.0,
