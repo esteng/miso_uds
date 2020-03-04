@@ -114,3 +114,6 @@ archive-ckpts/
 
 .DS_Store
 ._.DS_Store
+
+# vim
+*.swp
