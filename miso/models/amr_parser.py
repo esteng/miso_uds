@@ -655,7 +655,7 @@ class AMRParser(Transduction):
             source_memory_bank=state["source_memory_bank"],
             source_mask=state["source_mask"],
             target_memory_bank=state.get("target_memory_bank", None),
-            decoding_step=auxiliaries["last_decoding_step"] + 1,
+            decoding_step=misc["last_decoding_step"] + 1,
             total_decoding_steps=self._max_decoding_steps,
             input_feed=state.get("input_feed", None),
             hidden_state=hidden_states,
@@ -683,7 +683,7 @@ class AMRParser(Transduction):
         )
         log_probs = (node_prediction_outputs["hybrid_prob_dist"] + self._eps).squeeze(1).log()
 
-        auxiliaries["last_decoding_step"] += 1
+        misc["last_decoding_step"] += 1
 
         return log_probs, state, auxiliaries
 

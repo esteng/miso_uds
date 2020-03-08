@@ -182,7 +182,7 @@ class BeamSearch:
             tracked_auxiliary = auxiliaries[tracked_auxiliary_name]
             # shape: (batch_size, beam_size)
             for beam_index in range(self.beam_size):
-                for i in range(beam_index, len(tracked_auxiliary), step=self.beam_size):
+                for i in range(beam_index, len(tracked_auxiliary), self.beam_size):
                     tracked_auxiliaries[beam_index][i // self.beam_size] = tracked_auxiliary[i]
             return (start_predicted_classes.unsqueeze(-1),
                     tracked_states[-1].unsqueeze(2),
@@ -351,7 +351,7 @@ class BeamSearch:
         tracked_auxiliary = auxiliaries[tracked_auxiliary_name]
         # shape: (batch_size, beam_size)
         for beam_index in range(self.beam_size):
-            for i in range(beam_index, len(tracked_auxiliary), step=self.beam_size):
+            for i in range(beam_index, len(tracked_auxiliary), self.beam_size):
                 tracked_auxiliaries[beam_index][i // self.beam_size] = tracked_auxiliary[i]
 
         return all_predictions, all_tracked_states, last_log_probabilities, tracked_auxiliaries
