@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 import logging
 from collections import OrderedDict
 
@@ -389,7 +389,7 @@ class AMRParser(Transduction):
         logger.info(edge_head_mask)
 
     def _prepare_decoding_start_state(self, inputs: Dict, encoding_outputs: Dict[str, torch.Tensor]) \
-            -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict]:
+            -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, List[Any]], Dict]:
         batch_size = inputs["source_tokens"]["source_tokens"].size(0)
         bos = self.vocab.get_token_index(START_SYMBOL, self._target_output_namespace)
         start_predictions = inputs["source_tokens"]["source_tokens"].new_full((batch_size,), bos)
@@ -404,12 +404,15 @@ class AMRParser(Transduction):
                 (batch_size, self._max_decoding_steps, self._max_decoding_steps + 1))
         }
         auxiliaries = {
+            "target_dynamic_vocabs": inputs["target_dynamic_vocab"]
+        }
+        misc = {
             "batch_size": batch_size,
             "last_decoding_step": -1,  # At <BOS>, we set it to -1.
             "source_dynamic_vocab_size": inputs["source_dynamic_vocab_size"],
             "instance_meta": inputs["instance_meta"]
         }
-        return start_predictions, start_state, auxiliaries
+        return start_predictions, start_state, auxiliaries, misc
 
     @overrides
     def _prepare_inputs(self, raw_inputs: Dict) -> Dict:
@@ -479,6 +482,7 @@ class AMRParser(Transduction):
     def _prepare_next_inputs(self,
                              predictions: torch.Tensor,
                              target_attention_map: torch.Tensor,
+                             target_dynamic_vocabs: List[Dict[int, str]],
                              meta_data: List[Dict],
                              batch_size: int,
                              last_decoding_step: int,
@@ -489,6 +493,7 @@ class AMRParser(Transduction):
         for the next decoding step. Update the target attention map, target dynamic vocab, etc.
         :param predictions: [group_size,]
         :param target_attention_map: [group_size, target_length, target_dynamic_vocab_size].
+        :param target_dynamic_vocabs: a group_size list of target dynamic vocabs.
         :param meta_data: meta data for each instance.
         :param batch_size: int.
         :param last_decoding_step: the decoding step starts from 0, so the last decoding step
@@ -513,7 +518,7 @@ class AMRParser(Transduction):
         for i, index in enumerate(predictions.tolist()):
             instance_meta = meta_data[batch_index(i)]
             pos_tag_lut = instance_meta["pos_tag_lut"]
-            target_dynamic_vocab = instance_meta["target_dynamic_vocab"]
+            target_dynamic_vocab = target_dynamic_vocabs[i]
             # Generation.
             if index < self._vocab_size:
                 token = self.vocab.get_token_from_index(index, self._target_output_namespace)
@@ -537,7 +542,7 @@ class AMRParser(Transduction):
             token_instances.append(Instance({"target_tokens": target_token}))
             node_indices[i] = node_index
             pos_tags[i] = self.vocab.get_token_index(pos_tag, self._pos_tag_namespace)
-            if last_decoding_step != -1:  # At <BOS>, we set the last decoding step to -1.
+            if last_decoding_step != -1:  # For <BOS>, we set the last decoding step to -1.
                 target_attention_map[i, last_decoding_step, node_index] = 1
                 target_dynamic_vocab[node_index] = token
 
@@ -569,6 +574,7 @@ class AMRParser(Transduction):
     def _read_node_predictions(self,
                                predictions: torch.Tensor,
                                meta_data: List[Dict],
+                               target_dynamic_vocabs: List[Dict],
                                source_dynamic_vocab_size: int
                                ) -> Tuple[List[List[str]], List[List[int]], torch.Tensor, torch.Tensor]:
         """
@@ -590,7 +596,7 @@ class AMRParser(Transduction):
             node_indices = []
             instance_meta = meta_data[i]
             source_dynamic_vocab = instance_meta["source_dynamic_vocab"]
-            target_dynamic_vocab = instance_meta["target_dynamic_vocab"]
+            target_dynamic_vocab = target_dynamic_vocabs[i]
             prediction_list = predictions[i].tolist()
             for j, index in enumerate(prediction_list):
                 if index == self._vocab_eos_index:
@@ -621,14 +627,17 @@ class AMRParser(Transduction):
     def _take_one_step_node_prediction(self,
                                        last_predictions: torch.Tensor,
                                        state: Dict[str, torch.Tensor],
-                                       auxiliaries: Dict) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+                                       auxiliaries: Dict[str, List[Any]],
+                                       misc: Dict,
+                                       ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, List[Any]]]:
         inputs = self._prepare_next_inputs(
             predictions=last_predictions,
             target_attention_map=state["target_attention_map"],
-            meta_data=auxiliaries["instance_meta"],
-            batch_size=auxiliaries["batch_size"],
-            last_decoding_step=auxiliaries["last_decoding_step"],
-            source_dynamic_vocab_size=auxiliaries["source_dynamic_vocab_size"]
+            target_dynamic_vocabs=auxiliaries["target_dynamic_vocabs"],
+            meta_data=misc["instance_meta"],
+            batch_size=misc["batch_size"],
+            last_decoding_step=misc["last_decoding_step"],
+            source_dynamic_vocab_size=misc["source_dynamic_vocab_size"]
         )
 
         decoder_inputs = torch.cat([
@@ -646,7 +655,7 @@ class AMRParser(Transduction):
             source_memory_bank=state["source_memory_bank"],
             source_mask=state["source_mask"],
             target_memory_bank=state.get("target_memory_bank", None),
-            decoding_step=auxiliaries["last_decoding_step"] + 1,
+            decoding_step=misc["last_decoding_step"] + 1,
             total_decoding_steps=self._max_decoding_steps,
             input_feed=state.get("input_feed", None),
             hidden_state=hidden_states,
@@ -674,9 +683,9 @@ class AMRParser(Transduction):
         )
         log_probs = (node_prediction_outputs["hybrid_prob_dist"] + self._eps).squeeze(1).log()
 
-        auxiliaries["last_decoding_step"] += 1
+        misc["last_decoding_step"] += 1
 
-        return log_probs, state
+        return log_probs, state, auxiliaries
 
     @overrides
     def _test_forward(self, inputs: Dict) -> Dict:
@@ -689,20 +698,24 @@ class AMRParser(Transduction):
             mask=inputs["source_mask"]
         )
 
-        start_predictions, start_state, auxiliaries = self._prepare_decoding_start_state(inputs, encoding_outputs)
+        start_predictions, start_state, auxiliaries, misc = self._prepare_decoding_start_state(inputs, encoding_outputs)
         # all_predictions: [batch_size, beam_size, max_steps]
         # rnn_outputs: [batch_size, beam_size, max_steps, hidden_vector_dim]
         # log_probs: [batch_size, beam_size]
-        all_predictions, rnn_outputs, log_probs = self._beam_search.search(
+        # target_dynamic_vocabs: [beam_size, batch_size]
+        all_predictions, rnn_outputs, log_probs, target_dynamic_vocabs = self._beam_search.search(
             start_predictions=start_predictions,
             start_state=start_state,
-            step=lambda x, y: self._take_one_step_node_prediction(x, y, auxiliaries),
-            tracked_state_name="rnn_output"
+            auxiliaries=auxiliaries,
+            step=lambda x, y, z: self._take_one_step_node_prediction(x, y, z, misc),
+            tracked_state_name="rnn_output",
+            tracked_auxiliary_name="target_dynamic_vocabs"
         )
         node_predictions, node_index_predictions, edge_head_mask, valid_node_mask = self._read_node_predictions(
             # Remove the last one because we can't get the RNN state for the last one.
             predictions=all_predictions[:, 0, :-1],
             meta_data=inputs["instance_meta"],
+            target_dynamic_vocabs=target_dynamic_vocabs[0],
             source_dynamic_vocab_size=inputs["source_dynamic_vocab_size"]
         )
 

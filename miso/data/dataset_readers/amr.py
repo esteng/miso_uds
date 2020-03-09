@@ -167,10 +167,10 @@ class AMRDatasetReader(DatasetReader):
 
         # Metadata for validation and test.
         field_dict["gold_amr"] = MetadataField(amr)
+        field_dict["target_dynamic_vocab"] = MetadataField(dict())
         field_dict["instance_meta"] = MetadataField(dict(
             pos_tag_lut=list_data["pos_tag_lut"],
             source_dynamic_vocab=list_data["src_copy_vocab"],
-            target_dynamic_vocab={},
             target_token_indexers=self._target_token_indexers,
         ))
 

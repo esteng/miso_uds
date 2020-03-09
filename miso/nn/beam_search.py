@@ -1,4 +1,4 @@
-from typing import List, Callable, Tuple, Dict
+from typing import List, Callable, Tuple, Dict, Any
 import warnings
 
 import torch
@@ -6,7 +6,8 @@ import torch
 from allennlp.common.checks import ConfigurationError
 
 StateType = Dict[str, torch.Tensor]  # pylint: disable=invalid-name
-StepFunctionType = Callable[[torch.Tensor, StateType], Tuple[torch.Tensor, StateType]]  # pylint: disable=invalid-name
+AuxiliaryType = Dict[str, List[Any]]  # pylint: disable=invalid-name
+StepFunctionType = Callable[[torch.Tensor, StateType, AuxiliaryType], Tuple[torch.Tensor, StateType, AuxiliaryType]]  # pylint: disable=invalid-name
 
 
 class BeamSearch:
@@ -43,8 +44,10 @@ class BeamSearch:
     def search(self,
                start_predictions: torch.Tensor,
                start_state: StateType,
+               auxiliaries: AuxiliaryType,
                step: StepFunctionType,
-               tracked_state_name: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+               tracked_state_name: str,
+               tracked_auxiliary_name: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[List[Any]]]:
         """
         Given a starting state and a step function, apply beam search to find the
         most likely target sequences.
@@ -69,6 +72,9 @@ class BeamSearch:
             The initial state passed to the ``step`` function. Each value of the state dict
             should be a tensor of shape ``(batch_size, *)``, where ``*`` means any other
             number of dimensions.
+        auxiliaries: ``AuxiliaryType``
+            The auxiliaries passed to the ``step`` function. Each value of the auxiliary dict
+            should be a list of batch_size items.
         step : ``StepFunctionType``
             A function that is responsible for computing the next most likely tokens,
             given the current state and the predictions from the last time step.
@@ -84,14 +90,17 @@ class BeamSearch:
             ``(group_size, *)``, where ``*`` means any other number of dimensions.
         tracked_state_name: ``str``
             The tracked state name.
+        tracked_auxiliary_name: ``str``
+            The tracked auxiliary name.
 
         Returns
         -------
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[List[Any]]
             Tuple of ``(predictions, tracked_states, log_probabilities)``, where
             ``predictions`` has shape ``(batch_size, beam_size, max_steps)``,
             ``tracked_states`` has shape ``(batch_size, beam_size, max_steps, *)``,
-             and ``log_probabilities`` has shape ``(batch_size, beam_size)``.
+            ``log_probabilities`` has shape ``(batch_size, beam_size)``, and
+            ``tracked_auxiliaries`` has shape ``(beam_size, batch_size)``.
         """
         batch_size = start_predictions.size()[0]
 
@@ -100,6 +109,8 @@ class BeamSearch:
         predictions: List[torch.Tensor] = []
         # List of (batch_size, beam_size, *) tensors.
         tracked_states: List[torch.Tensor] = []
+        # A 2d array: (beam_size, batch_size)
+        tracked_auxiliaries: List[List[Any]] = [[None for _ in range(batch_size)] for _ in range(self.beam_size)]
 
         # List of (batch_size, beam_size) tensors. One for each time step. None for
         # the first.  Stores the index n for the parent prediction, i.e.
@@ -113,7 +124,7 @@ class BeamSearch:
         # beam to `beam_size`^2 candidates from which we will select the top
         # `beam_size` elements for the next iteration.
         # shape: (batch_size, num_classes)
-        start_class_log_probabilities, state = step(start_predictions, start_state)
+        start_class_log_probabilities, state, auxiliaries = step(start_predictions, start_state, auxiliaries)
 
         num_classes = start_class_log_probabilities.size()[1]
 
@@ -151,6 +162,13 @@ class BeamSearch:
                     expand(batch_size, self.beam_size, *last_dims).\
                     reshape(batch_size * self.beam_size, *last_dims)
 
+        # Set the same auxiliaries for each element in the beam.
+        for key, aux in auxiliaries.items():
+            new_aux = []
+            for element in aux:
+                new_aux += [element.copy() for _ in range(self.beam_size)]
+            auxiliaries[key] = new_aux
+
         tracked_state = state[tracked_state_name]
         _, *last_dims = tracked_state.size()
         # shape: [(batch_size, beam_size, *)]
@@ -161,9 +179,16 @@ class BeamSearch:
             warnings.warn("Empty sequences predicted. You may want to increase the beam size or ensure "
                           "your step function is working properly.",
                           RuntimeWarning)
+            # shape: (batch_size * beam_size)
+            tracked_auxiliary = auxiliaries[tracked_auxiliary_name]
+            # shape: (batch_size, beam_size)
+            for beam_index in range(self.beam_size):
+                for i in range(beam_index, len(tracked_auxiliary), self.beam_size):
+                    tracked_auxiliaries[beam_index][i // self.beam_size] = tracked_auxiliary[i]
             return (start_predicted_classes.unsqueeze(-1),
                     tracked_states[-1].unsqueeze(2),
-                    start_top_log_probabilities)
+                    start_top_log_probabilities,
+                    tracked_auxiliaries)
 
         for timestep in range(self.max_steps - 1):
             # shape: (batch_size * beam_size,)
@@ -177,7 +202,7 @@ class BeamSearch:
             # Take a step. This get the predicted log probs of the next classes
             # and updates the state.
             # shape: (batch_size * beam_size, num_classes)
-            class_log_probabilities, state = step(last_predictions, state)
+            class_log_probabilities, state, auxiliaries = step(last_predictions, state, auxiliaries)
 
             # shape: (batch_size * beam_size, num_classes)
             last_predictions_expanded = last_predictions.unsqueeze(-1).expand(
@@ -257,6 +282,14 @@ class BeamSearch:
                         gather(1, expanded_backpointer).\
                         reshape(batch_size * self.beam_size, *last_dims)
 
+            # Keep only the pieces of the auxiliaries corresponding to the
+            # ancestors created this iteration.
+            for key, aux in auxiliaries.items():
+                new_aux = []
+                for ith, indices in enumerate(backpointer.tolist()):
+                    new_aux += [aux[ith * self.beam_size + index].copy() for index in indices]
+                auxiliaries[key] = new_aux
+
             tracked_state = state[tracked_state_name]
             _, *last_dims = tracked_state.size()
             # shape: [(batch_size, beam_size, *)]
@@ -315,4 +348,11 @@ class BeamSearch:
         # shape: (batch_size, beam_size, max_steps, *)
         all_tracked_states = torch.cat(list(reversed(reconstructed_tracked_states)), 2)
 
-        return all_predictions, all_tracked_states, last_log_probabilities
+        # shape: (batch_size * beam_size)
+        tracked_auxiliary = auxiliaries[tracked_auxiliary_name]
+        # shape: (batch_size, beam_size)
+        for beam_index in range(self.beam_size):
+            for i in range(beam_index, len(tracked_auxiliary), self.beam_size):
+                tracked_auxiliaries[beam_index][i // self.beam_size] = tracked_auxiliary[i]
+
+        return all_predictions, all_tracked_states, last_log_probabilities, tracked_auxiliaries
