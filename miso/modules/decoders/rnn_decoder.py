@@ -134,12 +134,12 @@ class RNNDecoder(torch.nn.Module, Registrable):
             input_feed = input_tensor.new_zeros(size=(batch_size, 1, self.hidden_vector_dim))
         if self.use_coverage and coverage is None:
             coverage = input_tensor.new_zeros(size=(batch_size, 1, source_seq_length))
-
         # RNN.
         concat_input = torch.cat([input_tensor, input_feed], 2)
         packed_input = pack_padded_sequence(concat_input, [1] * batch_size, batch_first=True)
         packed_output, hidden_state = self.rnn_cell(packed_input, hidden_state)
         rnn_output, _ = pad_packed_sequence(packed_output, batch_first=True)
+    
 
         # source-side attention.
         source_attention_output = self.source_attention_layer(

@@ -324,6 +324,13 @@ class DecompDatasetReader(DatasetReader):
 
         fields["node_name_list"] = MetadataField(list_data['node_name_list'])
 
+        fields["instance_meta"] = MetadataField(dict(
+            pos_tag_lut=list_data["pos_tag_lut"],
+            source_dynamic_vocab=list_data["src_copy_vocab"],
+            target_dynamic_vocab={},
+            target_token_indexers=self._target_token_indexers,
+        ))
+
 
         return Instance(fields)
 

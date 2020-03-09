@@ -155,7 +155,8 @@ class BeamSearch:
         _, *last_dims = tracked_state.size()
         # shape: [(batch_size, beam_size, *)]
         tracked_states.append(tracked_state.reshape(batch_size, self.beam_size, *last_dims))
-
+        print("start_predicted_classes {start_predicted_classes}")  
+        print("self._end_index {self._end_index}")  
         if self.beam_size == 1 and (start_predicted_classes == self._end_index).all():
             warnings.warn("Empty sequences predicted. You may want to increase the beam size or ensure "
                           "your step function is working properly.",
