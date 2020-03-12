@@ -34,8 +34,8 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 32,
-    order: "sorted",
+    line_limit: 4,
+    order: "inorder",
   },
   train_data_path: data_dir,
   validation_data_path: "dev",
@@ -215,17 +215,17 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 64,
+    batch_size: 4,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 64,
+    batch_size: 4,
   },
 
   trainer: {
     type: "decomp_parsing",
     num_epochs: 120,
-    patience: 20,
+    patience: 120,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -245,6 +245,9 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
     validation_prediction_path: "decomp_validation.txt",
+    semantics_only: "false",
+    drop_syntax: "true",
+    include_attribute_scores: "false",
   },
   random_seed: 1,
   numpy_seed: 1,

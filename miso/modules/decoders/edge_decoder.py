@@ -57,8 +57,6 @@ class EdgeAttributeDecoder(torch.nn.Module):
 
     def forward(self, edge_h, edge_m):
         # do bilinear
-        print(edge_h.shape)
-        print(edge_m.shape)
         attr_output = self.attr_bilinear(edge_h, edge_m)
         mask_output = self.mask_bilinear(edge_h, edge_m)
         # cat in the original as well

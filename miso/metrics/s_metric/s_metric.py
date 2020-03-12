@@ -6,15 +6,31 @@ from __future__ import division
 from typing import List, Dict 
 import random
 import logging
+from tqdm import tqdm
+from collections import namedtuple
 
 from miso.metrics.s_metric.candidate_mappings import CandidateMappings
 from miso.metrics.s_metric.weight_dict import WeightDict
 from miso.metrics.s_metric.bleu import BLEU
 from miso.metrics.s_metric import utils
 from miso.metrics.s_metric import constants
+from miso.metrics.s_metric.repr import Triple, FloatTriple
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 
 (NORMAL, TEST1, TEST2) = ("normal", "sanity-check-with-smatch", "PredPatt-test")
+
+compute_args = {"seed": 0,
+                "iter_num": 1,
+                "compute_instance": True,
+                "compute_attribute": True,
+                "compute_relation": True,
+                "log_level": None,
+                "sanity_check": False,
+                "mode": NORMAL
+                }
+
+ComputeTup = namedtuple("compute_args", sorted(compute_args))
+c_args = ComputeTup(**compute_args)
 
 
 class S(object):
@@ -578,20 +594,20 @@ def compute_s_metric(true_graphs: List[DecompGraph],
 
         best_mapping, best_match_num, test_triple_num, gold_triple_num = S.get_best_match(
                 instances1, attributes1, relations1,
-                instances2, attributes2, relations2, args)
+                instances2, attributes2, relations2, c_args)
 
-        #print('instances')
-        #print([str(x) for x in instances1])
-        #print([str(x) for x in instances2])
+        print('instances')
+        print([str(x) for x in instances1])
+        print([str(x) for x in instances2])
 
-        #print('relations')
-        #print([str(x) for x in relations1])
-        #print([str(x) for x in relations2])
+        print('relations')
+        print([str(x) for x in relations1])
+        print([str(x) for x in relations2])
 
-        #print(best_mapping)
-        #print(f"match {best_match_num}")
-        #print(f"test {test_triple_num}")
-        #print(f"gold {gold_triple_num}")
+        print(best_mapping)
+        print(f"match {best_match_num}")
+        print(f"test {test_triple_num}")
+        print(f"gold {gold_triple_num}")
 
         total_match_num += best_match_num
         total_test_num += test_triple_num

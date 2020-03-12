@@ -139,7 +139,7 @@ class DecompDatasetReader(DatasetReader):
     
     def spot_check(self, graph, list_data):
         self.pprint_graph(graph, True)
-        print(" ".join(list_data['tgt_tokens']))
+        #print(" ".join(list_data['tgt_tokens']))
         #print([(x[0], x[1].keys())  for x in zip(list_data['tgt_tokens'], list_data['tgt_attributes'])])
         print(list_data['head_indices'])
         print(["{}:{}".format(list_data['tgt_tokens'][i+1], list_data['tgt_tokens'][head + 1]) for i, head in enumerate(list_data['head_indices'])])
@@ -158,14 +158,12 @@ class DecompDatasetReader(DatasetReader):
 
         max_tgt_length = None if self.eval else 60
         d = DecompGraph(graph, drop_syntax = self.drop_syntax, order = self.order)
-
         list_data = d.get_list_data(
              bos=START_SYMBOL, 
              eos=END_SYMBOL, 
              bert_tokenizer = self._tokenizer, 
              max_tgt_length = max_tgt_length, 
              semantics_only = self.semantics_only)
-
         if list_data is None:
             return None
 
@@ -226,6 +224,7 @@ class DecompDatasetReader(DatasetReader):
             tokens=[Token(x) for x in list_data["tgt_tokens_to_generate"]],
             token_indexers=self._generation_token_indexers
         )
+
         fields["target_copy_indices"] = SequenceLabelField(
             labels=list_data["tgt_copy_indices"],
             sequence_field=fields["generation_outputs"],
@@ -323,11 +322,11 @@ class DecompDatasetReader(DatasetReader):
         )
 
         fields["node_name_list"] = MetadataField(list_data['node_name_list'])
+        fields["target_dynamic_vocab"] = MetadataField(dict())
 
         fields["instance_meta"] = MetadataField(dict(
             pos_tag_lut=list_data["pos_tag_lut"],
             source_dynamic_vocab=list_data["src_copy_vocab"],
-            target_dynamic_vocab={},
             target_token_indexers=self._target_token_indexers,
         ))
 

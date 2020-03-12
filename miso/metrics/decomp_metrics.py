@@ -34,13 +34,28 @@ class DecompAttrMetrics(Metric):
     def __call__(self,
                  pred_attr: torch.Tensor,
                  true_attr: torch.Tensor,
+                 pred_mask: torch.Tensor,
+                 true_mask: torch.Tensor,
                  node_or_edge: str 
                  ) -> None:
         # Attributes
         if node_or_edge is not "both":
-            flat_pred = pred_attr.reshape((-1)).detach().numpy()
-            flat_true = true_attr.reshape((-1)).detach().numpy()
+            pred_mask = torch.gt(pred_mask, 0)
+            true_mask = torch.gt(true_mask, 0)
+            #print(f"pred_attr {pred_attr}") 
+            #print(f"pred_mask {pred_mask}") 
+            #print(f"true_attr {true_attr}")
+            #print(f"true_mask {true_mask}") 
+
+            flat_pred = (pred_attr * pred_mask).reshape((-1)).detach().numpy()
+            flat_true = (true_attr * true_mask).reshape((-1)).detach().numpy()
+
+            # for train time pearson, only look where attributes predicted
+            #flat_pred = flat_pred[flat_true!=0]
+            #flat_true = flat_true[flat_true!=0]
+    
             pearson_r, __ = pearsonr(flat_pred, flat_true)
+
             flat_pred_threshed = np.greater(flat_pred, 0.0)
             flat_true_threshed = np.greater(flat_true, 0.0)
             tot = flat_true.shape[0]

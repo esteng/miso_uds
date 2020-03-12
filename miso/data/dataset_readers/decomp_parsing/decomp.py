@@ -610,7 +610,7 @@ class DecompGraph():
         src_token_subword_index = None
         src_copy_vocab = SourceCopyVocabulary(src_tokens)
         src_copy_indices = src_copy_vocab.index_sequence(tgt_tokens)
-        src_copy_indices = [x if x > 1 else 0 for x in src_copy_indices]
+        #src_copy_indices = [x if x > 1 else 0 for x in src_copy_indices]
         src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
         if len(src_pos_tags) == 0:
             # happens when predicting from just a sentence
@@ -646,13 +646,14 @@ class DecompGraph():
         # tgt_tokens_to_generate
         tgt_tokens_to_generate = tgt_tokens[:]
         # Replace all tokens that can be copied with OOV.
-
         for i, index in enumerate(src_copy_indices):
             if index != src_copy_vocab.token_to_idx[src_copy_vocab.unk_token]:
                 tgt_tokens_to_generate[i] = DEFAULT_OOV_TOKEN
+
         for i, index in enumerate(tgt_copy_indices):
             if index != 0:
                 tgt_tokens_to_generate[i] = DEFAULT_OOV_TOKEN
+
 
         return {
             "tgt_tokens" : tgt_tokens,
@@ -693,15 +694,21 @@ class DecompGraph():
             output of decomp predictor
         """
         nodes = output['nodes']
-        pa_heads = output['heads']
-        pa_labels = output['head_labels']
+        pa_heads = output['edge_heads']
+        pa_labels = output['edge_types']
         pa_attr = output['edge_attributes']
 
         node_attr = output['node_attributes']
         edge_attr = output['edge_attributes']
         
-        copy_inds = output['copy_indicators']
-        corefs = output['corefs']
+        #copy_inds = output['copy_indicators']
+        corefs = output['node_indices']
+
+        #logger.info("Prediction output ") 
+        #logger.info(f"\tnodes: {nodes}") 
+        #logger.info(f"\theads {pa_heads}") 
+        #logger.info(f"\tlabels {pa_labels}") 
+        #logger.info(f"\tcorefs {corefs}") 
 
         seq = [json.dumps(d) for d in node_attr]
         graph = nx.DiGraph()
@@ -727,7 +734,7 @@ class DecompGraph():
 
         # 2. add semantic edges and syntactic edges
         done_heads = [] 
-
+        #logger.info(f"before loop pa_labels {pa_labels} pa_heads {pa_heads} pa_attr {pa_attr}") 
         for i, (label, head, attr) in enumerate(zip(pa_labels, pa_heads, pa_attr)):
 
             # add the edge between the original coreferrent node and new head, if they're repeated 
@@ -742,6 +749,8 @@ class DecompGraph():
 
             if label != "EMPTY":
             # both parent and child are semantics nodes 
+                #logger.info(f"attr is {attr}") 
+                #logger.info(f"semrl is {attr['semrel']}")
                 attr['semrel'] = label
                 graph.nodes[parent]['type'] = 'semantics'
                 graph.nodes[child]['type'] = 'semantics'

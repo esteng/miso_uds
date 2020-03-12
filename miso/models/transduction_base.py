@@ -239,7 +239,6 @@ class Transduction(Model):
                 **kwargs) -> Dict:
         # [batch, num_tokens, embedding_size]
         encoder_inputs = [self._encoder_token_embedder(tokens)]
-        logger.info(f"\nsubtoken_ids {subtoken_ids}") 
         if subtoken_ids is not None and self._bert_encoder is not None:
             bert_embeddings = self._bert_encoder(
                 input_ids=subtoken_ids,
@@ -252,8 +251,6 @@ class Transduction(Model):
         encoder_inputs = self._dropout(encoder_inputs)
 
         # [batch, num_tokens, encoder_output_size]
-        logger.info(f"encoder inputs {encoder_inputs.shape}")
-        logger.info(f"mask {mask.shape}")
         encoder_outputs = self._encoder(encoder_inputs, mask)
         encoder_outputs = self._dropout(encoder_outputs)
         # A tuple of (state, memory) with shape [num_layers, batch, encoder_output_size]

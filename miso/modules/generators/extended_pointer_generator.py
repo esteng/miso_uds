@@ -3,6 +3,8 @@ from typing import Dict, Optional
 from overrides import overrides
 import torch
 from allennlp.common.registrable import Registrable
+import logging
+logger = logging.getLogger(__name__)
 
 
 class ExtendedPointerGenerator(torch.nn.Module, Registrable):
@@ -58,7 +60,10 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
         batch_size, target_length, _ = inputs.size()
 
         # Soft switch: [batch_size, target_length, num_switches].
-        p = torch.nn.functional.softmax(self.switch_linear(inputs), dim=1)
+        logger.info(f"switch inputs {inputs[0,0:4,0:4]}") 
+        p = torch.nn.functional.softmax(self.switch_linear(inputs), dim=2)
+        logger.info(f"switch linear {self.switch_linear(inputs)}" ) 
+        logger.info(f"p gen, source, copy {p[0,0,:]}")
         generation_switch = p[:, :, 0].unsqueeze(2)
         source_copy_switch = p[:, :, 1].unsqueeze(2)
         target_copy_switch = p[:, :, 2].unsqueeze(2)
@@ -71,6 +76,8 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
         vocab_prob_part = torch.mul(vocab_prob_dist, generation_switch.expand_as(vocab_prob_dist))
         hybrid_prob_dist.append(vocab_prob_part)
 
+        logger.info(f"generation hybrid_prob {torch.sum(hybrid_prob_dist[0])}") 
+
         # Source-side copy.
         if self._source_copy:
             # [batch_size, target_length, source_dynamic_vocab_size]
@@ -79,6 +86,7 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
                 source_copy_prob_dist, source_copy_switch.expand_as(source_copy_prob_dist)
             )
             hybrid_prob_dist.append(source_copy_prob_part)
+        logger.info(f"source copy hybrid_prob {torch.sum(hybrid_prob_dist[1])}") 
 
         # Target-side copy.
         if self._target_copy:
@@ -88,5 +96,6 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
                 target_copy_prob_dist, target_copy_switch.expand_as(target_copy_prob_dist)
             )
             hybrid_prob_dist.append(target_copy_prob_part)
+        logger.info(f"target copy hybrid_prob {torch.sum(hybrid_prob_dist[2])}") 
 
         return {"hybrid_prob_dist": torch.cat(hybrid_prob_dist, dim=2)}

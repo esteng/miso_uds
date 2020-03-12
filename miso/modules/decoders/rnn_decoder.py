@@ -10,6 +10,9 @@ from allennlp.modules import InputVariationalDropout
 from miso.modules.stacked_lstm import StackedLstm
 from miso.modules.attention_layers import AttentionLayer
 
+import logging 
+logger = logging.getLogger(__name__) 
+
 
 class RNNDecoder(torch.nn.Module, Registrable):
 

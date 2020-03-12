@@ -34,7 +34,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
   },
   train_data_path: data_dir + "dev_amr.txt.features.preproc",
-  validation_data_path: null, # data_dir + "dev_amr.txt.features.preproc",
+  validation_data_path: data_dir + "dev_amr.txt.features.preproc",
   test_data_path: null,
   datasets_for_vocab_creation: [
     "train"
@@ -218,7 +218,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
-    cuda_device: 0,
+    cuda_device: -1,
     num_serialized_models_to_keep: 5,
     validation_metric: "-loss",
     optimizer: {

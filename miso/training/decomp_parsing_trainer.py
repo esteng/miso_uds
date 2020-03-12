@@ -3,6 +3,7 @@ import math
 import numpy
 import subprocess
 from typing import Dict, Optional, List, Tuple, Iterable
+import sys
 
 import torch
 
@@ -37,32 +38,44 @@ class DecompTrainer(Trainer):
     def __init__(self,
                  validation_data_path: str,
                  validation_prediction_path: str,
+                 semantics_only: bool,
+                 drop_syntax: bool,
+                 include_attribute_scores: bool,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.validation_data_path = validation_data_path
         self.validation_prediction_path = validation_prediction_path
+        self.semantics_only=semantics_only
+        self.drop_syntax=drop_syntax
+        self.include_attribute_scores=include_attribute_scores
 
-    def _update_validation_s_score(self, instances: List[Dict[str, numpy.ndarray]]):
+    def _update_validation_s_score(self, pred_instances: List[Dict[str, numpy.ndarray]],
+                                         true_instances):
         """Write the validation output in pkl format, and compute the S score."""
         logger.info("Computing S")
-        print(f"computing S") 
-        print(instances)
-        sys.exit()
-        true_graphs = [inst.graph.metadata for inst in instances]
-        pred_graphs = None
 
-        try:
-            ret = compute_s_metric()
+        for batch in true_instances:
+            assert(len(batch) == 1)
 
-            self.model.validation_s_precision = float(ret[0]) * 100
-            self.model.validation_s_recall = float(ret[1]) * 100
-            self.model.validation_s_f1 = float(ret[2]) * 100
-        except Exception as e:
-            logger.info('Exception threw out when computing smatch.')
-            logger.error(e, exc_info=True)
-            self.model.validation_smatch_precision = 0
-            self.model.validation_smatch_recall = 0
-            self.model.validation_smatch_f1 = 0
+        true_graphs = [true_inst for batch in true_instances for true_inst in batch[0]['graph'] ]
+        true_sents = [true_inst for batch in true_instances for true_inst in batch[0]['src_tokens_str']]
+        pred_graphs = [DecompGraph.from_prediction(pred_inst) for pred_inst in pred_instances]
+
+        #try:
+        ret = compute_s_metric(true_graphs, pred_graphs, true_sents, 
+                               self.semantics_only, 
+                               self.drop_syntax, 
+                               self.include_attribute_scores)
+
+        self.model.validation_s_precision = float(ret[0]) * 100
+        self.model.validation_s_recall = float(ret[1]) * 100
+        self.model.validation_s_f1 = float(ret[2]) * 100
+        #except Exception as e:
+        #    logger.info('Exception threw out when computing smatch.')
+        #    logger.error(e, exc_info=True)
+        #    self.model.validation_smatch_precision = 0
+        #    self.model.validation_smatch_recall = 0
+        #    self.model.validation_smatch_f1 = 0
 
     def _validation_forward(self, batch_group: List[TensorDict]) \
             -> TensorDict:
@@ -106,8 +119,10 @@ class DecompTrainer(Trainer):
                                        total=num_validation_batches)
         batches_this_epoch = 0
         val_loss = 0
+        val_true_instances  = []
         val_outputs: List[Dict[str, numpy.ndarray]] = []
         for batch_group in val_generator_tqdm:
+            val_true_instances.append(batch_group)
 
             batch_output = self._validation_forward(batch_group)
             loss = batch_output.pop("loss", None)
@@ -139,13 +154,14 @@ class DecompTrainer(Trainer):
                     value = value.detach().cpu().numpy()
                 for instance_output, batch_element in zip(instance_separated_output, value):
                     instance_output[name] = batch_element
+
             val_outputs += instance_separated_output
 
         # Now restore the original parameter values.
         if self._moving_average is not None:
             self._moving_average.restore()
 
-        self._update_validation_s_score(val_outputs)
+        self._update_validation_s_score(val_outputs, val_true_instances)
 
         return val_loss, batches_this_epoch
 
@@ -193,6 +209,10 @@ def _from_params(cls,  # type: ignore
 
     validation_data_path = params.pop("validation_data_path", None)
     validation_prediction_path = params.pop("validation_prediction_path", None)
+
+    semantics_only = params.pop("semantics_only", False)
+    drop_syntax = params.pop("drop_syntax", True)
+    include_attribute_scores = params.pop("include_attribute_scores", False)
 
     if isinstance(cuda_device, list):
         model_device = cuda_device[0]
@@ -250,6 +270,9 @@ def _from_params(cls,  # type: ignore
                validation_dataset=validation_data,
                validation_data_path=validation_data_path,
                validation_prediction_path=validation_prediction_path,
+               semantics_only=semantics_only,
+               drop_syntax=drop_syntax,
+               include_attribute_scores=include_attribute_scores,
                patience=patience,
                validation_metric=validation_metric,
                validation_iterator=validation_iterator,

@@ -174,4 +174,6 @@ class AMRDatasetReader(DatasetReader):
             target_token_indexers=self._target_token_indexers,
         ))
 
+        print(Instance(field_dict))
+        sys.exit()
         return Instance(field_dict)

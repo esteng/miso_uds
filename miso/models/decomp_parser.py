@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 import logging
 from collections import OrderedDict
 
@@ -146,21 +146,27 @@ class DecompParser(Transduction):
     def _take_one_step_node_prediction(self,
                                        last_predictions: torch.Tensor,
                                        state: Dict[str, torch.Tensor],
-                                       auxiliaries: Dict) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+                                       auxiliaries: Dict[str, List[Any]],
+                                       misc: Dict,
+                                       ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, List[Any]]]:
+        
+        #logger.info(f"last pred {last_predictions}") 
         inputs = self._prepare_next_inputs(
             predictions=last_predictions,
             target_attention_map=state["target_attention_map"],
-            meta_data=auxiliaries["instance_meta"],
-            batch_size=auxiliaries["batch_size"],
-            last_decoding_step=auxiliaries["last_decoding_step"],
-            source_dynamic_vocab_size=auxiliaries["source_dynamic_vocab_size"]
+            target_dynamic_vocabs=auxiliaries["target_dynamic_vocabs"],
+            meta_data=misc["instance_meta"],
+            batch_size=misc["batch_size"],
+            last_decoding_step=misc["last_decoding_step"],
+            source_dynamic_vocab_size=misc["source_dynamic_vocab_size"]
         )
 
+        #logger.info(f"tokens so far {inputs['tokens']['target_tokens']}") 
+        #logger.info(f"nodes so far {inputs['node_indices']}") 
 
         decoder_inputs = torch.cat([
             self._decoder_token_embedder(inputs["tokens"]),
             self._decoder_node_index_embedding(inputs["node_indices"]),
-            #self._decoder_pos_embedding(inputs["pos_tags"])
         ], dim=2)
 
         hidden_states = (
@@ -174,12 +180,18 @@ class DecompParser(Transduction):
             source_memory_bank=state["source_memory_bank"],
             source_mask=state["source_mask"],
             target_memory_bank=state.get("target_memory_bank", None),
-            decoding_step=auxiliaries["last_decoding_step"] + 1,
+            decoding_step=misc["last_decoding_step"] + 1,
             total_decoding_steps=self._max_decoding_steps,
             input_feed=state.get("input_feed", None),
             hidden_state=hidden_states,
             coverage=state.get("coverage", None)
         )
+        
+        logger.info(f"in shape {decoder_inputs.shape}") 
+        logger.info(f"in {decoder_inputs[0,0:4,0:4]}") 
+        logger.info(f"oout {decoding_outputs['rnn_output'][0,0:4,0:4]}") 
+        #logger.info(f"out memory {state.get('target_memory_bank', None) }") 
+
 
         state["input_feed"] = decoding_outputs["attentional_tensor"]
         state["hidden_state_1"] = decoding_outputs["hidden_state"][0].permute(1, 0, 2)
@@ -194,6 +206,7 @@ class DecompParser(Transduction):
                 [state["target_memory_bank"], decoding_outputs["attentional_tensor"]], 1
             )
 
+        to_print = decoding_outputs["attentional_tensor"][0,0:10,0:10]
         node_prediction_outputs = self._extended_pointer_generator(
             inputs=decoding_outputs["attentional_tensor"],
             source_attention_weights=decoding_outputs["source_attention_weights"],
@@ -203,13 +216,26 @@ class DecompParser(Transduction):
         )
         log_probs = (node_prediction_outputs["hybrid_prob_dist"] + self._eps).squeeze(1).log()
 
-        auxiliaries["last_decoding_step"] += 1
+        misc["last_decoding_step"] += 1
 
-        return log_probs, state
+        logger.info(f"log probs {log_probs[0, 0:10]}") 
+
+        return log_probs, state, auxiliaries
+
+    def _read_edge_predictions(self,
+                               edge_predictions: Dict[str, torch.Tensor]) -> Tuple[List[List[int]], List[List[str]]]:
+        edge_head_predictions = edge_predictions["edge_heads"].tolist()
+        edge_type_predictions = []
+        for edge_types in edge_predictions["edge_types"].tolist():
+            edge_type_predictions.append([
+                self.vocab.get_token_from_index(edge_type, self._edge_type_namespace) for edge_type in edge_types]
+            )
+        return edge_head_predictions, edge_type_predictions
 
     def _read_node_predictions(self,
                                predictions: torch.Tensor,
                                meta_data: List[Dict],
+                               target_dynamic_vocabs: List[Dict],
                                source_dynamic_vocab_size: int
                                ) -> Tuple[List[List[str]], List[List[int]], torch.Tensor, torch.Tensor]:
         """
@@ -231,7 +257,7 @@ class DecompParser(Transduction):
             node_indices = []
             instance_meta = meta_data[i]
             source_dynamic_vocab = instance_meta["source_dynamic_vocab"]
-            target_dynamic_vocab = instance_meta["target_dynamic_vocab"]
+            target_dynamic_vocab = target_dynamic_vocabs[i]
             prediction_list = predictions[i].tolist()
             for j, index in enumerate(prediction_list):
                 if index == self._vocab_eos_index:
@@ -300,6 +326,12 @@ class DecompParser(Transduction):
         edge_attribute_values = edge_attribute_stack[0,:,:,:].squeeze(0)
         edge_attribute_mask = edge_attribute_stack[1,:,:,:].squeeze(0)
 
+        if len(node_attribute_values.shape) == 2:
+            node_attribute_values = node_attribute_values.unsqueeze(0)
+            node_attribute_mask = node_attribute_mask.unsqueeze(0)
+            edge_attribute_values = edge_attribute_values.unsqueeze(0)
+            edge_attribute_mask = edge_attribute_mask.unsqueeze(0)
+
         inputs.update(dict(
                 # like decoder_token_inputs
                 node_attribute_truth = node_attribute_values[:,1:-1,:],
@@ -326,19 +358,23 @@ class DecompParser(Transduction):
                 (batch_size, self._max_decoding_steps, self._max_decoding_steps + 1))
         }
         auxiliaries = {
+            "target_dynamic_vocabs": inputs["target_dynamic_vocab"]
+        }
+        misc = {
             "batch_size": batch_size,
             "last_decoding_step": -1,  # At <BOS>, we set it to -1.
             "source_dynamic_vocab_size": inputs["source_dynamic_vocab_size"],
             "instance_meta": inputs["instance_meta"]
         }
 
-        print(f"prepared first input hidden_state_1 {start_state['hidden_state_1'].shape}")
-        print(f"prepared first input hidden_state_2 {start_state['hidden_state_2'].shape}")
-        return start_predictions, start_state, auxiliaries
+        #print(f"prepared first input hidden_state_1 {start_state['hidden_state_1'].shape}")
+        #print(f"prepared first input hidden_state_2 {start_state['hidden_state_2'].shape}")
+        return start_predictions, start_state, auxiliaries, misc
 
     def _prepare_next_inputs(self,
                              predictions: torch.Tensor,
                              target_attention_map: torch.Tensor,
+                             target_dynamic_vocabs: List[Dict[int, str]],
                              meta_data: List[Dict],
                              batch_size: int,
                              last_decoding_step: int,
@@ -349,6 +385,7 @@ class DecompParser(Transduction):
         for the next decoding step. Update the target attention map, target dynamic vocab, etc.
         :param predictions: [group_size,]
         :param target_attention_map: [group_size, target_length, target_dynamic_vocab_size].
+        :param target_dynamic_vocabs: a group_size list of target dynamic vocabs.
         :param meta_data: meta data for each instance.
         :param batch_size: int.
         :param last_decoding_step: the decoding step starts from 0, so the last decoding step
@@ -373,7 +410,7 @@ class DecompParser(Transduction):
         for i, index in enumerate(predictions.tolist()):
             instance_meta = meta_data[batch_index(i)]
             pos_tag_lut = instance_meta["pos_tag_lut"]
-            target_dynamic_vocab = instance_meta["target_dynamic_vocab"]
+            target_dynamic_vocab = target_dynamic_vocabs[i]
             # Generation.
             if index < self._vocab_size:
                 token = self.vocab.get_token_from_index(index, self._target_output_namespace)
@@ -397,7 +434,7 @@ class DecompParser(Transduction):
             token_instances.append(Instance({"target_tokens": target_token}))
             node_indices[i] = node_index
             pos_tags[i] = self.vocab.get_token_index(pos_tag, self._pos_tag_namespace)
-            if last_decoding_step != -1:  # At <BOS>, we set the last decoding step to -1.
+            if last_decoding_step != -1:  # For <BOS>, we set the last decoding step to -1.
                 target_attention_map[i, last_decoding_step, node_index] = 1
                 target_dynamic_vocab[node_index] = token
 
@@ -418,15 +455,24 @@ class DecompParser(Transduction):
 
     def _node_attribute_predict(self, rnn_outputs, tgt_attr, tgt_attr_mask):
         pred_dict = self._node_attribute_module(rnn_outputs)
-        loss = self._node_attribute_module.compute_loss(pred_dict["pred_attributes"],
-                                                        pred_dict["pred_mask"],
-                                                        tgt_attr, 
-                                                        tgt_attr_mask)
-        self._decomp_metrics(pred_dict["pred_attributes"],
-                                         tgt_attr, 
-                                         "node")
+        if tgt_attr is not None:
+            loss = self._node_attribute_module.compute_loss(pred_dict["pred_attributes"],
+                                                            pred_dict["pred_mask"],
+                                                            tgt_attr, 
+                                                            tgt_attr_mask)
 
-        return {"pred_dict": pred_dict, "loss": loss["loss"]}
+            self._decomp_metrics(pred_dict["pred_attributes"],
+                                 pred_dict["pred_mask"],
+                                 tgt_attr, 
+                                 tgt_attr_mask,
+                                 "node"
+                                 )
+
+            loss = loss['loss']
+        else:
+            loss = -1.0000
+
+        return {"pred_dict": pred_dict, "loss": loss}
 
     def _edge_attribute_predict(self, query, 
                                       key, 
@@ -442,15 +488,24 @@ class DecompParser(Transduction):
 
         pred_dict = self._edge_attribute_module(query, selected_key)
 
-        loss = self._edge_attribute_module.compute_loss(pred_dict["pred_attributes"],
-                                                        pred_dict["pred_mask"],
-                                                        tgt_attr,
-                                                        tgt_attr_mask)
+        if tgt_attr is not None:
+            loss = self._edge_attribute_module.compute_loss(pred_dict["pred_attributes"],
+                                                            pred_dict["pred_mask"],
+                                                            tgt_attr,
+                                                            tgt_attr_mask)
 
-        self._decomp_metrics(pred_dict["pred_attributes"],
-                                         tgt_attr, 
-                                         "edge")
-        return {"pred_dict": pred_dict, "loss": loss["loss"]}
+            self._decomp_metrics(pred_dict["pred_attributes"],
+                                 tgt_attr, 
+                                 pred_dict["pred_mask"],
+                                 tgt_attr_mask,
+                                 "edge"
+                                 )
+
+            loss = loss['loss']
+        else:
+            loss = -1.0000
+
+        return {"pred_dict": pred_dict, "loss": loss}
 
     @overrides
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
@@ -461,6 +516,7 @@ class DecompParser(Transduction):
             token_recovery_matrix=inputs["source_token_recovery_matrix"],
             mask=inputs["source_mask"]
         )
+
         decoding_outputs = self._decode(
             tokens=inputs["target_tokens"],
             node_indices=inputs["target_node_indices"],
@@ -470,6 +526,7 @@ class DecompParser(Transduction):
             mask=inputs["source_mask"]
         )
 
+        to_print = decoding_outputs["attentional_tensors"][0,0:10,0:10]
         node_prediction_outputs = self._extended_pointer_generator(
             inputs=decoding_outputs["attentional_tensors"],
             source_attention_weights=decoding_outputs["source_attention_weights"],
@@ -491,7 +548,6 @@ class DecompParser(Transduction):
             edge_heads=inputs["edge_heads"]
         )
 
-
         edge_attribute_outputs = self._edge_attribute_predict(
                 edge_prediction_outputs["edge_type_query"],
                 edge_prediction_outputs["edge_type_key"],
@@ -499,7 +555,6 @@ class DecompParser(Transduction):
                 inputs["edge_attribute_truth"],
                 inputs["edge_attribute_mask"]
                 )
-
 
         node_pred_loss = self._compute_node_prediction_loss(
             prob_dist=node_prediction_outputs["hybrid_prob_dist"],
@@ -520,11 +575,14 @@ class DecompParser(Transduction):
             valid_node_mask=inputs["valid_node_mask"]
         )
 
+        #logger.info(f"node_pred_loss {node_pred_loss['loss_per_node']}\n edge_pred_loss {edge_pred_loss['loss_per_node']}\n\
+                    #node_attribute_loss {node_attribute_outputs['loss']}\n edge_attribute loss {edge_attribute_outputs['loss']}")
+
         loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
                node_attribute_outputs['loss'] + edge_attribute_outputs['loss']
 
         # compute combined pearson 
-        self._decomp_metrics(None, None, "both")
+        self._decomp_metrics(None, None, None, None, "both")
 
         return dict(loss=loss)
 
@@ -538,21 +596,33 @@ class DecompParser(Transduction):
             mask=inputs["source_mask"]
         )
 
-        start_predictions, start_state, auxiliaries = self._prepare_decoding_start_state(inputs, encoding_outputs)
+        start_predictions, start_state, auxiliaries, misc = self._prepare_decoding_start_state(inputs, encoding_outputs)
+
         # all_predictions: [batch_size, beam_size, max_steps]
         # rnn_outputs: [batch_size, beam_size, max_steps, hidden_vector_dim]
         # log_probs: [batch_size, beam_size]
-        all_predictions, rnn_outputs, log_probs = self._beam_search.search(
+
+    
+        all_predictions, rnn_outputs, log_probs, target_dynamic_vocabs = self._beam_search.search(
             start_predictions=start_predictions,
             start_state=start_state,
-            step=lambda x, y: self._take_one_step_node_prediction(x, y, auxiliaries),
-            tracked_state_name="rnn_output"
+            auxiliaries=auxiliaries,
+            step=lambda x, y, z: self._take_one_step_node_prediction(x, y, z, misc),
+            tracked_state_name="rnn_output",
+            tracked_auxiliary_name="target_dynamic_vocabs"
         )
+
         node_predictions, node_index_predictions, edge_head_mask, valid_node_mask = self._read_node_predictions(
             # Remove the last one because we can't get the RNN state for the last one.
             predictions=all_predictions[:, 0, :-1],
             meta_data=inputs["instance_meta"],
+            target_dynamic_vocabs=target_dynamic_vocabs[0],
             source_dynamic_vocab_size=inputs["source_dynamic_vocab_size"]
+        )
+
+        node_attribute_outputs = self._node_attribute_predict(
+            rnn_outputs[:,1:-1,:],
+            None, None
         )
 
         edge_predictions = self._parse(
@@ -562,6 +632,13 @@ class DecompParser(Transduction):
         )
 
         edge_head_predictions, edge_type_predictions = self._read_edge_predictions(edge_predictions)
+
+        edge_attribute_outputs = self._edge_attribute_predict(
+                edge_predictions["edge_type_query"],
+                edge_predictions["edge_type_key"],
+                edge_predictions["edge_heads"],
+                None, None
+                )
 
         edge_pred_loss = self._compute_edge_prediction_loss(
             edge_head_ll=edge_predictions["edge_head_ll"],
@@ -575,12 +652,23 @@ class DecompParser(Transduction):
 
         loss = -log_probs[:, 0].sum() / edge_pred_loss["num_nodes"] + edge_pred_loss["loss_per_node"]
 
+        logger.info("test time") 
+        logger.info(f"node_predictions {node_predictions}") 
+        logger.info(f"node_indices {node_index_predictions}") 
+        logger.info(f"edge_heads {edge_head_predictions}") 
+        logger.info(f"edge_types {edge_type_predictions}") 
+        #sys.exit()
+
         outputs = dict(
             loss=loss,
             nodes=node_predictions,
             node_indices=node_index_predictions,
             edge_heads=edge_head_predictions,
-            edge_types=edge_type_predictions
+            edge_types=edge_type_predictions,
+            node_attributes=node_attribute_outputs['pred_dict']['pred_attributes'],
+            node_attributes_mask=node_attribute_outputs['pred_dict']['pred_mask'],
+            edge_attributes=edge_attribute_outputs['pred_dict']['pred_attributes'],
+            edge_attributes_mask=edge_attribute_outputs['pred_dict']['pred_mask'],
         )
 
         #if "gold_amr" in inputs:

@@ -12,7 +12,7 @@
 #######################################
 function cecho () {
 
-    declare -A COLORS;
+    declare -a COLORS;
     COLORS=(\
         ['black']='\E[0;47m'\
         ['red']='\E[0;31m'\
