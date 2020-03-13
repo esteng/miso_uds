@@ -150,7 +150,6 @@ class DecompParser(Transduction):
                                        misc: Dict,
                                        ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, List[Any]]]:
         
-        #logger.info(f"last pred {last_predictions}") 
         inputs = self._prepare_next_inputs(
             predictions=last_predictions,
             target_attention_map=state["target_attention_map"],
@@ -160,9 +159,6 @@ class DecompParser(Transduction):
             last_decoding_step=misc["last_decoding_step"],
             source_dynamic_vocab_size=misc["source_dynamic_vocab_size"]
         )
-
-        #logger.info(f"tokens so far {inputs['tokens']['target_tokens']}") 
-        #logger.info(f"nodes so far {inputs['node_indices']}") 
 
         decoder_inputs = torch.cat([
             self._decoder_token_embedder(inputs["tokens"]),
@@ -187,10 +183,6 @@ class DecompParser(Transduction):
             coverage=state.get("coverage", None)
         )
         
-        logger.info(f"in shape {decoder_inputs.shape}") 
-        logger.info(f"in {decoder_inputs[0,0:4,0:4]}") 
-        logger.info(f"oout {decoding_outputs['rnn_output'][0,0:4,0:4]}") 
-        #logger.info(f"out memory {state.get('target_memory_bank', None) }") 
 
 
         state["input_feed"] = decoding_outputs["attentional_tensor"]
@@ -218,7 +210,6 @@ class DecompParser(Transduction):
 
         misc["last_decoding_step"] += 1
 
-        logger.info(f"log probs {log_probs[0, 0:10]}") 
 
         return log_probs, state, auxiliaries
 
@@ -575,9 +566,6 @@ class DecompParser(Transduction):
             valid_node_mask=inputs["valid_node_mask"]
         )
 
-        #logger.info(f"node_pred_loss {node_pred_loss['loss_per_node']}\n edge_pred_loss {edge_pred_loss['loss_per_node']}\n\
-                    #node_attribute_loss {node_attribute_outputs['loss']}\n edge_attribute loss {edge_attribute_outputs['loss']}")
-
         loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
                node_attribute_outputs['loss'] + edge_attribute_outputs['loss']
 
@@ -620,8 +608,9 @@ class DecompParser(Transduction):
             source_dynamic_vocab_size=inputs["source_dynamic_vocab_size"]
         )
 
+
         node_attribute_outputs = self._node_attribute_predict(
-            rnn_outputs[:,1:-1,:],
+            rnn_outputs[:,:,1:-1,:],
             None, None
         )
 
@@ -652,13 +641,6 @@ class DecompParser(Transduction):
 
         loss = -log_probs[:, 0].sum() / edge_pred_loss["num_nodes"] + edge_pred_loss["loss_per_node"]
 
-        logger.info("test time") 
-        logger.info(f"node_predictions {node_predictions}") 
-        logger.info(f"node_indices {node_index_predictions}") 
-        logger.info(f"edge_heads {edge_head_predictions}") 
-        logger.info(f"edge_types {edge_type_predictions}") 
-        #sys.exit()
-
         outputs = dict(
             loss=loss,
             nodes=node_predictions,
@@ -670,8 +652,5 @@ class DecompParser(Transduction):
             edge_attributes=edge_attribute_outputs['pred_dict']['pred_attributes'],
             edge_attributes_mask=edge_attribute_outputs['pred_dict']['pred_mask'],
         )
-
-        #if "gold_amr" in inputs:
-        #    outputs["gold_amr"] = inputs["gold_amr"]
 
         return outputs

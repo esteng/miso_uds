@@ -42,6 +42,24 @@ function test() {
     --include-package miso.metrics
 }
 
+function eval() {
+    log_info "Evaluating a transductive model for decomp parsing..."
+    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    output_file=${CHECKPOINT_DIR}/test.pred.txt
+    export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
+    echo ${PYTHONPATH}
+    python -m miso.commands.s_score eval \
+    ${model_file} ${TEST_DATA} \
+    --predictor "decomp_parsing" \
+    --batch-size 1 \
+    --use-dataset-reader \
+    --line-limit 2 \
+    --cuda-device -1 \
+    --include-package miso.data.dataset_readers \
+    --include-package miso.models \
+    --include-package miso.predictors \
+    --include-package miso.metrics
+}
 
 
 function usage() {
@@ -103,6 +121,8 @@ function main() {
     elif [[ "${action}" == "all" ]]; then
         train
         test
+    elif [[ "${action}" == "eval" ]]; then
+        eval
     fi
 }
 

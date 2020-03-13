@@ -34,7 +34,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 4,
+    line_limit: 2,
     order: "inorder",
   },
   train_data_path: data_dir,
@@ -224,8 +224,8 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_parsing",
-    num_epochs: 120,
-    patience: 120,
+    num_epochs: 250,
+    patience: 250,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -247,7 +247,6 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     validation_prediction_path: "decomp_validation.txt",
     semantics_only: "false",
     drop_syntax: "true",
-    include_attribute_scores: "false",
   },
   random_seed: 1,
   numpy_seed: 1,

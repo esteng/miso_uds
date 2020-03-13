@@ -40,7 +40,7 @@ class DecompTrainer(Trainer):
                  validation_prediction_path: str,
                  semantics_only: bool,
                  drop_syntax: bool,
-                 include_attribute_scores: bool,
+                 include_attribute_scores: bool = False,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.validation_data_path = validation_data_path
@@ -67,9 +67,11 @@ class DecompTrainer(Trainer):
                                self.drop_syntax, 
                                self.include_attribute_scores)
 
-        self.model.validation_s_precision = float(ret[0]) * 100
-        self.model.validation_s_recall = float(ret[1]) * 100
-        self.model.validation_s_f1 = float(ret[2]) * 100
+
+        logger.info("coming out of compute {ret}") 
+        self.model.val_s_precision = float(ret[0]) * 100
+        self.model.val_s_recall = float(ret[1]) * 100
+        self.model.val_s_f1 = float(ret[2]) * 100
         #except Exception as e:
         #    logger.info('Exception threw out when computing smatch.')
         #    logger.error(e, exc_info=True)

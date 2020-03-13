@@ -57,19 +57,11 @@ class DecompParsingPredictor(Predictor):
     def dump_line(self, outputs: JsonDict) -> str:
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
         pred_graph = DecompGraph.from_prediction(outputs)
+        #print(pred_graph)
+        #print(type(pred_graph))
+        #print(pred_graph.nodes)
+        #sys.exit()
         return pred_graph
-
-    #@overrides
-    #def _maybe_print_to_console_and_file(self,
-    #                                     index: int,
-    #                                     prediction: DecompGraph, 
-    #                                     model_input: str = None) -> None:
-    #    if self._output_file is None:
-    #        #raise AssertionError("output pkl file must be given") 
-    #        pass
-    #    else:
-    #        with open(self._output_file, "wb") as f1:
-    #            pkl.dump(prediction, f1)
 
 
     @contextmanager

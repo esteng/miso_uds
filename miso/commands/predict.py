@@ -10,6 +10,7 @@ from allennlp.common.util import lazy_groups_of
 from allennlp.models.archival import load_archive
 from allennlp.predictors.predictor import Predictor, JsonDict
 from allennlp.data import Instance
+from allennlp.commands.predict import _PredictManager
 
 def _predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)
@@ -46,9 +47,9 @@ class _ReturningPredictManager(_PredictManager):
                                                        None,
                                                        batch_size,
                                                        False,
-                                                       has_dataset_reader,
-                                                       beam_size,
-                                                       line_limit = line_limit)
+                                                       has_dataset_reader)
+        self.beam_size = beam_size
+        self.line_limit = line_limit 
 
     def run(self):
         has_reader = self._dataset_reader is not None

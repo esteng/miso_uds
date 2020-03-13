@@ -3,6 +3,7 @@ import json
 import sys
 import logging
 from collections import defaultdict, Counter, namedtuple
+from typing import List, Dict
 
 import networkx as nx
 import numpy as np
@@ -11,7 +12,6 @@ import spacy
 from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
-
 from miso.data.dataset_readers.amr_parsing.amr.utils.prepare_istog_instance import is_english_punct
 
 from decomp.semantics.uds import UDSGraph
@@ -34,6 +34,50 @@ NODE_ATTRIBUTES = [re.compile("wordsense.*"),
                    re.compile("genericity.*"),
                    re.compile("factuality.*"),
                    re.compile("time.*")]
+
+def parse_attributes(attr_list: List, mask_list: List, ontology: List) -> Dict : 
+    """
+    parses slices of predicted attribute/mask matrices into a dictionary
+    with the ontology as keys and the attributes as values if the mask value is > 0.5. 
+    Lists given per node (i.e. attr_list is the list of attribute values predicted for a single
+    node) 
+
+    Parameters
+        attr_list: List
+                a list of predicted attribute values where each 
+                index corresponds to an ontology key 
+        mask_list: List
+                a list of predicted mask values 
+                (does attribute apply to the node?)
+        ontology: List
+                the node/edge attribute ontology used 
+    Returns:
+        to_ret: Dict
+            a dict with ontology labels as keys and attribute
+            values as values, where k,v pairs only included if 
+            mask value > 0.5 (i.e. attribute applies) 
+    """
+    if mask_list is None:
+        assert(len(attr_list) == len(ontology))
+        return {k:v for k,v in zip(ontology, attr_list)}
+
+    def sigmoid(x):
+        return 1/(1+np.exp(-x))
+
+    assert(len(attr_list) == len(ontology))
+    assert(len(mask_list) == len(ontology))
+    to_ret = {}
+
+    for k, attr_v, mask_v in zip(ontology, attr_list, mask_list):
+        mask_val = sigmoid(mask_v)
+        if mask_val > 0.5:
+            # upper and lower bound 
+            if attr_v > 0:
+                attr_v = min(3, attr_v)
+            if attr_v < 0:
+                attr_v = max(-3, attr_v)
+            to_ret[k] = attr_v
+    return to_ret 
 
 class DecompGraph():
 
@@ -682,6 +726,8 @@ class DecompGraph():
             "arbor_graph": arbor_graph,
             "node_name_list": node_name_list
         }
+
+
     
     @classmethod
     def from_prediction(cls, output):
@@ -694,32 +740,38 @@ class DecompGraph():
             output of decomp predictor
         """
         nodes = output['nodes']
-        pa_heads = output['edge_heads']
-        pa_labels = output['edge_types']
-        pa_attr = output['edge_attributes']
+        edge_heads = output['edge_heads']
+        edge_labels = output['edge_types']
 
-        node_attr = output['node_attributes']
+        node_attr = output['node_attributes'][0]
         edge_attr = output['edge_attributes']
+        node_mask = output['node_attributes_mask'][0]
+        edge_mask = output['edge_attributes_mask']
+
+        assert(len(output['node_attributes']) == 1)
+        # add empty for root 
+        node_attr = [{}] + [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))]
+        edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
         
         #copy_inds = output['copy_indicators']
         corefs = output['node_indices']
 
         #logger.info("Prediction output ") 
         #logger.info(f"\tnodes: {nodes}") 
-        #logger.info(f"\theads {pa_heads}") 
-        #logger.info(f"\tlabels {pa_labels}") 
+        #logger.info(f"\theads {edge_heads}") 
+        #logger.info(f"\tlabels {edge_labels}") 
         #logger.info(f"\tcorefs {corefs}") 
-
-        seq = [json.dumps(d) for d in node_attr]
         graph = nx.DiGraph()
         
         real_node_mapping = {}
+
+        #logger.info(f"lens: node {len(nodes)} attr {len(node_attr)} corefs {len(corefs)}") 
         # Steps
         # 1. add all nodes and get node mapping
         for i, (node, attr, coref) in enumerate(zip(nodes, node_attr, corefs)):
-            if int(coref) - 1 != i:
+            if int(coref)  != i:
                 # node is a copy of a previous node, need to adjust heads, etc. 
-                real_node_mapping[i] = int(coref) - 1
+                real_node_mapping[i] = int(coref) 
                 # don't need to add the node
                 continue
 
@@ -732,10 +784,11 @@ class DecompGraph():
             attr['type'] = 'semantics'
             graph.add_node(node_id, **attr)
 
+
         # 2. add semantic edges and syntactic edges
         done_heads = [] 
-        #logger.info(f"before loop pa_labels {pa_labels} pa_heads {pa_heads} pa_attr {pa_attr}") 
-        for i, (label, head, attr) in enumerate(zip(pa_labels, pa_heads, pa_attr)):
+        assert(len(edge_labels)  == len(edge_heads) == len(edge_attr))
+        for i, (label, head, attr) in enumerate(zip(edge_labels, edge_heads, edge_attr)):
 
             # add the edge between the original coreferrent node and new head, if they're repeated 
             try:
@@ -749,7 +802,6 @@ class DecompGraph():
 
             if label != "EMPTY":
             # both parent and child are semantics nodes 
-                #logger.info(f"attr is {attr}") 
                 #logger.info(f"semrl is {attr['semrel']}")
                 attr['semrel'] = label
                 graph.nodes[parent]['type'] = 'semantics'

@@ -17,6 +17,8 @@ from miso.metrics.s_metric import constants
 from miso.metrics.s_metric.repr import Triple, FloatTriple
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 
+logger = logging.getLogger(__name__) 
+
 (NORMAL, TEST1, TEST2) = ("normal", "sanity-check-with-smatch", "PredPatt-test")
 
 compute_args = {"seed": 0,
@@ -545,6 +547,7 @@ class S(object):
             test_triple_num += len(relation1)
             gold_triple_num += len(relation2)
 
+
         return best_mapping, best_match_num, test_triple_num, gold_triple_num
 
 
@@ -554,9 +557,6 @@ def normalize(item):
     """
     item = item.lower()
     return item
-
-
-
 
 def compute_s_metric(true_graphs: List[DecompGraph],
                      pred_graphs: List[DecompGraph],
@@ -596,24 +596,24 @@ def compute_s_metric(true_graphs: List[DecompGraph],
                 instances1, attributes1, relations1,
                 instances2, attributes2, relations2, c_args)
 
-        print('instances')
-        print([str(x) for x in instances1])
-        print([str(x) for x in instances2])
+        #print('instances')
+        #print([str(x) for x in instances1])
+        #print([str(x) for x in instances2])
 
         print('relations')
         print([str(x) for x in relations1])
         print([str(x) for x in relations2])
 
-        print(best_mapping)
-        print(f"match {best_match_num}")
-        print(f"test {test_triple_num}")
-        print(f"gold {gold_triple_num}")
+        #print(best_mapping)
+        #print(f"match {best_match_num}")
+        #print(f"test {test_triple_num}")
+        #print(f"gold {gold_triple_num}")
 
         total_match_num += best_match_num
         total_test_num += test_triple_num
         total_gold_num += gold_triple_num
 
+    print(f"total match {total_match_num} total_test {total_test_num} total gold {total_gold_num}") 
     precision, recall, best_f_score = utils.compute_f(
         total_match_num, total_test_num, total_gold_num)
-
     return precision, recall, best_f_score
