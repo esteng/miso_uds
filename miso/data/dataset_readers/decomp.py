@@ -330,7 +330,6 @@ class DecompDatasetReader(DatasetReader):
             target_token_indexers=self._target_token_indexers,
         ))
 
-
         return Instance(fields)
 
 

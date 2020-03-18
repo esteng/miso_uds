@@ -47,8 +47,8 @@ class DecompAttrMetrics(Metric):
             #print(f"true_attr {true_attr}")
             #print(f"true_mask {true_mask}") 
 
-            flat_pred = (pred_attr * pred_mask).reshape((-1)).detach().numpy()
-            flat_true = (true_attr * true_mask).reshape((-1)).detach().numpy()
+            flat_pred = (pred_attr * pred_mask).reshape((-1)).cpu().detach().numpy()
+            flat_true = (true_attr * true_mask).reshape((-1)).cpu().detach().numpy()
 
             # for train time pearson, only look where attributes predicted
             #flat_pred = flat_pred[flat_true!=0]

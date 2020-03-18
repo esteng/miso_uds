@@ -748,7 +748,6 @@ class DecompGraph():
         node_mask = output['node_attributes_mask'][0]
         edge_mask = output['edge_attributes_mask']
 
-        assert(len(output['node_attributes']) == 1)
         # add empty for root 
         node_attr = [{}] + [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))]
         edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]

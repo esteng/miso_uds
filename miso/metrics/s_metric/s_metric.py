@@ -600,9 +600,9 @@ def compute_s_metric(true_graphs: List[DecompGraph],
         #print([str(x) for x in instances1])
         #print([str(x) for x in instances2])
 
-        print('relations')
-        print([str(x) for x in relations1])
-        print([str(x) for x in relations2])
+        #print('relations')
+        #print([str(x) for x in relations1])
+        #print([str(x) for x in relations2])
 
         #print(best_mapping)
         #print(f"match {best_match_num}")
@@ -613,7 +613,7 @@ def compute_s_metric(true_graphs: List[DecompGraph],
         total_test_num += test_triple_num
         total_gold_num += gold_triple_num
 
-    print(f"total match {total_match_num} total_test {total_test_num} total gold {total_gold_num}") 
+    #print(f"total match {total_match_num} total_test {total_test_num} total gold {total_gold_num}") 
     precision, recall, best_f_score = utils.compute_f(
         total_match_num, total_test_num, total_gold_num)
     return precision, recall, best_f_score

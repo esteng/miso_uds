@@ -51,6 +51,7 @@ class DecompTrainer(Trainer):
 
     def _update_validation_s_score(self, pred_instances: List[Dict[str, numpy.ndarray]],
                                          true_instances):
+        sys.exit()
         """Write the validation output in pkl format, and compute the S score."""
         logger.info("Computing S")
 

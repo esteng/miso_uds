@@ -108,11 +108,19 @@ class Transduction(Model):
         :param gold_edge_types: [batch_size, target_length].
         :param valid_node_mask: [batch_size, target_length].
         """
+
+        logger.info(f"pred_edge_heads {pred_edge_heads[0]}")
+        logger.info(f"gold_edge_heads {gold_edge_heads[0]}")
+        logger.info(f"pred_edge_types {pred_edge_types[0]}")
+        logger.info(f"gold_edge_types {gold_edge_types[0]}")
+        logger.info(f"valid_node_mask {valid_node_mask[0]}")
         # Index the log-likelihood (ll) of gold edge heads and types.
         batch_size, target_length, _ = edge_head_ll.size()
         batch_indices = torch.arange(0, batch_size).view(batch_size, 1).type_as(gold_edge_heads)
         node_indices = torch.arange(0, target_length).view(1, target_length) \
             .expand(batch_size, target_length).type_as(gold_edge_heads)
+
+        logger.info(f"edge_head_ll.shape {edge_head_ll.shape}") 
         gold_edge_head_ll = edge_head_ll[batch_indices, node_indices, gold_edge_heads]
         gold_edge_type_ll = edge_type_ll[batch_indices, node_indices, gold_edge_types]
         # Set the ll of invalid nodes to 0.
@@ -120,6 +128,14 @@ class Transduction(Model):
         valid_node_mask = valid_node_mask.bool()
         gold_edge_head_ll.masked_fill_(~valid_node_mask, 0)
         gold_edge_type_ll.masked_fill_(~valid_node_mask, 0)
+
+        logger.info(f"gold_edge_head_ll {gold_edge_head_ll.sum()} gold_edge_type_ll {gold_edge_type_ll.sum()}") 
+        #logger.info(f"gold_edge_head_ll {gold_edge_head_ll.shape} {gold_edge_head_ll}") 
+        logger.info(f"gold_edge_head_ll {torch.argmin(gold_edge_head_ll[0])}") 
+
+        lower_bound = torch.min(gold_edge_head_ll) * edge_head_ll.shape[1] 
+        logger.info(f"gold_edge_head_ll {gold_edge_head_ll.sum()} lower bound {lower_bound} ") 
+
         # Negative log-likelihood.
         loss = -(gold_edge_head_ll.sum() + gold_edge_type_ll.sum())
         # Update metrics.

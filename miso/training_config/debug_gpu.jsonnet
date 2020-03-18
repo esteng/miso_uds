@@ -1,5 +1,5 @@
-local data_dir = "train";
-local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
+local data_dir = "dev";
+local glove_embeddings = "//exp/estengel/miso/glove.840B.300d.zip";
 
 {
   dataset_reader: {
@@ -34,7 +34,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 13,
+    line_limit: 2,
     order: "inorder",
   },
   train_data_path: data_dir,
@@ -66,8 +66,8 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
         source_tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
-          # pretrained_file: glove_embeddings,
-          embedding_dim: 200,
+          pretrained_file: glove_embeddings,
+          embedding_dim: 300,
           trainable: true,
         },
         source_token_characters: {
@@ -94,7 +94,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
       type: "miso_stacked_bilstm",
       batch_first: true,
       stateful: true,
-      input_size: 200 + 50,
+      input_size: 300 + 50,
       hidden_size: 256,
       num_layers: 2,
       recurrent_dropout_probability: 0.0,
@@ -105,8 +105,8 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
         target_tokens: {
           type: "embedding",
           vocab_namespace: "target_tokens",
-          # pretrained_file: glove_embeddings,
-          embedding_dim: 200,
+          pretrained_file: glove_embeddings,
+          embedding_dim: 300,
           trainable: true,
         },
         target_token_characters: {
@@ -127,7 +127,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
     decoder_node_index_embedding: {
       # vocab_namespace: "node_indices",
-      num_embeddings: 200,
+      num_embeddings: 300,
       embedding_dim: 50,
     },
     decoder_pos_embedding: {
@@ -136,7 +136,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
     decoder: {
       rnn_cell: {
-        input_size: 200 + 50 + 50 + 512,
+        input_size: 300 + 50 + 50 + 512,
         hidden_size: 512,
         num_layers: 2,
         recurrent_dropout_probability: 0.0,
@@ -211,11 +211,11 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
   },
 
   iterator: {
-    type: "basic",
+    type: "bucket",
     # TODO: try to sort by target tokens.
-    #sorting_keys: [["source_tokens", "num_tokens"]],
-    #padding_noise: 0.0,
-    batch_size: 1,
+    sorting_keys: [["source_tokens", "num_tokens"]],
+    padding_noise: 0.0,
+    batch_size: 4,
   },
   validation_iterator: {
     type: "basic",
@@ -229,7 +229,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
-    cuda_device: -1,
+    cuda_device: 0,
     num_serialized_models_to_keep: 5,
     validation_metric: "-loss",
     optimizer: {
