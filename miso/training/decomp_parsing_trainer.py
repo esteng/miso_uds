@@ -51,7 +51,6 @@ class DecompTrainer(Trainer):
 
     def _update_validation_s_score(self, pred_instances: List[Dict[str, numpy.ndarray]],
                                          true_instances):
-        sys.exit()
         """Write the validation output in pkl format, and compute the S score."""
         logger.info("Computing S")
 
@@ -62,23 +61,14 @@ class DecompTrainer(Trainer):
         true_sents = [true_inst for batch in true_instances for true_inst in batch[0]['src_tokens_str']]
         pred_graphs = [DecompGraph.from_prediction(pred_inst) for pred_inst in pred_instances]
 
-        #try:
         ret = compute_s_metric(true_graphs, pred_graphs, true_sents, 
                                self.semantics_only, 
                                self.drop_syntax, 
                                self.include_attribute_scores)
 
-
-        logger.info("coming out of compute {ret}") 
         self.model.val_s_precision = float(ret[0]) * 100
         self.model.val_s_recall = float(ret[1]) * 100
         self.model.val_s_f1 = float(ret[2]) * 100
-        #except Exception as e:
-        #    logger.info('Exception threw out when computing smatch.')
-        #    logger.error(e, exc_info=True)
-        #    self.model.validation_smatch_precision = 0
-        #    self.model.validation_smatch_recall = 0
-        #    self.model.validation_smatch_f1 = 0
 
     def _validation_forward(self, batch_group: List[TensorDict]) \
             -> TensorDict:

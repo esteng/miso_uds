@@ -698,6 +698,11 @@ class DecompGraph():
             if index != 0:
                 tgt_tokens_to_generate[i] = DEFAULT_OOV_TOKEN
 
+        # TODO remove later 
+        # Bug fix attempt 1: increase by 1 everything, set first to sentinel 0 tok 
+        head_indices = [x + 1 for x in head_indices]
+        head_indices[0] = 0
+
 
         return {
             "tgt_tokens" : tgt_tokens,
@@ -741,6 +746,9 @@ class DecompGraph():
         """
         nodes = output['nodes']
         edge_heads = output['edge_heads']
+        edge_heads = [x-1 for x in edge_heads]
+        edge_heads[0] = 0
+
         edge_labels = output['edge_types']
 
         node_attr = output['node_attributes'][0]

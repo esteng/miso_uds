@@ -7,7 +7,6 @@ from allennlp.common.registrable import Registrable
 from allennlp.nn.util import masked_log_softmax
 from miso.modules.attention import Attention
 
-
 class DeepTreeParser(torch.nn.Module, Registrable):
 
     def __init__(self,

@@ -1,4 +1,4 @@
-local data_dir = "train";
+local data_dir = "dev";
 local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
 
 {
@@ -34,7 +34,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 13,
+    line_limit: 2,
     order: "inorder",
   },
   train_data_path: data_dir,
@@ -215,7 +215,7 @@ local glove_embeddings = "/export/ssd/sheng/data/glove/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     #sorting_keys: [["source_tokens", "num_tokens"]],
     #padding_noise: 0.0,
-    batch_size: 1,
+    batch_size: 2,
   },
   validation_iterator: {
     type: "basic",

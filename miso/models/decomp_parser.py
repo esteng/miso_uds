@@ -500,16 +500,9 @@ class DecompParser(Transduction):
 
     @overrides
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
-        logger.info(f"INPUT IS {[' '.join(x) for x in inputs['src_tokens_str']]}") 
-        logger.info(f"INPUT IS {[x for x in inputs['tgt_tokens_str']]}") 
 
         input_tokens = inputs['tgt_tokens_str'][0]
         heads = [x for x in list(inputs['edge_heads'][0].detach().numpy())]
-        logger.info(f"heads {heads}") 
-        logger.info(f"input zipped {[x for x in zip(input_tokens, heads)]}") 
-
-        logger.info(f"edge types {inputs['edge_types']}") 
-        logger.info(f"edge heads {inputs['edge_heads']}") 
 
         encoding_outputs = self._encode(
             tokens=inputs["source_tokens"],
@@ -576,16 +569,11 @@ class DecompParser(Transduction):
             valid_node_mask=inputs["valid_node_mask"]
         )
 
-        logger.info(f"loss composed of node pred {node_pred_loss['loss_per_node']} edge pred {edge_pred_loss['loss_per_node']} node attr {node_attribute_outputs['loss']} edge attr {edge_attribute_outputs['loss']}") 
-
         loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
                node_attribute_outputs['loss'] + edge_attribute_outputs['loss']
 
         # compute combined pearson 
         self._decomp_metrics(None, None, None, None, "both")
-
-
-        logger.info("\n".join(["" for i in range(10)]))
         return dict(loss=loss)
 
 
