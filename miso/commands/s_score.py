@@ -137,6 +137,11 @@ class SScore(Subcommand):
 
         subparser.add_argument("--line-limit", type=int, default=None)
 
+        subparser.add_argument("--json-output-file", type=str, required=False,
+                                help="optionally specify a path to output json dict") 
+
+        subparser.add_argument("--oracle", action = "store_true") 
+
         subparser.set_defaults(func=_construct_and_predict)
 
         return subparser
@@ -145,8 +150,11 @@ def _construct_and_predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)
     args.predictor = predictor
     scorer = Scorer.from_params(args)
-    p, r, f1 = scorer.predict_and_compute()
-    print(f"Precision: {p}, Recall: {r}, F1: {f1}") 
+    if args.oracle:
+        scorer.predict_and_save_oracle()
+    else:
+        p, r, f1 = scorer.predict_and_compute()
+        print(f"Precision: {p}, Recall: {r}, F1: {f1}") 
 
 class Scorer:
     """
@@ -163,7 +171,9 @@ class Scorer:
                 semantics_only = False,
                 drop_syntax = True,
                 line_limit = None,
-                include_attribute_scores = False):
+                include_attribute_scores = False,
+                oracle = False,
+                json_output_file = None):
 
         self.load_path = load_path
         if self.load_path is not None:
@@ -179,6 +189,20 @@ class Scorer:
         self.drop_syntax = drop_syntax
         self.line_limit = line_limit
         self.include_attribute_scores = include_attribute_scores
+        self.oracle = oracle
+        self.json_output_file = json_output_file
+
+        
+        self.manager = _ReturningPredictManager(self.predictor,
+                                    self.pred_args.input_file,
+                                    None,
+                                    self.pred_args.batch_size,
+                                    not self.pred_args.silent,
+                                    True,
+                                    self.pred_args.beam_size,
+                                    line_limit = self.line_limit,
+                                    oracle = self.oracle,
+                                    json_output_file = self.json_output_file)
 
     @staticmethod
     def flatten_instance_batches(batch_iterator: Iterator[List[Instance]], 
@@ -220,16 +244,7 @@ class Scorer:
 
     def predict_and_compute(self):
         assert(self.predictor is not None)
-        manager = _ReturningPredictManager(self.predictor,
-                                    self.pred_args.input_file,
-                                    None,
-                                    self.pred_args.batch_size,
-                                    not self.pred_args.silent,
-                                    True,
-                                    self.pred_args.beam_size,
-                                    line_limit = self.line_limit)
-        
-        input_instances, output_graphs = manager.run()
+        input_instances, output_graphs = self.manager.run()
         input_graphs = [inst.fields['graph'].metadata for inst in input_instances] 
         input_sents = [inst.fields['src_tokens_str'].metadata for inst in input_instances]
 
@@ -245,7 +260,13 @@ class Scorer:
                                 input_sents, 
                                 args, 
                                 self.include_attribute_scores)
-    
+   
+    def predict_and_save_oracle(self):
+        assert(self.predictor is not None)
+        input_instances, output_graphs = self.manager.run()
+
+        return 
+ 
     @classmethod
     def from_params(cls, args):
         return cls(predictor=args.predictor,
@@ -258,7 +279,9 @@ class Scorer:
                    semantics_only = args.semantics_only,
                    drop_syntax = args.drop_syntax,
                    line_limit = args.line_limit,
-                   include_attribute_scores = args.include_attribute_scores
+                   include_attribute_scores = args.include_attribute_scores,
+                   oracle = args.oracle,
+                   json_output_file = args.json_output_file
                    )
 
 if __name__ == "__main__":
@@ -267,7 +290,8 @@ if __name__ == "__main__":
 
     subcommands = {
             # Default commands
-            "eval": SScore()
+            "eval": SScore(),
+            "spr_eval": SScore()
     }
 
     for name, subcommand in subcommands.items():

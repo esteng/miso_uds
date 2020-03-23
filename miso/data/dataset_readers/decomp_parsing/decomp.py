@@ -703,6 +703,8 @@ class DecompGraph():
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
 
+        print(f"sending target tokens {tgt_tokens}") 
+
 
         return {
             "tgt_tokens" : tgt_tokens,

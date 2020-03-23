@@ -115,6 +115,8 @@ class DecompParser(Transduction):
         self._label_smoothing.reset_parameters(pad_index=self._vocab_pad_index)
         self._beam_search = BeamSearch(self._vocab_eos_index, self._max_decoding_steps, self._beam_size)
 
+        self.oracle = False 
+
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         node_pred_metrics = self._node_pred_metrics.get_metric(reset)
@@ -138,7 +140,7 @@ class DecompParser(Transduction):
 
     def forward(self, **raw_inputs: Dict) -> Dict:
         inputs = self._prepare_inputs(raw_inputs)
-        if self.training:
+        if self.training or self.oracle:
             return self._training_forward(inputs)
         else:
             return self._test_forward(inputs)
@@ -275,6 +277,7 @@ class DecompParser(Transduction):
             node_predictions.append(nodes)
             node_index_predictions.append(node_indices)
         return node_predictions, node_index_predictions, edge_head_mask, valid_node_mask
+    
 
     @overrides
     def _prepare_inputs(self, raw_inputs):
@@ -500,10 +503,6 @@ class DecompParser(Transduction):
 
     @overrides
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
-
-        input_tokens = inputs['tgt_tokens_str'][0]
-        heads = [x for x in list(inputs['edge_heads'][0].detach().numpy())]
-
         encoding_outputs = self._encode(
             tokens=inputs["source_tokens"],
             pos_tags=inputs["source_pos_tags"],
@@ -574,8 +573,10 @@ class DecompParser(Transduction):
 
         # compute combined pearson 
         self._decomp_metrics(None, None, None, None, "both")
-        return dict(loss=loss)
 
+        return dict(loss=loss, 
+                    node_attributes = node_attribute_outputs['pred_dict']['pred_attributes'],
+                    edge_attributes = edge_attribute_outputs['pred_dict']['pred_attributes'])
 
     def _test_forward(self, inputs: Dict) -> Dict:
         encoding_outputs = self._encode(

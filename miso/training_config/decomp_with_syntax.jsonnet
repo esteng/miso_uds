@@ -35,7 +35,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     drop_syntax: "true",
     semantics_only: "false",
     order: "inorder",
-    line_limit: 1000,
   },
   train_data_path: data_dir,
   validation_data_path: "dev",
@@ -66,7 +65,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         source_tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
-          #pretrained_file: glove_embeddings,
+          pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -105,7 +104,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         target_tokens: {
           type: "embedding",
           vocab_namespace: "target_tokens",
-          #pretrained_file: glove_embeddings,
+          pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },

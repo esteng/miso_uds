@@ -11,6 +11,7 @@ from allennlp.data import Instance
 from allennlp.common.util import JsonDict
 
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
+from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
 
 
 def sanitize(x: Any) -> Any:  # pylint: disable=invalid-name,too-many-return-statements
@@ -57,12 +58,7 @@ class DecompParsingPredictor(Predictor):
     def dump_line(self, outputs: JsonDict) -> str:
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
         pred_graph = DecompGraph.from_prediction(outputs)
-        #print(pred_graph)
-        #print(type(pred_graph))
-        #print(pred_graph.nodes)
-        #sys.exit()
         return pred_graph
-
 
     @contextmanager
     def capture_model_internals(self) -> Iterator[dict]:
@@ -102,7 +98,92 @@ class DecompParsingPredictor(Predictor):
         outputs = self._model.forward_on_instance(instance)
         return sanitize(outputs)
 
-    def predict_batch_instance(self, instances: List[Instance]) -> List[JsonDict]:
+    def predict_batch_instance(self, instances: List[Instance],
+                               oracle: bool = False) -> List[JsonDict]:
+        self._model.oracle = oracle 
         outputs = self._model.forward_on_instances(instances)
+        if oracle:
+            # assign predicted node and edge attributes to the graph 
+            node_res_dict = {k: {'true_val_with_node_ids': {},
+                                 'true_val_list': [],
+                                  'pred_val_with_node_ids': {},
+                                 'pred_val_list': [],
+                                  'total_n': 0} 
+                                        for k in NODE_ONTOLOGY}
+            edge_res_dict = {k: {'true_val_with_edge_ids': {},
+                                 'true_val_list': [],
+                                  'pred_val_with_edge_ids': {}, 
+                                 'pred_val_list': [],
+                                 'total_n': 0}
+                                        for k in EDGE_ONTOLOGY}
+
+            nodes_to_ignore_str  = ["@@ROOT@@", "@start@", "@end@"]
+            
+            # iterate over instances in batch 
+            for instance, output in zip(instances, outputs):
+                pred_node_attrs = output['node_attributes'] 
+                true_node_attrs = instance.fields['target_attributes'].labels[1:-1]
+                true_node_mask = instance.fields['target_attributes'].masks[1:-1]
+            
+                nodes = instance.fields['target_tokens'].tokens[1:]
+                node_ids = instance.fields['node_name_list'].metadata[1:-1]
+
+                assert(len(node_ids) == len(nodes))           
+
+                # filter 
+                true_edge_attrs = instance.fields['edge_attributes'].labels[1:-1]
+                true_edge_mask = instance.fields['edge_attributes'].masks[1:-1]
+
+                assert(len(true_edge_attrs) == len(true_edge_mask))
+
+                true_edge_labels = instance.fields['edge_types'].tokens
+                pred_edge_attrs = output['edge_attributes'][0:len(true_edge_labels)]
+                heads = instance.fields['edge_heads'].labels
+
+                # iterate over tokens in instance 
+                for i, (pred_attr, true_attr, true_mask) in enumerate(zip(pred_node_attrs, true_node_attrs, true_node_mask)):
+                    # only compute for non-padding, non-root, etc.
+                    if str(nodes[i]) in nodes_to_ignore_str:
+                        continue
+    
+                    node_id = node_ids[i]
+                    # iterate over the onotology
+                    for j, key in enumerate(NODE_ONTOLOGY):
+                        p = pred_attr[j]
+                        t = true_attr[j]
+                        m = true_mask[j] 
+                        if m.item() > 0:
+                            #print(f"node {nodes[i]} node_id {node_id} key {key} mask {m.item()}")
+                            node_res_dict[key]['true_val_with_node_ids'][node_id] = t
+                            node_res_dict[key]['true_val_list'].append(t)
+                            node_res_dict[key]['pred_val_with_node_ids'][node_id] = p
+                            node_res_dict[key]['pred_val_list'].append(p)
+                            #print(f"added {node_id} to {key}")
+                            node_res_dict[key]['total_n'] += 1
+
+                for i, (pred_attr, true_attr, true_mask) in enumerate(zip(pred_edge_attrs, true_edge_attrs, true_edge_mask)):
+                    # only compute for semantic nodes
+                    if true_edge_labels[i] == 'EMPTY':
+                        continue
+
+                    head_idx = heads[i]
+                    node_id = node_ids[i]
+                    head_id = node_ids[head_idx]
+                    edge_id = f"{head_id}-{node_id}"
+                    for j, key in enumerate(EDGE_ONTOLOGY):
+                        p = pred_attr[j]
+                        t = true_attr[j]
+                        m = true_mask[j]
+                        if m.item() > 0:
+                            edge_res_dict[key]['true_val_with_edge_ids'][edge_id] = t
+                            edge_res_dict[key]['true_val_list'].append(t)
+                            edge_res_dict[key]['pred_val_with_edge_ids'][edge_id] = p
+                            edge_res_dict[key]['pred_val_list'].append(p)
+                            edge_res_dict[key]['total_n'] += 1
+                
+            node_res_dict.update(edge_res_dict)
+            print(f"returning from inside pred {node_res_dict}") 
+            return node_res_dict
+
         return sanitize(outputs)
 

@@ -2,6 +2,8 @@ from typing import List, Iterator, Optional
 import argparse
 import sys
 import json
+from overrides import overrides 
+from collections import defaultdict 
 
 from allennlp.commands.subcommand import Subcommand
 from allennlp.common.checks import check_for_gpu, ConfigurationError
@@ -11,6 +13,8 @@ from allennlp.models.archival import load_archive
 from allennlp.predictors.predictor import Predictor, JsonDict
 from allennlp.data import Instance
 from allennlp.commands.predict import _PredictManager
+
+from miso.predictors.decomp_parsing_predictor import sanitize 
 
 def _predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)
@@ -41,7 +45,9 @@ class _ReturningPredictManager(_PredictManager):
                  print_to_console: bool,
                  has_dataset_reader: bool,
                  beam_size: int,
-                 line_limit = None) -> None:
+                 line_limit: int = None,
+                 oracle: bool = False,
+                 json_output_file: str = None) -> None:
         super(_ReturningPredictManager, self).__init__(predictor,
                                                        input_file,
                                                        None,
@@ -50,18 +56,48 @@ class _ReturningPredictManager(_PredictManager):
                                                        has_dataset_reader)
         self.beam_size = beam_size
         self.line_limit = line_limit 
+        self.oracle = oracle 
+        self._json_output_file = json_output_file
+
+    @overrides
+    def _predict_instances(self, batch):
+        # if not oracle, back off to _PredictManager default prediction 
+        if not self.oracle:
+            return super()._predict_instances(batch)
+        else:
+            results = self._predictor.predict_batch_instance(batch, self.oracle)
+            return [results]
 
     def run(self):
         has_reader = self._dataset_reader is not None
         instances, results = [], []
         if has_reader:
+            self._dataset_reader.line_limit = self.line_limit
             for batch in lazy_groups_of(self._get_instance_data(), self._batch_size):
                 for model_input_instance, result in zip(batch, self._predict_instances(batch)):
                     instances.append(model_input_instance)
-                     
                     results.append(result)
-        
+        # if oracle, unify all dicts
+        if self.oracle:
+            # results: List[List[Dict]]
+            final_dict = defaultdict(lambda: defaultdict(dict))
+            for res_dict in results:
+                #res_dict = res_dict[0]
+                for prop_key in res_dict.keys():
+                    try:
+                        final_dict[prop_key]['true_val_with_node_ids'].update(res_dict[prop_key]['true_val_with_node_ids'])
+                        final_dict[prop_key]['pred_val_with_node_ids'].update(res_dict[prop_key]['pred_val_with_node_ids'])
+                    except KeyError:
+                        # edge attributes
+                        final_dict[prop_key]['true_val_with_edge_ids'].update(res_dict[prop_key]['true_val_with_edge_ids'])
+                        final_dict[prop_key]['pred_val_with_edge_ids'].update(res_dict[prop_key]['pred_val_with_edge_ids'])
+
+            if self._json_output_file is not None:
+                with open(self._json_output_file, "w") as f1:
+                    json.dump(sanitize(final_dict), f1)
+
         return instances, results
+
 
 class Predict(Subcommand):
     def add_subparser(self, name: str, parser: argparse._SubParsersAction) -> argparse.ArgumentParser:
