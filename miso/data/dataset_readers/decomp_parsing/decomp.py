@@ -103,6 +103,7 @@ class DecompGraph():
         for node in self.graph.nodes:
             if "author" in node or \
                "addressee" in node or \
+               "speaker" in node or \
                 node.endswith("arg-0") or \
                 node.endswith("-pred-root") or \
                 node.endswith("-root-0"):
@@ -241,6 +242,7 @@ class DecompGraph():
                 synt_node = re.sub("semantics", "syntax", node)
                 synt_node = re.sub("-arg", "", synt_node)
                 synt_node = re.sub("-pred", "", synt_node)
+                print(f"tryint to get {node} head {synt_node}") 
                 num = int(synt_node.split("-")[2])
                 synt_d = self.graph.nodes[synt_node]
                 syn_dep = (num, [synt_d['form'], synt_d['upos'], synt_d['id']])
@@ -703,9 +705,6 @@ class DecompGraph():
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
 
-        print(f"sending target tokens {tgt_tokens}") 
-
-
         return {
             "tgt_tokens" : tgt_tokens,
             "tgt_indices": tgt_indices,
@@ -734,8 +733,6 @@ class DecompGraph():
             "node_name_list": node_name_list
         }
 
-
-    
     @classmethod
     def from_prediction(cls, output):
         """
@@ -746,6 +743,7 @@ class DecompGraph():
         output: Dict
             output of decomp predictor
         """
+
         nodes = output['nodes']
         edge_heads = output['edge_heads']
         edge_heads = [x-1 for x in edge_heads]
@@ -762,21 +760,17 @@ class DecompGraph():
         node_attr = [{}] + [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))]
         edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
         
-        #copy_inds = output['copy_indicators']
         corefs = output['node_indices']
 
-        #logger.info("Prediction output ") 
-        #logger.info(f"\tnodes: {nodes}") 
-        #logger.info(f"\theads {edge_heads}") 
-        #logger.info(f"\tlabels {edge_labels}") 
-        #logger.info(f"\tcorefs {corefs}") 
         graph = nx.DiGraph()
         
         real_node_mapping = {}
 
-        #logger.info(f"lens: node {len(nodes)} attr {len(node_attr)} corefs {len(corefs)}") 
         # Steps
-        # 1. add all nodes and get node mapping
+        #########################################
+        # 1. add all nodes and get node mapping #
+        #########################################
+
         for i, (node, attr, coref) in enumerate(zip(nodes, node_attr, corefs)):
             if int(coref)  != i:
                 # node is a copy of a previous node, need to adjust heads, etc. 
@@ -794,7 +788,10 @@ class DecompGraph():
             graph.add_node(node_id, **attr)
 
 
-        # 2. add semantic edges and syntactic edges
+        #############################################
+        # 2. add semantic edges and syntactic edges #
+        #############################################
+
         done_heads = [] 
         assert(len(edge_labels)  == len(edge_heads) == len(edge_attr))
         for i, (label, head, attr) in enumerate(zip(edge_labels, edge_heads, edge_attr)):
@@ -822,7 +819,11 @@ class DecompGraph():
                 graph.nodes[child]['type'] = 'syntax'
 
             graph.add_edge(parent, child, **attr)
-        # clean up orphan nodes for later checking in scoring
+
+        ##########################################################
+        # 3. clean up orphan nodes for later checking in scoring #
+        ##########################################################
+
         for i, node in enumerate(graph.nodes):
             try:
                 __ = graph.nodes[node]['type'] 
@@ -909,8 +910,6 @@ class DecompGraph():
                             attributes.append(attr)
                     except KeyError:
                         pass
-
-
             instances.append(inst)
 
         for edge in arbor_graph.edges:
@@ -971,6 +970,8 @@ class DecompGraph():
         def get_pred_arg(edge):
             source_node = arbor_graph.nodes[e[0]]
             target_node = arbor_graph.nodes[e[1]]
+            if arbor_graph.edges[e]['semrel'] == "nonhead":
+                return "syntax" 
             if source_node['node_type'] == 'root':
                 # if source is root, must be predicate
                 return "pred"
@@ -991,50 +992,62 @@ class DecompGraph():
               arbor_graph.nodes[node]['text'] == "root"):
 
                 arbor_graph.nodes[node]['node_type'] = "root"
+                arbor_graph.nodes[node]['type'] = "argument"
                 arbor_graph.nodes[node]['domain'] = "semantics"
                 arbor_graph.nodes[node]['frompredpatt'] = True
+                
+                uds_subgraph.add_node(node, **arbor_graph.nodes[node])
 
         # add node types
         for i in range(len(arbor_graph.edges)):
             for e in arbor_graph.edges:
-                if arbor_graph.edges[e]['semrel'] == "nonhead":
-                    arbor_graph.nodes[e[1]]['node_type'] = "syntax"
-                    try:
-                        arbor_graph.nodes[e[0]]['node_type'] = get_pred_arg(e)
-                    except KeyError:
+                try:
+                    if 'node_type' in arbor_graph.nodes[e[1]].keys():
                         continue
-                else:
-                    try:
-                        arbor_graph.nodes[e[1]]['node_type'] = get_pred_arg(e)
-                    except KeyError:
-                        continue
+                    arbor_graph.nodes[e[1]]['node_type'] = get_pred_arg(e)
+                except KeyError:
+                    continue
 
-
+        type_mapping = {"pred": "predicate", "arg": "argument"}
+        name_mapping = {}
         for node in arbor_graph.nodes:
             node_type = arbor_graph.nodes[node]['node_type']
-            node_name = node+'-'+node_type
+            node_class = node_type 
+            if node_type in ["pred", "arg"]:
+                node_class = "semantics"
+            node_name = node + '-' + node_class
             if node_type in ['pred', 'arg']:
                 arbor_graph.nodes[node]['domain'] = "semantics"
+                arbor_graph.nodes[node]['type'] = type_mapping[node_type]
                 arbor_graph.nodes[node]['frompredpatt'] = True
             else:
                 arbor_graph.nodes[node]['domain'] = "syntax"
+                arbor_graph.nodes[node]['type'] = "token"
 
-            uds_subgraph.add_node(node, **arbor_graph.nodes[node]) 
+            uds_subgraph.add_node(node_name, **arbor_graph.nodes[node]) 
+            name_mapping[node] = node_name
 
             # add text as syntactic child 
             if node_type in ["pred", "arg"]:
                 synt_name = node+'-'+"syntax"
-                uds_subgraph.add_node(synt_name, form = arbor_graph.nodes[node]['text'], node_type = "syntax", domain = "syntax")
-                uds_subgraph.add_edge(node, synt_name, semrel = "head")
+                uds_subgraph.add_node(synt_name, form = arbor_graph.nodes[node]['text'], node_type = "syntax", domain = "syntax", type="token") 
+                uds_subgraph.add_edge(node_name, synt_name, semrel = "head")
 
         for edge in arbor_graph.edges:
+            src_node, tgt_node = edge
+            src_node_name, tgt_node_name = name_mapping[src_node], name_mapping[tgt_node]
+            edge_name = (src_node_name, tgt_node_name) 
             # add all other edges, dependency, head, or nonhead
-            uds_subgraph.add_edge(*edge, **arbor_graph.edges[edge])
+            uds_subgraph.add_edge(*edge_name, **arbor_graph.edges[edge])
+
+        for node in uds_subgraph.nodes:
+            try:
+                assert("domain" in uds_subgraph.nodes[node].keys())
+            except AssertionError:
+                print(f"node {node} has no attribute domain")
 
         uds_graph = UDSGraph(uds_subgraph, name)
         return uds_graph
-
-
 
 class SourceCopyVocabulary:
     def __init__(self, sentence, pad_token=DEFAULT_PADDING_TOKEN, unk_token=DEFAULT_OOV_TOKEN):

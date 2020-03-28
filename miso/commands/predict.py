@@ -5,6 +5,8 @@ import json
 from overrides import overrides 
 from collections import defaultdict 
 
+from allennlp.commands.predict import _get_predictor, Predict
+from allennlp.commands import ArgumentParserWithDefaults
 from allennlp.commands.subcommand import Subcommand
 from allennlp.common.checks import check_for_gpu, ConfigurationError
 from allennlp.common.file_utils import cached_path
@@ -13,24 +15,59 @@ from allennlp.models.archival import load_archive
 from allennlp.predictors.predictor import Predictor, JsonDict
 from allennlp.data import Instance
 from allennlp.commands.predict import _PredictManager
+from allennlp.common.util import import_submodules
 
 from miso.predictors.decomp_parsing_predictor import sanitize 
+from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
+
+#import sys
+#sys.path.insert(0, "/Users/Elias/decomp/") 
+from decomp import serve_parser
+
+def parse_api_sentence(input_line, args, predictor):
+    #semantics_only = args.semantics_only
+    #drop_syntax = args.drop_syntax
+    
+    manager = _ReturningPredictManager(
+                                predictor = predictor,
+                                input_file = input_line,
+                                output_file = None,
+                                batch_size = 1,
+                                print_to_console = False,
+                                has_dataset_reader = True,
+                                beam_size = 2,
+                                line_limit = 1,
+                                oracle = False,
+                                json_output_file = None)
+
+    manager._dataset_reader.api_time = True
+    return DecompGraph.arbor_to_uds(manager.run()[1][0], "test-graph") 
 
 def _predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)
 
-    if args.silent and not args.output_file:
-        print("--silent specified without --output-file.")
-        print("Exiting early because no output will be created.")
-        sys.exit(0)
+    if args.run_api:
+        serve_parser(lambda x: parse_api_sentence(x, args, predictor)) 
 
-    manager = _PredictManager(predictor,
-                              args.input_file,
-                              args.output_file,
-                              args.batch_size,
-                              not args.silent,
-                              args.use_dataset_reader)
-    manager.run()
+    else:
+        if args.silent and not args.output_file:
+            print("--silent specified without --output-file.")
+            print("Exiting early because no output will be created.")
+            sys.exit(0)
+
+        manager = _ReturningPredictManager(
+                                    predictor = predictor,
+                                    input_file = args.input_file,
+                                    output_file = args.output_file,
+                                    batch_size = args.batch_size,
+                                    print_to_console = False,
+                                    has_dataset_reader = True,
+                                    beam_size = args.beam_size,
+                                    line_limit = args.line_limit,
+                                    oracle = False,
+                                    json_output_file = None)
+
+        manager.run()
 
 class _ReturningPredictManager(_PredictManager):
     """
@@ -77,6 +114,7 @@ class _ReturningPredictManager(_PredictManager):
                 for model_input_instance, result in zip(batch, self._predict_instances(batch)):
                     instances.append(model_input_instance)
                     results.append(result)
+
         # if oracle, unify all dicts
         if self.oracle:
             # results: List[List[Dict]]
@@ -145,6 +183,46 @@ class Predict(Subcommand):
                                type=str,
                                help='optionally specify a specific predictor to use')
 
+        subparser.add_argument("--run-api",
+                                action="store_true",
+                                help="set to true to run an online API" )
+
+        subparser.add_argument("--beam-size",
+                                type=int,
+                                default=1)
+        subparser.add_argument("--line-limit", 
+                                type=int,
+                                default=None)
+
         subparser.set_defaults(func=_predict)
 
         return subparser
+
+
+    
+if __name__ == "__main__":
+    parser = ArgumentParserWithDefaults(description="Run AllenNLP")
+    subparsers = parser.add_subparsers(title='Commands', metavar='')
+
+    subcommands = {
+            # Default commands
+            "predict": Predict(),
+    }
+
+    for name, subcommand in subcommands.items():
+        subparser = subcommand.add_subparser(name, subparsers)
+        # configure doesn't need include-package because it imports
+        # whatever classes it needs.
+        if name != "configure":
+            subparser.add_argument('--include-package',
+                                   type=str,
+                                   action='append',
+                                   default=[],
+                                   help='additional packages to include')
+
+    args = parser.parse_args()
+    if 'func' in dir(args):
+        # Import any additional modules needed (to register custom classes).
+        for package_name in getattr(args, 'include_package', ()):
+            import_submodules(package_name)
+        args.func(args)

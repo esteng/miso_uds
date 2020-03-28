@@ -40,6 +40,7 @@ class DecompDatasetReader(DatasetReader):
                  line_limit: int = None,
                  order: str = "sorted",
                  lazy: bool = False,
+                 api_time: bool = False,
                  ) -> None:
 
         super().__init__(lazy=lazy)
@@ -69,6 +70,7 @@ class DecompDatasetReader(DatasetReader):
         self._number_pos_tags = 0
     
         self.over_len = 0
+        self.api_time = api_time
 
     def report_coverage(self):
         if self._number_bert_ids != 0:
@@ -97,7 +99,10 @@ class DecompDatasetReader(DatasetReader):
                 uds = UDSCorpus.from_json(split)
             else:
                 # data is just lines of input text
-                uds = TestUDSCorpus.from_lines(split)
+                if self.api_time:
+                    uds = TestUDSCorpus.from_single_line(split)
+                else:
+                    uds = TestUDSCorpus.from_lines(split)
 
         # corpus is Graphs and annotations 
         i=0

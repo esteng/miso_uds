@@ -32,5 +32,22 @@ class TestUDSCorpus(UDSCorpus):
             graphs[name] = g
         
         return cls(graphs) 
+       
+    @classmethod
+    def from_single_line(cls, line):
+        lines = [line]
+        graphs = {}
+        for i, line in enumerate(lines):
+            sentence = line.strip() 
+            empty_graph = nx.DiGraph()
+            empty_graph.add_node(f"test-root-0")
+            empty_graph.nodes[f"test-root-0"]['type'] = 'root'
+            empty_graph.nodes[f"test-root-0"]['domain'] = 'semantics'
+            empty_graph.nodes[f"test-root-0"]['frompredpatt'] = False
+            empty_graph.nodes[f"test-root-0"]['sentence'] = sentence
+            name = f"test_graph_{i}"
+            graph_data = nx.adjacency_data(empty_graph)
+            g = UDSGraph.from_dict(graph_data, name) 
+            graphs[name] = g
         
-            
+        return cls(graphs) 

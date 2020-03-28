@@ -2,6 +2,7 @@ from overrides import overrides
 from typing import List, Iterator, Any
 import numpy
 from contextlib import contextmanager
+import json
 
 import torch
 import spacy
@@ -55,6 +56,14 @@ def sanitize(x: Any) -> Any:  # pylint: disable=invalid-name,too-many-return-sta
 @Predictor.register("decomp_parsing")
 class DecompParsingPredictor(Predictor):
 
+    @overrides
+    def load_line(self, line:str) -> JsonDict:
+        try:
+            return json.loads(line)
+        except json.decoder.JSONDecodeError:
+            return line 
+
+    @overrides
     def dump_line(self, outputs: JsonDict) -> str:
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
         pred_graph = DecompGraph.from_prediction(outputs)
@@ -182,7 +191,6 @@ class DecompParsingPredictor(Predictor):
                             edge_res_dict[key]['total_n'] += 1
                 
             node_res_dict.update(edge_res_dict)
-            print(f"returning from inside pred {node_res_dict}") 
             return node_res_dict
 
         return sanitize(outputs)
