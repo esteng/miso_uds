@@ -3,6 +3,7 @@ from typing import List, Iterator, Any
 import numpy
 from contextlib import contextmanager
 import json
+import logging 
 
 import torch
 import spacy
@@ -14,6 +15,7 @@ from allennlp.common.util import JsonDict
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
 
+logger = logging.getLogger(__name__) 
 
 def sanitize(x: Any) -> Any:  # pylint: disable=invalid-name,too-many-return-statements
     """
@@ -130,14 +132,20 @@ class DecompParsingPredictor(Predictor):
             
             # iterate over instances in batch 
             for instance, output in zip(instances, outputs):
-                pred_node_attrs = output['node_attributes'] 
+                pred_node_attrs = output['node_attributes'][1:]
                 true_node_attrs = instance.fields['target_attributes'].labels[1:-1]
                 true_node_mask = instance.fields['target_attributes'].masks[1:-1]
             
                 nodes = instance.fields['target_tokens'].tokens[1:]
                 node_ids = instance.fields['node_name_list'].metadata[1:-1]
-
-                assert(len(node_ids) == len(nodes))           
+                try:
+                    assert(len(node_ids) == len(nodes))           
+                except AssertionError:
+                    print(node_ids)
+                    print(len(node_ids))
+                    print(nodes)
+                    print(len(nodes))
+                    sys.exit()
 
                 # filter 
                 true_edge_attrs = instance.fields['edge_attributes'].labels[1:-1]
@@ -146,9 +154,8 @@ class DecompParsingPredictor(Predictor):
                 assert(len(true_edge_attrs) == len(true_edge_mask))
 
                 true_edge_labels = instance.fields['edge_types'].tokens
-                pred_edge_attrs = output['edge_attributes'][0:len(true_edge_labels)]
+                pred_edge_attrs = output['edge_attributes'][1:len(true_edge_labels) + 1]
                 heads = instance.fields['edge_heads'].labels
-
                 # iterate over tokens in instance 
                 for i, (pred_attr, true_attr, true_mask) in enumerate(zip(pred_node_attrs, true_node_attrs, true_node_mask)):
                     # only compute for non-padding, non-root, etc.
@@ -167,7 +174,6 @@ class DecompParsingPredictor(Predictor):
                             node_res_dict[key]['true_val_list'].append(t)
                             node_res_dict[key]['pred_val_with_node_ids'][node_id] = p
                             node_res_dict[key]['pred_val_list'].append(p)
-                            #print(f"added {node_id} to {key}")
                             node_res_dict[key]['total_n'] += 1
 
                 for i, (pred_attr, true_attr, true_mask) in enumerate(zip(pred_edge_attrs, true_edge_attrs, true_edge_mask)):

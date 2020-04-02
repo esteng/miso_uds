@@ -4,11 +4,11 @@ from allennlp.common import Registrable
 from pytorch_transformers import BertModel
 
 
-class BaseBertWrapper(torch.nn.Module, Registrable):
+class BaseBertWrapper(Registrable, torch.nn.Module):
 
     def __init__(self, config: str) -> None:
         super().__init__()
-        self.bert_model = BertModel(config)
+        self.bert_model = BertModel.from_pretrained(config)
 
 
 @BaseBertWrapper.register("seq2seq_bert_encoder")
@@ -32,7 +32,7 @@ class Seq2SeqBertEncoder(BaseBertWrapper):
         """
         # encoded_layers: [batch_size, num_subword_pieces, hidden_size]
         encoded_layers, _ = self.bert_model(
-            input_ids, token_type_ids, attention_mask, output_all_encoded_layers)
+            input_ids = input_ids, token_type_ids = token_type_ids, attention_mask = attention_mask)
         if token_recovery_matrix is None:
             return encoded_layers
         else:

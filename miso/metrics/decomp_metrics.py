@@ -3,10 +3,13 @@ from typing import Dict, List
 import math
 from scipy.stats import pearsonr
 import numpy as np 
+import logging
 
 from overrides import overrides
 import torch
 from allennlp.training.metrics import Metric
+
+logger = logging.getLogger(__name__) 
 
 
 @Metric.register("decomp")
@@ -33,8 +36,8 @@ class DecompAttrMetrics(Metric):
     @overrides
     def __call__(self,
                  pred_attr: torch.Tensor,
-                 true_attr: torch.Tensor,
                  pred_mask: torch.Tensor,
+                 true_attr: torch.Tensor,
                  true_mask: torch.Tensor,
                  node_or_edge: str 
                  ) -> None:
@@ -42,23 +45,27 @@ class DecompAttrMetrics(Metric):
         if node_or_edge is not "both":
             pred_mask = torch.gt(pred_mask, 0)
             true_mask = torch.gt(true_mask, 0)
-            #print(f"pred_attr {pred_attr}") 
-            #print(f"pred_mask {pred_mask}") 
-            #print(f"true_attr {true_attr}")
-            #print(f"true_mask {true_mask}") 
 
-            flat_pred = (pred_attr * pred_mask).reshape((-1)).cpu().detach().numpy()
-            flat_true = (true_attr * true_mask).reshape((-1)).cpu().detach().numpy()
+            pred_attr = pred_attr * true_mask
+            true_attr = true_attr * true_mask
 
             # for train time pearson, only look where attributes predicted
-            #flat_pred = flat_pred[flat_true!=0]
-            #flat_true = flat_true[flat_true!=0]
-    
-            pearson_r, __ = pearsonr(flat_pred, flat_true)
+            pred_attr = pred_attr[true_mask==1]
+            true_attr = true_attr[true_mask==1]
+
+            #flat_pred = (pred_attr * pred_mask).reshape((-1)).cpu().detach().numpy()
+            flat_pred = pred_attr.reshape(-1).cpu().detach().numpy()
+            flat_true = true_attr.reshape(-1).cpu().detach().numpy()
+            flat_mask = true_mask.reshape(-1).cpu().detach().numpy()
+            try:
+                pearson_r, __ = pearsonr(flat_pred, flat_true)
+            except ValueError:
+                pearson_r = 0.0
 
             flat_pred_threshed = np.greater(flat_pred, 0.0)
             flat_true_threshed = np.greater(flat_true, 0.0)
-            tot = flat_true.shape[0]
+            #tot = flat_true.shape[0]
+            tot = torch.sum(true_mask.float()).item()
             tot_pred = np.sum(flat_pred_threshed)
             tot_true = np.sum(flat_true_threshed)
 

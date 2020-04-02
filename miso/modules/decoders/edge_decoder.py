@@ -86,8 +86,6 @@ class EdgeAttributeDecoder(torch.nn.Module):
         self.metrics(mask_loss)
         return dict(
                 loss = attr_loss + mask_loss)
-            
-
 
     @classmethod
     def from_params(cls, params, **kwargs):

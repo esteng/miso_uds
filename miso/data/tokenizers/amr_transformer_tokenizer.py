@@ -3,13 +3,20 @@ from overrides import overrides
 
 import numpy as np
 from allennlp.data.tokenizers import PretrainedTransformerTokenizer
+from allennlp.data.tokenizers import Tokenizer
 
 
-@PretrainedTransformerTokenizer.register("pretrained_transformer_for_amr")
+@Tokenizer.register("pretrained_transformer_for_amr")
 class AMRTransformerTokenizer(PretrainedTransformerTokenizer):
 
     def __init__(self, model_name: str, *args, **kwargs) -> None:
         assert "bert" in model_name, "Only support BERT models."
+        args = kwargs['args']
+        if args is None:
+            args = []
+        kwargs = kwargs['kwargs']
+        if kwargs is None:
+            kwargs = {}
         super(AMRTransformerTokenizer, self).__init__(model_name, *args, **kwargs)
 
     @property

@@ -352,6 +352,8 @@ class DecompGraph():
                                     popped = ids_by_node[node_a].pop(a_idx) 
             
 
+            already_dominated = []
+
             for node in  sorted(self.graph.semantics_subgraph.nodes):
                 if node in self.ignore_list:
                     continue
@@ -381,7 +383,9 @@ class DecompGraph():
                                 # sometimes it's not in the graph
                                 edge_label = "nonhead"
 
-                        arbor_graph.add_edge(node, syn_node_id, semrel = edge_label)
+                        if syn_node_id not in already_dominated: 
+                            arbor_graph.add_edge(node, syn_node_id, semrel = edge_label)
+                            already_dominated.append(syn_node_id)
 
         # copy semantics edges
         for e in self.graph.semantics_subgraph.edges:
@@ -491,7 +495,7 @@ class DecompGraph():
         head_indices = []
         head_tags = []
         mask = []
-        node_name_list = ["@start@" ]
+        node_name_list = []
 
         node_to_idx = defaultdict(list)
         visited = defaultdict(int)
@@ -542,7 +546,6 @@ class DecompGraph():
             update_info(node, relation, parent_node, instance, attrs)
 
             visited[node] = 1
-        node_name_list.append("@end@")
 
         def trim_very_long_tgt_tokens(tgt_tokens, 
                                     head_tags, 
@@ -550,7 +553,8 @@ class DecompGraph():
                                     mask, 
                                     tgt_attributes, 
                                     edge_attributes, 
-                                    node_to_idx):
+                                    node_to_idx,
+                                    node_name_list):
 
             tgt_tokens = tgt_tokens[:max_tgt_length]
 
@@ -562,6 +566,8 @@ class DecompGraph():
             tgt_attributes = tgt_attributes[:max_tgt_length]
             edge_attributes = edge_attributes[:max_tgt_length]
 
+            node_name_list = node_name_list[:max_tgt_length ]
+
             for node, indices in node_to_idx.items():
                 invalid_indices = [index for index in indices if index >= max_tgt_length]
                 for index in invalid_indices:
@@ -572,7 +578,8 @@ class DecompGraph():
                    mask, 
                    tgt_attributes, 
                    edge_attributes, 
-                   node_to_idx)
+                   node_to_idx, 
+                   node_name_list)
 
         if max_tgt_length is not None:
             (tgt_tokens, 
@@ -581,13 +588,15 @@ class DecompGraph():
              mask,
              tgt_attributes, 
              edge_attributes, 
-             node_to_idx ) = trim_very_long_tgt_tokens(tgt_tokens, 
+             node_to_idx,
+             node_name_list) = trim_very_long_tgt_tokens(tgt_tokens, 
                                                        head_tags, 
                                                        head_indices, 
                                                        mask,
                                                        tgt_attributes, 
                                                        edge_attributes, 
-                                                       node_to_idx)
+                                                       node_to_idx,
+                                                       node_name_list)
 
         copy_offset = 0
         if bos:
@@ -595,10 +604,12 @@ class DecompGraph():
             tgt_attributes = [{}] + tgt_attributes
             edge_attributes = [{}] + edge_attributes
             copy_offset += 1
+            node_name_list = ["@start@"] + node_name_list
         if eos:
             tgt_tokens = tgt_tokens + [eos]
             tgt_attributes = tgt_attributes + [{}]
             edge_attributes = edge_attributes + [{}]
+            node_name_list =  node_name_list + ["@end@"]
         
         # Target side Coreference
 
@@ -668,7 +679,9 @@ class DecompGraph():
             
 
         if bert_tokenizer is not None:
-            src_token_ids, src_token_subword_index = bert_tokenizer.tokenize(src_tokens, True)
+            bert_tokenizer_ret = bert_tokenizer.tokenize(src_tokens, True)
+            src_token_ids = bert_tokenizer_ret["token_ids"]
+            src_token_subword_index = bert_tokenizer_ret["token_recovery_matrix"]
 
         #src_must_copy_tags = [1 if is_abstract_token(t) else 0 for t in src_tokens]
         src_must_copy_tags = [0 for t in src_tokens]

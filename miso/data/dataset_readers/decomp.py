@@ -20,6 +20,7 @@ from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDG
 from miso.data.dataset_readers.decomp_parsing.tests import DROP_TEST_CASES, NODROP_TEST_CASES, test_reader
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 from miso.data.dataset_readers.decomp_parsing.uds import TestUDSCorpus
+from miso.data.tokenizers import AMRTransformerTokenizer
 
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -33,7 +34,7 @@ class DecompDatasetReader(DatasetReader):
                  source_token_indexers: Dict[str, TokenIndexer],
                  target_token_indexers: Dict[str, TokenIndexer],
                  generation_token_indexers: Dict[str, TokenIndexer],
-                 tokenizer: Tokenizer = None,
+                 tokenizer: Tokenizer = AMRTransformerTokenizer,
                  evaluation: bool = False,
                  drop_syntax: bool = True,
                  semantics_only: bool = False,
@@ -334,6 +335,9 @@ class DecompDatasetReader(DatasetReader):
             source_dynamic_vocab=list_data["src_copy_vocab"],
             target_token_indexers=self._target_token_indexers,
         ))
+
+        to_print_keys = ["target_attributes", "target_tokens"]
+        to_print = {k:v for k, v in fields.items() if k in to_print_keys}
 
         return Instance(fields)
 

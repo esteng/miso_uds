@@ -26,12 +26,17 @@ def pearson_r(data_dict):
 
         pred_vals, true_vals = flatten_ids(pred_vals, true_vals) 
 
+        logger.info(f"computing pearson between")
+        logger.info(f"pred {pred_vals}") 
+        logger.info(f"true {true_vals}") 
+
         assert(len(pred_vals) == len(true_vals))
 
         if len(pred_vals) < 2:
             continue
          
         r_value, p_value = pearsonr(pred_vals, true_vals)
+        logger.info(f"pearsonr in fxn {r_value}") 
         # shouldn't happen with big sample, but useful for testing with small sample
         if np.isnan(r_value):
             continue

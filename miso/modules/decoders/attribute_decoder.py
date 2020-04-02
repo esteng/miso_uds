@@ -3,6 +3,7 @@ import torch
 import logging
 
 from miso.metrics.continuous_metrics import ContinuousMetric
+from scipy.stats import pearsonr 
 
 logger = logging.getLogger(__name__) 
 
@@ -76,7 +77,9 @@ class NodeAttributeDecoder(torch.nn.Module):
         output = decoder_output
         boolean_output = self.boolean_network(output)
         attr_output = self.attribute_network(output)
-
+        #pred_mask = torch.gt(boolean_output, 0)
+        #prod = attr_output[0] * pred_mask[0]
+        #print(f"pred attr {prod[0:6, 0:8]}") 
         return dict(
                 pred_attributes= attr_output,
                 pred_mask = boolean_output
@@ -89,12 +92,22 @@ class NodeAttributeDecoder(torch.nn.Module):
                     mask):
 
         # mask out non-predicted stuff
-        predicted_attrs = predicted_attrs * mask
-        target_attrs = target_attrs* mask
+        mask_binary = torch.gt(mask, 0).float()
+        predicted_attrs = predicted_attrs * mask_binary
+        target_attrs = target_attrs * mask_binary
+
         attr_loss = self.attr_loss_function(predicted_attrs, target_attrs) * self.loss_multiplier
         # see if annotated at all; don't model annotator confidence, already modeled above
-        mask_binary = torch.gt(mask, 0).float()
         mask_loss = self.mask_loss_function(predicted_mask, mask_binary) * self.loss_multiplier
+
+        predicted_attrs = predicted_attrs[mask_binary==1]
+        target_attrs = target_attrs[mask_binary==1]
+
+        flat_pred = predicted_attrs.reshape(-1).detach().cpu().numpy()
+        flat_true = target_attrs.reshape(-1).detach().cpu().numpy()
+
+        r, __ = pearsonr(flat_pred, flat_true)
+
         self.metrics(attr_loss)
         self.metrics(mask_loss)
 

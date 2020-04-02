@@ -17,7 +17,7 @@ from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 from allennlp.common.util import START_SYMBOL, END_SYMBOL
 
 from miso.models.transduction_base import Transduction
-from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder
+from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder, BaseBertWrapper
 from miso.modules.decoders import RNNDecoder
 from miso.modules.generators import ExtendedPointerGenerator
 from miso.modules.parsers import DeepTreeParser, DecompTreeParser
@@ -42,7 +42,7 @@ class DecompParser(Transduction):
     def __init__(self,
                  vocab: Vocabulary,
                  # source-side
-                 bert_encoder: Seq2SeqBertEncoder,
+                 bert_encoder: BaseBertWrapper,
                  encoder_token_embedder: TextFieldEmbedder,
                  encoder_pos_embedding: Embedding,
                  encoder: Seq2SeqEncoder,
@@ -328,8 +328,8 @@ class DecompParser(Transduction):
 
         inputs.update(dict(
                 # like decoder_token_inputs
-                node_attribute_truth = node_attribute_values[:,1:-1,:],
-                node_attribute_mask = node_attribute_mask[:,1:-1,:],
+                node_attribute_truth = node_attribute_values[:,:-1,:],
+                node_attribute_mask = node_attribute_mask[:,:-1,:],
                 edge_attribute_truth = edge_attribute_values[:,:-1,:],
                 edge_attribute_mask = edge_attribute_mask[:,:-1,:]
         ))
@@ -450,22 +450,33 @@ class DecompParser(Transduction):
     def _node_attribute_predict(self, rnn_outputs, tgt_attr, tgt_attr_mask):
         pred_dict = self._node_attribute_module(rnn_outputs)
         if tgt_attr is not None:
+            pred_attrs = pred_dict["pred_attributes"].clone()
+            pred_mask = pred_dict["pred_mask"].clone()
+            tgt_attr_copy = tgt_attr.detach().clone()
+            tgt_mask_copy = tgt_attr_mask.detach().clone()
+
+            mask_binary = torch.gt(tgt_mask_copy, 0)
+            target_attrs = tgt_attr[mask_binary==1]
+ 
+            flat_true = target_attrs.reshape(-1).detach().cpu().numpy()
+
             loss = self._node_attribute_module.compute_loss(pred_dict["pred_attributes"],
                                                             pred_dict["pred_mask"],
                                                             tgt_attr, 
                                                             tgt_attr_mask)
 
-            self._decomp_metrics(pred_dict["pred_attributes"],
-                                 pred_dict["pred_mask"],
-                                 tgt_attr, 
-                                 tgt_attr_mask,
+            self._decomp_metrics(pred_attrs,
+                                 pred_mask,
+                                 tgt_attr_copy, 
+                                 tgt_mask_copy,
                                  "node"
                                  )
+
+
 
             loss = loss['loss']
         else:
             loss = -1.0000
-
         return {"pred_dict": pred_dict, "loss": loss}
 
     def _edge_attribute_predict(self, query, 
@@ -483,17 +494,18 @@ class DecompParser(Transduction):
         pred_dict = self._edge_attribute_module(query, selected_key)
 
         if tgt_attr is not None:
+            self._decomp_metrics(pred_dict["pred_attributes"],
+                                 pred_dict["pred_mask"],
+                                 tgt_attr, 
+                                 tgt_attr_mask,
+                                 "edge"
+                                 )
+
             loss = self._edge_attribute_module.compute_loss(pred_dict["pred_attributes"],
                                                             pred_dict["pred_mask"],
                                                             tgt_attr,
                                                             tgt_attr_mask)
 
-            self._decomp_metrics(pred_dict["pred_attributes"],
-                                 tgt_attr, 
-                                 pred_dict["pred_mask"],
-                                 tgt_attr_mask,
-                                 "edge"
-                                 )
 
             loss = loss['loss']
         else:
@@ -530,7 +542,7 @@ class DecompParser(Transduction):
 
         # compute node attributes
         node_attribute_outputs = self._node_attribute_predict(
-            decoding_outputs["rnn_outputs"][:,1:-1,:],
+            decoding_outputs["rnn_outputs"][:,:-1,:],
             inputs["node_attribute_truth"],
             inputs["node_attribute_mask"]
         )
@@ -613,7 +625,7 @@ class DecompParser(Transduction):
 
 
         node_attribute_outputs = self._node_attribute_predict(
-            rnn_outputs[:,:,1:-1,:],
+            rnn_outputs[:,:,:-1,:],
             None, None
         )
 
