@@ -22,7 +22,7 @@ from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 
 #import sys
 #sys.path.insert(0, "/Users/Elias/decomp/") 
-from decomp import serve_parser
+from decomp import UDSVisualization, serve_parser
 
 def parse_api_sentence(input_line, args, predictor):
     #semantics_only = args.semantics_only
