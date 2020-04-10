@@ -18,7 +18,7 @@ from allennlp.common.util import START_SYMBOL, END_SYMBOL
 
 from miso.models.transduction_base import Transduction
 from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder, BaseBertWrapper
-from miso.modules.decoders import RNNDecoder
+from miso.modules.decoders import RNNDecoder, MisoTransformerDecoder
 from miso.modules.generators import ExtendedPointerGenerator
 from miso.modules.parsers import DeepTreeParser, DecompTreeParser
 from miso.modules.label_smoothing import LabelSmoothing
@@ -50,7 +50,7 @@ class DecompParser(Transduction):
                  decoder_token_embedder: TextFieldEmbedder,
                  decoder_node_index_embedding: Embedding,
                  decoder_pos_embedding: Embedding,
-                 decoder: RNNDecoder,
+                 decoder: MisoTransformerDecoder,
                  extended_pointer_generator: ExtendedPointerGenerator,
                  tree_parser: DecompTreeParser,
                  node_attribute_module: NodeAttributeDecoder,
@@ -145,6 +145,32 @@ class DecompParser(Transduction):
         else:
             return self._test_forward(inputs)
 
+    @overrides
+    def _decode(self,
+                tokens: Dict[str, torch.Tensor],
+                node_indices: torch.Tensor,
+                encoder_outputs: torch.Tensor,
+                hidden_states: Tuple[torch.Tensor, torch.Tensor],
+                mask: torch.Tensor,
+                **kwargs) -> Dict:
+
+        # [batch, num_tokens, embedding_size]
+        decoder_inputs = torch.cat([
+            self._decoder_token_embedder(tokens),
+            self._decoder_node_index_embedding(node_indices),
+        ], dim=2)
+
+        decoder_inputs = self._dropout(decoder_inputs)
+
+        decoder_outputs = self._decoder(
+            inputs=decoder_inputs,
+            source_memory_bank=encoder_outputs,
+            source_mask=mask,
+            target_mask = None
+        )
+
+        return decoder_outputs
+
     def _take_one_step_node_prediction(self,
                                        last_predictions: torch.Tensor,
                                        state: Dict[str, torch.Tensor],
@@ -167,6 +193,7 @@ class DecompParser(Transduction):
             self._decoder_node_index_embedding(inputs["node_indices"]),
         ], dim=2)
 
+        #hidden_states = (None, None)
         hidden_states = (
             # [num_layers, batch_size, hidden_vector_dim]
             state["hidden_state_1"].permute(1, 0, 2),
@@ -341,11 +368,17 @@ class DecompParser(Transduction):
         batch_size = inputs["source_tokens"]["source_tokens"].size(0)
         bos = self.vocab.get_token_index(START_SYMBOL, self._target_output_namespace)
         start_predictions = inputs["source_tokens"]["source_tokens"].new_full((batch_size,), bos)
+        final_state_vec = encoding_outputs['encoder_outputs'][:,0,:].unsqueeze(1)
+        final_state_0 = torch.cat([final_state_vec.clone(), final_state_vec.clone()], 1)
+        final_state_vec = encoding_outputs['encoder_outputs'][:,-1,:].unsqueeze(1)
+        final_state_1 = torch.cat([final_state_vec.clone(), final_state_vec.clone()], 1)
         start_state = {
             # [batch_size, *]
             "source_memory_bank": encoding_outputs["encoder_outputs"],
             "hidden_state_1": encoding_outputs["final_states"][0].permute(1, 0, 2),
             "hidden_state_2": encoding_outputs["final_states"][1].permute(1, 0, 2),
+            #"hidden_state_1": None,
+            #"hidden_state_2": None,
             "source_mask": inputs["source_mask"],
             "source_attention_map": inputs["source_attention_map"],
             "target_attention_map": inputs["source_attention_map"].new_zeros(
@@ -542,13 +575,15 @@ class DecompParser(Transduction):
 
         # compute node attributes
         node_attribute_outputs = self._node_attribute_predict(
-            decoding_outputs["rnn_outputs"][:,:-1,:],
+            #decoding_outputs["rnn_outputs"][:,:-1,:],
+            decoding_outputs["attentional_tensors"][:,:-1,:],
             inputs["node_attribute_truth"],
             inputs["node_attribute_mask"]
         )
 
         edge_prediction_outputs = self._parse(
-            rnn_outputs=decoding_outputs["rnn_outputs"],
+            #rnn_outputs=decoding_outputs["rnn_outputs"],
+            decoding_outputs["attentional_tensors"][:,:,:],
             edge_head_mask=inputs["edge_head_mask"],
             edge_heads=inputs["edge_heads"]
         )
@@ -568,7 +603,8 @@ class DecompParser(Transduction):
             target_copy_indices=inputs["target_copy_indices"],
             source_dynamic_vocab_size=inputs["source_dynamic_vocab_size"],
             source_attention_weights=decoding_outputs["source_attention_weights"],
-            coverage_history=decoding_outputs["coverage_history"]
+            #coverage_history=decoding_outputs["coverage_history"]
+            coverage_history=None
         )
         edge_pred_loss = self._compute_edge_prediction_loss(
             edge_head_ll=edge_prediction_outputs["edge_head_ll"],

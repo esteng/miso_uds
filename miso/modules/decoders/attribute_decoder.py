@@ -106,6 +106,9 @@ class NodeAttributeDecoder(torch.nn.Module):
         flat_pred = predicted_attrs.reshape(-1).detach().cpu().numpy()
         flat_true = target_attrs.reshape(-1).detach().cpu().numpy()
 
+        print(flat_pred)
+        print(flat_true)
+
         r, __ = pearsonr(flat_pred, flat_true)
 
         self.metrics(attr_loss)

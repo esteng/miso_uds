@@ -34,7 +34,7 @@ class DecompDatasetReader(DatasetReader):
                  source_token_indexers: Dict[str, TokenIndexer],
                  target_token_indexers: Dict[str, TokenIndexer],
                  generation_token_indexers: Dict[str, TokenIndexer],
-                 tokenizer: Tokenizer = AMRTransformerTokenizer,
+                 tokenizer: Tokenizer = None, #AMRTransformerTokenizer,
                  evaluation: bool = False,
                  drop_syntax: bool = True,
                  semantics_only: bool = False,

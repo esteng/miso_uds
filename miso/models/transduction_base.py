@@ -220,6 +220,7 @@ class Transduction(Model):
                 hidden_states: Tuple[torch.Tensor, torch.Tensor],
                 mask: torch.Tensor,
                 **kwargs) -> Dict:
+
         # [batch, num_tokens, embedding_size]
         decoder_inputs = torch.cat([
             self._decoder_token_embedder(tokens),

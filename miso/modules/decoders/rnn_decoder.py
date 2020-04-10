@@ -13,7 +13,6 @@ from miso.modules.attention_layers import AttentionLayer
 import logging 
 logger = logging.getLogger(__name__) 
 
-
 class RNNDecoder(torch.nn.Module, Registrable):
 
     def __init__(self,
