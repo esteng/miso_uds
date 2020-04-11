@@ -603,8 +603,8 @@ class DecompParser(Transduction):
             target_copy_indices=inputs["target_copy_indices"],
             source_dynamic_vocab_size=inputs["source_dynamic_vocab_size"],
             source_attention_weights=decoding_outputs["source_attention_weights"],
-            #coverage_history=decoding_outputs["coverage_history"]
-            coverage_history=None
+            coverage_history=decoding_outputs["coverage_history"]
+            #coverage_history=None
         )
         edge_pred_loss = self._compute_edge_prediction_loss(
             edge_head_ll=edge_prediction_outputs["edge_head_ll"],

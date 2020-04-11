@@ -148,10 +148,21 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
 
         # switch back from pytorch's absolutely moronic batch-second convention
         outputs = outputs.permute(1, 0, 2)
+
+        # coverage implemented as in https://web.stanford.edu/class/archive/cs/cs224n/cs224n.1194/reports/custom/15784595.pdf
+        # sum across target tokens 
+        coverage = torch.sum(src_attns[-1], dim = 2) 
+        #print(f"coverage shape is {coverage.shape}") 
+        #print(f"source shape is {source_memory_bank.shape}") 
+        #print(f"source attn is {src_attns[-1].shape}") 
+
+
         return dict(
                 attentional_tensors=outputs,
                 target_attention_weights = tgt_attns[-1],
-                source_attention_weights = src_attns[-1])
+                source_attention_weights = src_attns[-1],
+                coverage_history = coverage
+                ) 
                 
 
     def one_step_forward(self,
