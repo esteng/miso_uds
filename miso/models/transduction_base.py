@@ -198,7 +198,8 @@ class Transduction(Model):
 
         # Coverage loss.
         if coverage_history is not None:
-            coverage_loss = torch.sum(torch.min(coverage_history.unsqueeze(-1), source_attention_weights), 2)
+            #coverage_loss = torch.sum(torch.min(coverage_history.unsqueeze(-1), source_attention_weights), 2)
+            coverage_loss = torch.sum(torch.min(coverage_history, source_attention_weights), 2)
             coverage_loss = (coverage_loss * not_pad_mask.float()).sum()
             loss = loss + coverage_loss
 

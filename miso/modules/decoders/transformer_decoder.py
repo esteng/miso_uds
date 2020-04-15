@@ -97,7 +97,8 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
                     source_attn_layer: AttentionLayer,
                     target_attn_layer: AttentionLayer,
                     norm=None,
-                    dropout=0.1):
+                    dropout=0.1,
+                    use_coverage=True):
         super(MisoTransformerDecoder, self).__init__()
 
         self.input_proj_layer = input_proj_layer
@@ -107,6 +108,7 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
         self.dropout = InputVariationalDropout(dropout)
         self.source_attn_layer = source_attn_layer
         self.target_attn_layer = target_attn_layer
+        self.use_coverage = use_coverage
 
     @overrides
     def forward(self,
@@ -114,6 +116,9 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
                 source_memory_bank: torch.Tensor,
                 source_mask: torch.Tensor,
                 target_mask: torch.Tensor) -> Dict: 
+
+        batch_size, source_seq_length, _ = source_memory_bank.size()
+        __, target_seq_length, __ = inputs.size()
 
         inputs = inputs.permute(1, 0, 2)
         source_memory_bank = source_memory_bank.permute(1, 0, 2)
@@ -151,20 +156,50 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
 
         # coverage implemented as in https://web.stanford.edu/class/archive/cs/cs224n/cs224n.1194/reports/custom/15784595.pdf
         # sum across target tokens 
-        coverage = torch.sum(src_attns[-1], dim = 2) 
+        # coverage = torch.sum(src_attns[-1], dim = 2) 
 
-        logger.info(f"source attn inputs {outputs.shape} {source_memory_bank.shape}") 
-        source_attention_output = self.source_attn_layer(outputs, 
-                                                         source_memory_bank,
-                                                         source_mask,
-                                                         True)
+        if not self.use_coverage:
+            source_attention_output = self.source_attn_layer(outputs, 
+                                                             source_memory_bank,
+                                                             source_mask,
+                                                             None)
+            attentional_tensors = source_attention_output['attentional']
+            source_attention_weights = source_attention_output['attention_weights']
+            coverage_history = None
+        else:
+            # need to do step by step because running sum of coverage
+            source_attention_weights = []
+            attentional_tensors = []
 
-        attentional_tensors = source_attention_output['attentional']
+            # init to zeros 
+            coverage = inputs.new_zeros(size=(batch_size, 1, source_seq_length))
+            coverage_history = []
+
+            for timestep in range(outputs.shape[1]):
+                output = outputs[:,timestep,:].unsqueeze(1)
+                source_attention_output = self.source_attn_layer(output,
+                                                                 source_memory_bank,
+                                                                 source_mask,
+                                                                 coverage)
+
+                attentional_tensors.append(source_attention_output['attentional'])
+                source_attention_weights.append(source_attention_output['attention_weights'])
+                coverage = source_attention_output['coverage'] 
+                coverage_history.append(coverage) 
+
+            # [batch_size, tgt_seq_len, hidden_dim]
+            attentional_tensors = torch.cat(attentional_tensors, dim=1) 
+            # [batch_size, tgt_seq_len, src_seq_len]
+            source_attention_weights = torch.cat(source_attention_weights, dim=1) 
+            coverage_history = torch.cat(coverage_history, dim=1)
+                
+
+
+        logger.info(f"attentional_tensors {attentional_tensors.shape}") 
+        logger.info(f"source_attention_weights {source_attention_weights.shape}") 
 
         target_attention_output = self.target_attn_layer(attentional_tensors,
-                                                         outputs_projected) 
-
-        source_attention_weights = source_attention_output['attention_weights']
+                                                         outputs) 
 
         target_attention_weights = target_attention_output['attention_weights']
 
@@ -176,7 +211,7 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
                 attentional_tensor=attentional_tensors[:,-1,:].unsqueeze(1),
                 target_attention_weights = target_attention_weights,
                 source_attention_weights = source_attention_weights,
-                coverage_history = coverage,
+                coverage_history = coverage_history,
                 ) 
                 
 
@@ -240,6 +275,8 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
         nhead = params.get('nhead', 8)
         num_layers = params.get('num_layers', 6) 
         dropout = params.get('dropout', 0.1)
+        #use_coverage = params.get("use_coverage", True)
+        use_coverage = params.get("use_coverage", False)
         # norm = params.get('norm', 'true')
 
         # TODO: fix this 
@@ -260,6 +297,8 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
                      input_projection_layer, 
                      source_attention_layer,
                      target_attention_layer,
-                     norm, dropout)
+                     norm, 
+                     dropout, 
+                     use_coverage)
 
 

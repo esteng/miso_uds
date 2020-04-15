@@ -63,11 +63,12 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
         p = torch.nn.functional.softmax(self.switch_linear(inputs), dim=2)
 
         generation_switch = p[:, :, 0].unsqueeze(2)
+        # TODO: remove, force generate for debug
+
         if self._source_copy:
-            # TODO: remove, force generate for debug
-            source_copy_switch = p[:, :, 1].unsqueeze(2) * 0
+            source_copy_switch = p[:, :, 1].unsqueeze(2) 
         if self._target_copy:
-            target_copy_switch = p[:, :, 2].unsqueeze(2) * 0
+            target_copy_switch = p[:, :, 2].unsqueeze(2) 
 
         # Vocab generation.
         # [batch_size, target_length, vocab_size]
