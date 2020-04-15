@@ -4,6 +4,8 @@ from collections import OrderedDict
 
 from overrides import overrides
 import torch
+from torch.nn import functional as F
+
 from allennlp.data import Vocabulary
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder, Embedding, InputVariationalDropout, Seq2SeqEncoder
@@ -189,10 +191,13 @@ class Transduction(Model):
         log_prob_dist = (prob_dist.view(batch_size * target_length, -1) + self._eps).log()
         flat_hybrid_targets = hybrid_targets.view(batch_size * target_length)
         loss = self._label_smoothing(log_prob_dist, flat_hybrid_targets)
+
+        values, inds = torch.max(log_prob_dist, dim=1)
+
+        logger.info(f"LOSS output {loss.item()}") 
+
         # Coverage loss.
         if coverage_history is not None:
-            print(f"coverage_history {coverage_history.shape}") 
-            print(f"source_attention_weights {source_attention_weights.shape}") 
             coverage_loss = torch.sum(torch.min(coverage_history.unsqueeze(-1), source_attention_weights), 2)
             coverage_loss = (coverage_loss * not_pad_mask.float()).sum()
             loss = loss + coverage_loss
@@ -262,12 +267,12 @@ class Transduction(Model):
         encoder_outputs = self._encoder(encoder_inputs, mask)
         encoder_outputs = self._dropout(encoder_outputs)
         # A tuple of (state, memory) with shape [num_layers, batch, encoder_output_size]
-        encoder_final_states = self._encoder.get_final_states()
-        self._encoder.reset_states()
+        #encoder_final_states = self._encoder.get_final_states()
+        #self._encoder.reset_states()
 
         return dict(
             encoder_outputs=encoder_outputs,
-            final_states=encoder_final_states
+            #final_states=encoder_final_states
         )
 
     def _parse(self,

@@ -6,6 +6,9 @@ from overrides import overrides
 import torch
 from allennlp.training.metrics import Metric
 
+import logging
+logger = logging.getLogger(__name__) 
+
 
 @Metric.register("extended_pointer_generator")
 class ExtendedPointerGeneratorMetrics(Metric):
@@ -50,6 +53,8 @@ class ExtendedPointerGeneratorMetrics(Metric):
         correct_generation_count = (generation_outputs.eq(prediction) & valid_generation_mask).sum().item()
         generation_count = valid_generation_mask.sum().item()
         # Source-side copy.
+        logger.info(f"METRIC source copy inds {source_copy_indices} \n prediction {prediction}") 
+
         correct_source_copy_count = (source_copy_indices.eq(prediction) & valid_source_copy_mask).sum().item()
         source_copy_count = valid_source_copy_mask.sum().item()
         # Target-side copy.

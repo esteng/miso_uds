@@ -61,9 +61,13 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
 
         # Soft switch: [batch_size, target_length, num_switches].
         p = torch.nn.functional.softmax(self.switch_linear(inputs), dim=2)
+
         generation_switch = p[:, :, 0].unsqueeze(2)
-        source_copy_switch = p[:, :, 1].unsqueeze(2)
-        target_copy_switch = p[:, :, 2].unsqueeze(2)
+        if self._source_copy:
+            # TODO: remove, force generate for debug
+            source_copy_switch = p[:, :, 1].unsqueeze(2) * 0
+        if self._target_copy:
+            target_copy_switch = p[:, :, 2].unsqueeze(2) * 0
 
         # Vocab generation.
         # [batch_size, target_length, vocab_size]
@@ -73,10 +77,11 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
         vocab_prob_part = torch.mul(vocab_prob_dist, generation_switch.expand_as(vocab_prob_dist))
         hybrid_prob_dist.append(vocab_prob_part)
 
-
         # Source-side copy.
         if self._source_copy:
             # [batch_size, target_length, source_dynamic_vocab_size]
+            logger.info(f"source attn {source_attention_weights[0,1,:]}") 
+            logger.info(f"expected {source_attention_map[0,1,:]}") 
             source_copy_prob_dist = torch.bmm(source_attention_weights, source_attention_map.float())
             source_copy_prob_part = torch.mul(
                 source_copy_prob_dist, source_copy_switch.expand_as(source_copy_prob_dist)
@@ -91,5 +96,6 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
                 target_copy_prob_dist, target_copy_switch.expand_as(target_copy_prob_dist)
             )
             hybrid_prob_dist.append(target_copy_prob_part)
+
 
         return {"hybrid_prob_dist": torch.cat(hybrid_prob_dist, dim=2)}
