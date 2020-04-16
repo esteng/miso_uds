@@ -9,3 +9,4 @@ word2number
 bs4
 lxml
 networkx
+https://github.com/decompositional-semantics-initiative/decomp/tarball/master#egg=decomp
