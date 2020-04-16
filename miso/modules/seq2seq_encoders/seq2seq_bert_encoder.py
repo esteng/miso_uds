@@ -8,7 +8,7 @@ class BaseBertWrapper(Registrable, torch.nn.Module):
 
     def __init__(self, config: str) -> None:
         super().__init__()
-        self.bert_model = BertModel.from_pretrained(config)
+        self.bert_model = BertModel.from_pretrained(config).eval()
 
 
 @BaseBertWrapper.register("seq2seq_bert_encoder")

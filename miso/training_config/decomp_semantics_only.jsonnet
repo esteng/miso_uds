@@ -83,11 +83,11 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           type: "character_encoding",
           embedding: {
             vocab_namespace: "source_token_characters",
-            embedding_dim: 16,
+            embedding_dim: 100,
           },
           encoder: {
             type: "cnn",
-            embedding_dim: 16,
+            embedding_dim: 100,
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
@@ -122,11 +122,11 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           type: "character_encoding",
           embedding: {
             vocab_namespace: "target_token_characters",
-            embedding_dim: 16,
+            embedding_dim: 100,
           },
           encoder: {
             type: "cnn",
-            embedding_dim: 16,
+            embedding_dim: 100,
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
@@ -136,7 +136,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     decoder_node_index_embedding: {
       # vocab_namespace: "node_indices",
-      num_embeddings: 200,
+      num_embeddings: 500,
       embedding_dim: 50,
     },
     decoder_pos_embedding: {
@@ -189,24 +189,27 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       query_vector_dim: 1024,
       key_vector_dim: 1024,
       edge_head_vector_dim: 256,
-      edge_type_vector_dim: 128,
+      edge_type_vector_dim: 256,
       attention: {
         type: "biaffine",
         query_vector_dim: 256,
         key_vector_dim: 256,
       },
+      dropout: 0,
     },
     node_attribute_module: {
         input_dim: 1024,
-        hidden_dim: 2048,
+        hidden_dim: 1024,
         output_dim: 44,
         n_layers: 4, 
+        loss_multiplier: 10,
     },
     edge_attribute_module: {
-        h_input_dim: 128,
-        hidden_dim: 200,
+        h_input_dim: 256,
+        hidden_dim: 1024,
         output_dim: 14,
         n_layers: 4, 
+        loss_multiplier: 10,
     },
     label_smoothing: {
         smoothing: 0.0,
@@ -257,7 +260,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     semantics_only: "true",
     drop_syntax: "true",
   },
-  random_seed: 1,
-  numpy_seed: 1,
-  pytorch_seed: 1,
+  random_seed: 12,
+  numpy_seed: 12,
+  pytorch_seed: 12,
 }

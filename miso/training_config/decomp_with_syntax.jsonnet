@@ -35,6 +35,13 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     drop_syntax: "true",
     semantics_only: "false",
     order: "inorder",
+    tokenizer: {
+                type: "pretrained_transformer_for_amr",
+                model_name: "bert-base-cased",
+                args: null,
+                kwargs: {do_lowercase: 'false'},
+                #kwargs: null,
+               },
   },
   train_data_path: data_dir,
   validation_data_path: "dev",
@@ -59,7 +66,10 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   model: {
     type: "decomp_parser",
-    bert_encoder: null,
+    bert_encoder: {
+                    type: "seq2seq_bert_encoder",
+                    config: "bert-base-cased",
+                  },
     encoder_token_embedder: {
       token_embedders: {
         source_tokens: {
@@ -93,7 +103,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       type: "miso_stacked_bilstm",
       batch_first: true,
       stateful: true,
-      input_size: 300 + 50,
+      input_size: 300 + 50 + 768,
       hidden_size: 512,
       num_layers: 2,
       recurrent_dropout_probability: 0.33,
@@ -214,11 +224,11 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 64,
+    batch_size: 16,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 32,
+    batch_size: 16,
   },
 
   trainer: {

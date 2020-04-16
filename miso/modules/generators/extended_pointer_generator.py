@@ -77,6 +77,9 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
         # Source-side copy.
         if self._source_copy:
             # [batch_size, target_length, source_dynamic_vocab_size]
+            logger.info(f"source attn {source_attention_weights[0,0,:]}")
+            logger.info(f"source attn {source_attention_weights.shape}")
+            logger.info(f"expected {source_attention_map.shape}")
             source_copy_prob_dist = torch.bmm(source_attention_weights, source_attention_map.float())
             source_copy_prob_part = torch.mul(
                 source_copy_prob_dist, source_copy_switch.expand_as(source_copy_prob_dist)

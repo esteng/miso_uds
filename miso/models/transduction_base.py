@@ -250,8 +250,10 @@ class Transduction(Model):
                 attention_mask=subtoken_ids.ne(0),
                 output_all_encoded_layers=False,
                 token_recovery_matrix=token_recovery_matrix
-            )
+            ).detach()
+
             encoder_inputs += [bert_embeddings]
+
         encoder_inputs = torch.cat(encoder_inputs, 2)
         encoder_inputs = self._dropout(encoder_inputs)
 
