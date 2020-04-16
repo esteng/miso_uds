@@ -34,7 +34,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 2,
+    line_limit: 4,
     order: "inorder",
     #tokenizer: {
     #            type: "pretrained_transformer_for_amr",
@@ -45,8 +45,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     #           },
   },
   train_data_path: data_dir,
-  #validation_data_path: "dev",
-  validation_data_path: null,
+  validation_data_path: "dev",
   test_data_path: null,
   datasets_for_vocab_creation: [
     "train"
@@ -94,7 +93,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.33,
+          dropout: 0.01,
         },
       },
     },
@@ -134,7 +133,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.33,
+          dropout: 0.01,
         },
       },
     },
@@ -151,7 +150,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         input_size: 300 + 50 + 50,
         hidden_size: 256,
         ff_size: 512,
-        dropout: 0.01,
+        dropout: 0.00,
         num_layers: 2,
         nhead: 2, 
         norm: "true",
@@ -183,7 +182,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         },
       },
     },
-      #dropout: 0.33,
     extended_pointer_generator: {
       input_vector_dim: 256,
       source_copy: true,
@@ -237,7 +235,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_parsing",
-    num_epochs: 500,
+    num_epochs: 250,
     patience: 250,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.

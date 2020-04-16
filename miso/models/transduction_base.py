@@ -184,6 +184,7 @@ class Transduction(Model):
         _target_copy_indices = ((target_copy_indices + self._vocab_size + source_dynamic_vocab_size) *
                                 valid_target_copy_mask.long())
         _source_copy_indices = (source_copy_indices + self._vocab_size) * valid_source_copy_mask.long()
+
         _generation_outputs = generation_outputs * valid_generation_mask.long()
         hybrid_targets = _target_copy_indices + _source_copy_indices + _generation_outputs
 
@@ -191,10 +192,6 @@ class Transduction(Model):
         log_prob_dist = (prob_dist.view(batch_size * target_length, -1) + self._eps).log()
         flat_hybrid_targets = hybrid_targets.view(batch_size * target_length)
         loss = self._label_smoothing(log_prob_dist, flat_hybrid_targets)
-
-        values, inds = torch.max(log_prob_dist, dim=1)
-
-        logger.info(f"LOSS output {loss.item()}") 
 
         # Coverage loss.
         if coverage_history is not None:

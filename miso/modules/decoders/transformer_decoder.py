@@ -72,8 +72,10 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
         Shape:
             see the docs in Transformer class.
         """
-        tgt2, tgt_attn = self.self_attn(tgt, tgt, tgt, attn_mask=tgt_mask,
+        tgt2 = tgt.clone()
+        tgt2, tgt_attn = self.self_attn(tgt2, tgt2, tgt2, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)
+
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
@@ -120,43 +122,42 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
         batch_size, source_seq_length, _ = source_memory_bank.size()
         __, target_seq_length, __ = inputs.size()
 
-        inputs = inputs.permute(1, 0, 2)
-        source_memory_bank = source_memory_bank.permute(1, 0, 2)
+
+        source_mask_trf = None
+        target_mask_trf = None
         if source_mask is not None:
-            source_mask = ~source_mask.bool()
+            source_mask_trf = ~source_mask.bool()
         if target_mask is not None:
-            target_mask = ~target_mask.bool() 
+            target_mask_trf = ~target_mask.bool() 
 
         # project to correct dimensionality 
-        outputs_projected = self.input_proj_layer(inputs)
-        outputs = add_positional_features(outputs_projected) 
-        ar_mask = self.make_autoregressive_mask(inputs.size()[0])
+        outputs = self.input_proj_layer(inputs)
+        # add pos encoding feats 
+        outputs = add_positional_features(outputs) 
 
-        tgt_attns = []
-        src_attns = []
+        # swap to pytorch's batch-second convention 
+        outputs = outputs.permute(1, 0, 2)
+        source_memory_bank = source_memory_bank.permute(1, 0, 2)
+
+        # get a mask 
+        ar_mask = self.make_autoregressive_mask(outputs.shape[0])
 
         for i in range(len(self.layers)):
-            outputs, tgt_attn, src_attn  = self.layers[i](outputs, 
+
+            outputs , __, __ = self.layers[i](outputs, 
                                     source_memory_bank, 
                                     tgt_mask=ar_mask,
                                     #memory_mask=None,
-                                    tgt_key_padding_mask=target_mask,
-                                    memory_key_padding_mask=source_mask
+                                    tgt_key_padding_mask=target_mask_trf,
+                                    memory_key_padding_mask=source_mask_trf
                                     )
-            tgt_attns.append(tgt_attn)
-            src_attns.append(src_attn)
 
         if self.norm:
             outputs = self.norm(outputs)
 
         # switch back from pytorch's absolutely moronic batch-second convention
         outputs = outputs.permute(1, 0, 2)
-        outputs_projected = outputs_projected.permute(1, 0, 2)
         source_memory_bank = source_memory_bank.permute(1, 0, 2) 
-
-        # coverage implemented as in https://web.stanford.edu/class/archive/cs/cs224n/cs224n.1194/reports/custom/15784595.pdf
-        # sum across target tokens 
-        # coverage = torch.sum(src_attns[-1], dim = 2) 
 
         if not self.use_coverage:
             source_attention_output = self.source_attn_layer(outputs, 
@@ -193,11 +194,6 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
             source_attention_weights = torch.cat(source_attention_weights, dim=1) 
             coverage_history = torch.cat(coverage_history, dim=1)
                 
-
-
-        logger.info(f"attentional_tensors {attentional_tensors.shape}") 
-        logger.info(f"source_attention_weights {source_attention_weights.shape}") 
-
         target_attention_output = self.target_attn_layer(attentional_tensors,
                                                          outputs) 
 
@@ -233,14 +229,20 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
         :return:
         """
         bsz, og_seq_len, input_dim = inputs.size() 
-        new_input = torch.zeros((bsz, 1, input_dim))
-        inputs = torch.cat((inputs, new_input), dim = 1)
-        # don't look at last pos 
-        target_mask = torch.ones((bsz, og_seq_len + 1))
-        target_mask[:, -1] = 0
-        target_mask = target_mask.bool()
+        # new_input = torch.zeros((bsz, 1, input_dim))
+        # inputs = torch.cat((inputs, new_input), dim = 1)
+        # don't look at last position
+        #target_mask = torch.ones((bsz, og_seq_len + 1))
+        #target_mask[:, -1] = 0
+        #target_mask = ~target_mask.bool()
+
+        target_mask = None  
         to_ret = self(inputs, source_memory_bank, source_mask, target_mask)
-        to_ret["coverage"] = to_ret["coverage_history"][:,-1].unsqueeze(-1)
+        if to_ret['coverage_history'] is not None:
+            to_ret["coverage"] = to_ret["coverage_history"][:,-1].unsqueeze(-1)
+        else:
+            to_ret['coverage'] = None
+
         # pad attention weights
         tgt_attn_weights = to_ret['target_attention_weights'][:, -1, :].unsqueeze(1)
         num_done = tgt_attn_weights.shape[2]
@@ -258,24 +260,20 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
 
     def make_autoregressive_mask(self,
                                  size: int):
-        mask = torch.triu(torch.ones((size, size)), diagonal=1).T
-        mask = (torch.ones_like(mask) - mask) * float('-inf')
-        # replace nans 
-        mask[mask != mask] = 0.0
-        mask[0,0] = 0.0
+        mask = (torch.triu(torch.ones(size, size)) == 1).transpose(0, 1)
+        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+
         return mask
 
     @classmethod
     def from_params(cls,
                     params): 
-
         input_size = params['input_size']
         hidden_size = params['hidden_size']
         ff_size = params['ff_size']
         nhead = params.get('nhead', 8)
         num_layers = params.get('num_layers', 6) 
         dropout = params.get('dropout', 0.1)
-        #use_coverage = params.get("use_coverage", True)
         use_coverage = params.get("use_coverage", False)
         # norm = params.get('norm', 'true')
 
