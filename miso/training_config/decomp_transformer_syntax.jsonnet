@@ -1,4 +1,4 @@
-local data_dir = "dev";
+local data_dir = "train";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
 {
@@ -34,19 +34,17 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 4,
     order: "inorder",
-    #tokenizer: {
-    #            type: "pretrained_transformer_for_amr",
-    #            model_name: "bert-base-cased",
-    #            args: null,
-    #            kwargs: {do_lowercase: 'false'},
-    #            #kwargs: null,
-    #           },
+    tokenizer: {
+                type: "pretrained_transformer_for_amr",
+                model_name: "bert-base-cased",
+                args: null,
+                kwargs: {do_lowercase: 'false'},
+                #kwargs: null,
+               },
   },
   train_data_path: data_dir,
-  #validation_data_path: "dev",
-  validation_data_path: null, 
+  validation_data_path: "dev",
   test_data_path: null,
   datasets_for_vocab_creation: [
     "train"
@@ -68,17 +66,16 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   model: {
     type: "decomp_parser",
-    bert_encoder: null,
-    #bert_encoder: {
-    #                type: "seq2seq_bert_encoder",
-    #                config: "bert-base-cased",
-    #              },
+    bert_encoder: {
+                    type: "seq2seq_bert_encoder",
+                    config: "bert-base-cased",
+                  },
     encoder_token_embedder: {
       token_embedders: {
         source_tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
-          #pretrained_file: glove_embeddings,
+          pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -104,21 +101,19 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     encoder: {
       type: "stacked_self_attention",
-      input_dim: 300 + 50,
-      feedforward_hidden_dim: 512,
-      num_attention_heads: 2,
-      hidden_dim: 64,
-      projection_dim: 64, 
-      num_layers: 4,
-      #recurrent_dropout_probability: 0.33,
-      #use_highway: false,
+      input_dim: 300 + 50 + 768,
+      feedforward_hidden_dim: 2048,
+      num_attention_heads: 8, 
+      hidden_dim: 1024,
+      projection_dim: 1024, 
+      num_layers: 6,
     },
     decoder_token_embedder: {
       token_embedders: {
         target_tokens: {
           type: "embedding",
           vocab_namespace: "target_tokens",
-          #pretrained_file: glove_embeddings,
+          pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -149,64 +144,64 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     decoder: {
         input_size: 300 + 50 + 50,
-        hidden_size: 64,
-        ff_size: 512,
-        dropout: 0.00,
-        num_layers: 1,
+        hidden_size: 1024,
+        ff_size: 2048,
+        dropout: 0.10,
+        num_layers: 6,
         nhead: 8, 
         norm: "true",
       source_attention_layer: {
         type: "global",
-        query_vector_dim: 64,
-        key_vector_dim: 64,
-        output_vector_dim: 64,
+        query_vector_dim: 1024,
+        key_vector_dim: 1024,
+        output_vector_dim: 1024,
         attention: {
           type: "mlp",
           # TODO: try to use smaller dims.
-          query_vector_dim: 64,
-          key_vector_dim: 64,
-          hidden_vector_dim: 64, 
+          query_vector_dim: 1024,
+          key_vector_dim: 1024,
+          hidden_vector_dim: 1024, 
           use_coverage: false,
         },
       },
       target_attention_layer: {
         type: "global",
-        query_vector_dim: 64,
-        key_vector_dim: 64,
-        output_vector_dim: 64,
+        query_vector_dim: 1024,
+        key_vector_dim: 1024,
+        output_vector_dim: 1024,
         attention: {
           type: "mlp",
-          query_vector_dim: 64,
-          key_vector_dim: 64,
-          hidden_vector_dim: 64,
+          query_vector_dim: 1024,
+          key_vector_dim: 1024,
+          hidden_vector_dim: 1024,
           use_coverage: false,
         },
       },
     },
     extended_pointer_generator: {
-      input_vector_dim: 64,
+      input_vector_dim: 1024,
       source_copy: true,
       target_copy: true,
     },
     tree_parser: {
-      query_vector_dim: 64,
-      key_vector_dim: 64,
-      edge_head_vector_dim: 64,
-      edge_type_vector_dim: 32,
+      query_vector_dim: 1024,
+      key_vector_dim: 1024, 
+      edge_head_vector_dim: 256,
+      edge_type_vector_dim: 128,
       attention: {
         type: "biaffine",
-        query_vector_dim: 64,
-        key_vector_dim: 64,
+        query_vector_dim: 256,
+        key_vector_dim: 256,
       },
     },
     node_attribute_module: {
-        input_dim: 64,
-        hidden_dim: 128,
+        input_dim: 1024,
+        hidden_dim: 2048,
         output_dim: 44,
         n_layers: 4, 
     },
     edge_attribute_module: {
-        h_input_dim: 32,
+        h_input_dim: 128,
         hidden_dim: 200,
         output_dim: 14,
         n_layers: 4, 
@@ -227,7 +222,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 64,
+    batch_size: 32,
   },
   validation_iterator: {
     type: "basic",
@@ -236,12 +231,12 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_parsing",
-    num_epochs: 1000,
-    patience: 1000,
+    num_epochs: 250,
+    patience: 250,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
-    cuda_device: -1,
+    cuda_device: 0,
     num_serialized_models_to_keep: 5,
     validation_metric: "+s_f1",
     optimizer: {
@@ -255,13 +250,12 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
-    validation_data_path: null,
-    #validation_data_path: "dev",
-    #validation_prediction_path: "decomp_validation.txt",
+    validation_data_path: "dev",
+    validation_prediction_path: "decomp_validation.txt",
     semantics_only: "false",
     drop_syntax: "true",
   },
-  random_seed: 1,
-  numpy_seed: 1,
-  pytorch_seed: 1,
+  random_seed: 12,
+  numpy_seed: 12,
+  pytorch_seed: 12,
 }

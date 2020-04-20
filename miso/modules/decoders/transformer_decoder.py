@@ -41,8 +41,8 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
         super(MisoTransformerDecoderLayer, self).__init__()
-        self.self_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.multihead_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = True)
+        self.multihead_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = True)
         # Implementation of Feedforward model
         self.linear1 = torch.nn.Linear(d_model, dim_feedforward)
         self.dropout = torch.nn.Dropout(dropout)
@@ -56,6 +56,17 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
         self.dropout3 = torch.nn.Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
+
+        # initialize attention heads 
+        for m in self.modules():
+            if isinstance(m, torch.nn.MultiheadAttention):
+                torch.nn.init.xavier_normal_(m.bias_v)
+                torch.nn.init.xavier_normal_(m.bias_k)
+                torch.nn.init.xavier_normal_(m.in_proj_weight)
+                torch.nn.init.uniform_(m.in_proj_bias)
+                torch.nn.init.xavier_normal_(m.out_proj.weight)
+                torch.nn.init.uniform_(m.out_proj.bias)
+            
 
     def forward(self, tgt, memory, tgt_mask=None, memory_mask=None,
                 tgt_key_padding_mask=None, memory_key_padding_mask=None):
@@ -140,7 +151,7 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
         source_memory_bank = source_memory_bank.permute(1, 0, 2)
 
         # get a mask 
-        ar_mask = self.make_autoregressive_mask(outputs.shape[0])
+        ar_mask = self.make_autoregressive_mask(outputs.shape[0]).to(source_memory_bank.device)
 
         for i in range(len(self.layers)):
 
