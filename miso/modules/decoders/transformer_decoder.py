@@ -51,6 +51,8 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
         self.norm1 = torch.nn.LayerNorm(d_model)
         self.norm2 = torch.nn.LayerNorm(d_model)
         self.norm3 = torch.nn.LayerNorm(d_model)
+        self.norm4 = torch.nn.LayerNorm(d_model)
+
         self.dropout1 = torch.nn.Dropout(dropout)
         self.dropout2 = torch.nn.Dropout(dropout)
         self.dropout3 = torch.nn.Dropout(dropout)
@@ -60,12 +62,28 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
         # initialize attention heads 
         for m in self.modules():
             if isinstance(m, torch.nn.MultiheadAttention):
-                torch.nn.init.xavier_normal_(m.bias_v)
-                torch.nn.init.xavier_normal_(m.bias_k)
-                torch.nn.init.xavier_normal_(m.in_proj_weight)
+
+                torch.nn.init.xavier_normal_(m.bias_v, 
+                                             gain = self._get_gain_from_tensor(m.bias_v) )
+                torch.nn.init.xavier_normal_(m.bias_k,
+                                             gain = self._get_gain_from_tensor(m.bias_k))
+                torch.nn.init.xavier_normal_(m.in_proj_weight,
+                                            gain = self._get_gain_from_tensor(m.in_proj_weight))
                 torch.nn.init.uniform_(m.in_proj_bias)
-                torch.nn.init.xavier_normal_(m.out_proj.weight)
+                torch.nn.init.xavier_normal_(m.out_proj.weight, 
+                                            gain = self._get_gain_from_tensor(m.out_proj.weight))
                 torch.nn.init.uniform_(m.out_proj.bias)
+
+    @staticmethod
+    def _get_gain_from_tensor(tensor):
+        if len(tensor.shape) > 2:
+            in_d1, in_d2, out_d = tensor.shape
+            in_d = in_d1 * in_d2
+        else:
+            in_d, out_d = tensor.shape
+
+        # use gain to scale as in SmallInit of https://arxiv.org/pdf/1910.05895.pdf
+        return ((in_d + out_d)/(in_d + 4 * out_d))**(1/2) 
             
 
     def forward(self, tgt, memory, tgt_mask=None, memory_mask=None,
@@ -83,22 +101,32 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
         Shape:
             see the docs in Transformer class.
         """
+
+        # norm before residual as in https://arxiv.org/pdf/1910.05895.pdf
         tgt2 = tgt.clone()
+        tgt2 = self.norm1(tgt2)
         tgt2, tgt_attn = self.self_attn(tgt2, tgt2, tgt2, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)
 
         tgt = tgt + self.dropout1(tgt2)
-        tgt = self.norm1(tgt)
+        #tgt = self.norm1(tgt)
 
+        tgt = self.norm2(tgt)
         tgt2, src_attn = self.multihead_attn(tgt, memory, memory, attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)
-        tgt = tgt + self.dropout2(tgt2)
-        tgt = self.norm2(tgt)
 
+        tgt = tgt + self.dropout2(tgt2)
+        #tgt = self.norm2(tgt)
+
+        tgt = self.norm3(tgt)
         tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
 
         tgt = tgt + self.dropout3(tgt2)
-        tgt = self.norm3(tgt)
+        #tgt = self.norm3(tgt)
+
+        # additional norm 
+        tgt = self.norm4(tgt)
+
         return tgt, tgt_attn, src_attn
 
 

@@ -130,6 +130,8 @@ class AMRDatasetReader(DatasetReader):
             padding_value=0
         )
 
+
+
         field_dict["source_copy_indices"] = SequenceLabelField(
             labels=list_data["src_copy_indices"],
             sequence_field=field_dict["generation_outputs"],
@@ -143,6 +145,15 @@ class AMRDatasetReader(DatasetReader):
             ),
             padding_value=0
         )
+
+        print(list_data['src_copy_indices']) 
+        print(list_data['src_copy_map']) 
+
+        print(f'over textfield {[Token(x) for x in list_data["src_copy_vocab"].get_special_tok_list() + list_data["src_tokens"]]}') 
+
+        print(field_dict["source_copy_indices"]) 
+        print(field_dict["source_attention_map"]) 
+        sys.exit()
 
         field_dict["edge_types"] = TextField(
             tokens=[Token(x) for x in list_data["head_tags"]],

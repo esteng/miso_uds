@@ -34,7 +34,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 4,
+    line_limit: 16,
     order: "inorder",
     #tokenizer: {
     #            type: "pretrained_transformer_for_amr",
@@ -152,8 +152,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         hidden_size: 64,
         ff_size: 512,
         dropout: 0.00,
-        num_layers: 1,
-        nhead: 8, 
+        num_layers: 4,
+        nhead: 4, 
         norm: "true",
       source_attention_layer: {
         type: "global",
@@ -236,7 +236,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_parsing",
-    num_epochs: 1000,
+    num_epochs: 250,
     patience: 1000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
@@ -246,13 +246,16 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     validation_metric: "+s_f1",
     optimizer: {
       type: "adam",
-      weight_decay: 3e-9,
+      betas: [0.9, 0.98],
+      eps: 1e-9,
+      lr: 1e-3, 
       amsgrad: true,
     },
-    # learning_rate_scheduler: {
-    #   type: "reduce_on_plateau",
-    #   patience: 10,
-    # },
+     learning_rate_scheduler: {
+       type: "noam",
+       model_size: 64, 
+       warmup_steps: 4000,
+     },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: null,
