@@ -83,7 +83,7 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
             in_d, out_d = tensor.shape
 
         # use gain to scale as in SmallInit of https://arxiv.org/pdf/1910.05895.pdf
-        return ((in_d + out_d)/(in_d + 4 * out_d))**(1/2) 
+        return ((in_d + out_d)/(in_d + 128 * out_d))**(1/2) 
             
 
     def forward(self, tgt, memory, tgt_mask=None, memory_mask=None,
