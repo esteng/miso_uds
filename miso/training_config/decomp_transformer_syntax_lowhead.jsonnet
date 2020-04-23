@@ -59,9 +59,9 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       generation_tokens: 1,
     },
     max_vocab_size: {
-      source_tokens: 18000,
-      target_tokens: 12200,
-      generation_tokens: 12200,
+      source_tokens: 19700,
+      target_tokens: 19700,
+      generation_tokens: 19700,
     },
   },
 
@@ -145,6 +145,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       embedding_dim: 50,
     },
     decoder: {
+        init_scale: 256,
         input_size: 300 + 50 + 50,
         hidden_size: 512,
         ff_size: 1024,

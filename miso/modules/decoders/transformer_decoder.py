@@ -39,10 +39,19 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
         activation: the activation function of intermediate layer, relu or gelu (default=relu).
     """
 
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu"):
+    def __init__(self, 
+                d_model, 
+                nhead, 
+                dim_feedforward=2048,
+                dropout=0.1, 
+                activation="relu",
+                init_scale = 256):
+
         super(MisoTransformerDecoderLayer, self).__init__()
-        self.self_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = True)
-        self.multihead_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = True)
+        self.init_scale = init_scale
+
+        self.self_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = False)
+        self.multihead_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = False)
         # Implementation of Feedforward model
         self.linear1 = torch.nn.Linear(d_model, dim_feedforward)
         self.dropout = torch.nn.Dropout(dropout)
@@ -63,19 +72,22 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
         for m in self.modules():
             if isinstance(m, torch.nn.MultiheadAttention):
 
-                torch.nn.init.xavier_normal_(m.bias_v, 
-                                             gain = self._get_gain_from_tensor(m.bias_v) )
-                torch.nn.init.xavier_normal_(m.bias_k,
-                                             gain = self._get_gain_from_tensor(m.bias_k))
+                #torch.nn.init.xavier_normal_(m.bias_v, 
+                #                             gain = self._get_gain_from_tensor(m.bias_v) )
+                #torch.nn.init.xavier_normal_(m.bias_k,
+                #                             gain = self._get_gain_from_tensor(m.bias_k))
                 torch.nn.init.xavier_normal_(m.in_proj_weight,
-                                            gain = self._get_gain_from_tensor(m.in_proj_weight))
+                            gain = self._get_gain_from_tensor(self.init_scale, 
+                                                            m.in_proj_weight))
                 torch.nn.init.uniform_(m.in_proj_bias)
+
                 torch.nn.init.xavier_normal_(m.out_proj.weight, 
-                                            gain = self._get_gain_from_tensor(m.out_proj.weight))
+                            gain = self._get_gain_from_tensor(self.init_scale, 
+                                                            m.out_proj.weight))
                 torch.nn.init.uniform_(m.out_proj.bias)
 
     @staticmethod
-    def _get_gain_from_tensor(tensor):
+    def _get_gain_from_tensor(init_scale, tensor):
         if len(tensor.shape) > 2:
             in_d1, in_d2, out_d = tensor.shape
             in_d = in_d1 * in_d2
@@ -83,7 +95,7 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
             in_d, out_d = tensor.shape
 
         # use gain to scale as in SmallInit of https://arxiv.org/pdf/1910.05895.pdf
-        return ((in_d + out_d)/(in_d + 256 * out_d))**(1/2) 
+        return ((in_d + out_d)/(in_d + init_scale * out_d))**(1/2) 
             
 
     def forward(self, tgt, memory, tgt_mask=None, memory_mask=None,
@@ -314,6 +326,7 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
         num_layers = params.get('num_layers', 6) 
         dropout = params.get('dropout', 0.1)
         use_coverage = params.get("use_coverage", False)
+        init_scale = params.get("init_scale", 256) 
         # norm = params.get('norm', 'true')
 
         # TODO: fix this 
@@ -326,7 +339,8 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
         transformer_layer = MisoTransformerDecoderLayer(hidden_size, 
                                                         nhead,
                                                         ff_size,
-                                                        dropout)
+                                                        dropout,
+                                                        init_scale = init_scale) 
         source_attention_layer = AttentionLayer.from_params(params['source_attention_layer'])
         target_attention_layer = AttentionLayer.from_params(params['target_attention_layer'])
         return cls(transformer_layer, 
@@ -336,6 +350,6 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
                      target_attention_layer,
                      norm, 
                      dropout, 
-                     use_coverage)
+                     use_coverage) 
 
 
