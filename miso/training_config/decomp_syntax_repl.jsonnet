@@ -58,9 +58,9 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       generation_tokens: 1,
     },
     max_vocab_size: {
-      source_tokens: 18000,
-      target_tokens: 12200,
-      generation_tokens: 12200,
+      source_tokens: 19700,
+      target_tokens: 19700,
+      generation_tokens: 19700,
     },
   },
 
