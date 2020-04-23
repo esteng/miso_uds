@@ -35,13 +35,14 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     drop_syntax: "true",
     semantics_only: "false",
     order: "inorder",
-    tokenizer: {
-                type: "pretrained_transformer_for_amr",
-                model_name: "bert-base-cased",
-                args: null,
-                kwargs: {do_lowercase: 'false'},
-                #kwargs: null,
-               },
+    tokenizer: null, 
+    #tokenizer: {
+    #            type: "pretrained_transformer_for_amr",
+    #            model_name: "bert-base-cased",
+    #            args: null,
+    #            kwargs: {do_lowercase: 'false'},
+    #            #kwargs: null,
+    #           },
   },
   train_data_path: data_dir,
   validation_data_path: "dev",
@@ -66,10 +67,11 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   model: {
     type: "decomp_parser",
-    bert_encoder: {
-                    type: "seq2seq_bert_encoder",
-                    config: "bert-base-cased",
-                  },
+    bert_encoder: null, 
+    #bert_encoder: {
+    #                type: "seq2seq_bert_encoder",
+    #                config: "bert-base-cased",
+    #              },
     encoder_token_embedder: {
       token_embedders: {
         source_tokens: {
@@ -101,11 +103,11 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     encoder: {
       type: "stacked_self_attention",
-      input_dim: 300 + 50 + 768,
+      input_dim: 300 + 50 ,
       feedforward_hidden_dim: 2048,
       num_attention_heads: 8, 
-      hidden_dim: 1024,
-      projection_dim: 1024, 
+      hidden_dim: 512,
+      projection_dim: 512, 
       num_layers: 6,
     },
     decoder_token_embedder: {
@@ -144,48 +146,48 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     decoder: {
         input_size: 300 + 50 + 50,
-        hidden_size: 1024,
-        ff_size: 2048,
-        dropout: 0.10,
-        num_layers: 4,
-        nhead: 2, 
+        hidden_size: 512,
+        ff_size: 1024,
+        dropout: 0.20,
+        num_layers: 8,
+        nhead: 8, 
         norm: "true",
       source_attention_layer: {
         type: "global",
-        query_vector_dim: 1024,
-        key_vector_dim: 1024,
-        output_vector_dim: 1024,
+        query_vector_dim: 512,
+        key_vector_dim: 512,
+        output_vector_dim: 512,
         attention: {
           type: "mlp",
           # TODO: try to use smaller dims.
-          query_vector_dim: 1024,
-          key_vector_dim: 1024,
-          hidden_vector_dim: 1024, 
+          query_vector_dim: 512,
+          key_vector_dim: 512,
+          hidden_vector_dim: 512, 
           use_coverage: false,
         },
       },
       target_attention_layer: {
         type: "global",
-        query_vector_dim: 1024,
-        key_vector_dim: 1024,
-        output_vector_dim: 1024,
+        query_vector_dim: 512,
+        key_vector_dim: 512,
+        output_vector_dim: 512,
         attention: {
           type: "mlp",
-          query_vector_dim: 1024,
-          key_vector_dim: 1024,
-          hidden_vector_dim: 1024,
+          query_vector_dim: 512,
+          key_vector_dim: 512,
+          hidden_vector_dim: 512,
           use_coverage: false,
         },
       },
     },
     extended_pointer_generator: {
-      input_vector_dim: 1024,
+      input_vector_dim: 512,
       source_copy: true,
       target_copy: true,
     },
     tree_parser: {
-      query_vector_dim: 1024,
-      key_vector_dim: 1024, 
+      query_vector_dim: 512,
+      key_vector_dim: 512, 
       edge_head_vector_dim: 256,
       edge_type_vector_dim: 128,
       attention: {
@@ -195,7 +197,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       },
     },
     node_attribute_module: {
-        input_dim: 1024,
+        input_dim: 512,
         hidden_dim: 2048,
         output_dim: 44,
         n_layers: 4, 
@@ -241,13 +243,16 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     validation_metric: "+s_f1",
     optimizer: {
       type: "adam",
-      weight_decay: 3e-9,
+      betas: [0.9, 0.98],
+      eps: 1e-9,
+      lr: 1e-3, 
       amsgrad: true,
     },
-    # learning_rate_scheduler: {
-    #   type: "reduce_on_plateau",
-    #   patience: 10,
-    # },
+     learning_rate_scheduler: {
+       type: "noam",
+       model_size: 512, 
+       warmup_steps: 2000,
+     },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
