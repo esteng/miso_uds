@@ -36,13 +36,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     semantics_only: "false",
     order: "inorder",
     tokenizer: null, 
-    #tokenizer: {
-    #            type: "pretrained_transformer_for_amr",
-    #            model_name: "bert-base-cased",
-    #            args: null,
-    #            kwargs: {do_lowercase: 'false'},
-    #            #kwargs: null,
-    #           },
   },
   train_data_path: data_dir,
   validation_data_path: "dev",
@@ -68,10 +61,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   model: {
     type: "decomp_parser",
     bert_encoder: null, 
-    #bert_encoder: {
-    #                type: "seq2seq_bert_encoder",
-    #                config: "bert-base-cased",
-    #              },
     encoder_token_embedder: {
       token_embedders: {
         source_tokens: {
@@ -93,7 +82,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.01,
         },
       },
     },
@@ -109,6 +97,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       hidden_dim: 512,
       projection_dim: 512, 
       num_layers: 6,
+      dropout_prob: 0.33,
     },
     decoder_token_embedder: {
       token_embedders: {
@@ -131,7 +120,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.01,
         },
       },
     },
@@ -145,14 +133,15 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       embedding_dim: 50,
     },
     decoder: {
-        init_scale: 256,
+        init_scale: ${INIT_SCALE},
         input_size: 300 + 50 + 50,
         hidden_size: 512,
         ff_size: 1024,
-        dropout: 0.20,
-        num_layers: 8,
-        nhead: 8, 
+        dropout: ${DROPOUT},
+        num_layers: ${N_LAYERS},
+        nhead: ${NHEAD}, 
         norm: "true",
+        use_coverage: true,
       source_attention_layer: {
         type: "global",
         query_vector_dim: 512,
@@ -164,7 +153,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 512,
           key_vector_dim: 512,
           hidden_vector_dim: 512, 
-          use_coverage: false,
+          use_coverage: true,
         },
       },
       target_attention_layer: {
@@ -177,7 +166,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 512,
           key_vector_dim: 512,
           hidden_vector_dim: 512,
-          use_coverage: false,
         },
       },
     },
@@ -212,7 +200,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     label_smoothing: {
         smoothing: 0.0,
     },
-    dropout: 0.0,
+    dropout: 0.33,
     beam_size: 2,
     max_decoding_steps: 50,
     target_output_namespace: "generation_tokens",
@@ -234,8 +222,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_parsing",
-    num_epochs: 250,
-    patience: 250,
+    num_epochs: 40,
+    patience: 40,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -252,7 +240,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
-       warmup_steps: 2000,
+       warmup_steps: ${WARMUP},
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",

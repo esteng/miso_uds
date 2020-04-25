@@ -155,6 +155,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         num_layers: 4,
         nhead: 4, 
         norm: "true",
+        use_coverage: true,
       source_attention_layer: {
         type: "global",
         query_vector_dim: 64,
@@ -166,7 +167,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 64,
           key_vector_dim: 64,
           hidden_vector_dim: 64, 
-          use_coverage: false,
+          use_coverage: true,
         },
       },
       target_attention_layer: {
@@ -179,7 +180,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 64,
           key_vector_dim: 64,
           hidden_vector_dim: 64,
-          use_coverage: false,
         },
       },
     },
@@ -204,12 +204,14 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         hidden_dim: 128,
         output_dim: 44,
         n_layers: 4, 
+        loss_multiplier: 10,
     },
     edge_attribute_module: {
         h_input_dim: 32,
         hidden_dim: 200,
         output_dim: 14,
         n_layers: 4, 
+        loss_multiplier: 10,
     },
     label_smoothing: {
         smoothing: 0.0,
@@ -254,7 +256,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 64, 
-       warmup_steps: 4000,
+       warmup_steps: 1000,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",

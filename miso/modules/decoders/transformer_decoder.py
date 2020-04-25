@@ -50,8 +50,8 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
         super(MisoTransformerDecoderLayer, self).__init__()
         self.init_scale = init_scale
 
-        self.self_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = False)
-        self.multihead_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = False)
+        self.self_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = True)
+        self.multihead_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = True)
         # Implementation of Feedforward model
         self.linear1 = torch.nn.Linear(d_model, dim_feedforward)
         self.dropout = torch.nn.Dropout(dropout)
@@ -72,10 +72,12 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
         for m in self.modules():
             if isinstance(m, torch.nn.MultiheadAttention):
 
-                #torch.nn.init.xavier_normal_(m.bias_v, 
-                #                             gain = self._get_gain_from_tensor(m.bias_v) )
-                #torch.nn.init.xavier_normal_(m.bias_k,
-                #                             gain = self._get_gain_from_tensor(m.bias_k))
+                torch.nn.init.xavier_normal_(m.bias_v, 
+                             gain = self._get_gain_from_tensor(self.init_scale, 
+                                                              m.bias_v) )
+                torch.nn.init.xavier_normal_(m.bias_k,
+                             gain = self._get_gain_from_tensor(self.init_scale, 
+                                                                m.bias_k))
                 torch.nn.init.xavier_normal_(m.in_proj_weight,
                             gain = self._get_gain_from_tensor(self.init_scale, 
                                                             m.in_proj_weight))
@@ -326,6 +328,9 @@ class MisoTransformerDecoder(torch.nn.Module, Registrable):
         num_layers = params.get('num_layers', 6) 
         dropout = params.get('dropout', 0.1)
         use_coverage = params.get("use_coverage", False)
+        if use_coverage == "true":
+            use_coverage = True
+
         init_scale = params.get("init_scale", 256) 
         # norm = params.get('norm', 'true')
 
