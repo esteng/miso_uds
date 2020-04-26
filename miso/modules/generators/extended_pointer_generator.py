@@ -3,7 +3,6 @@ from typing import Dict, Optional
 from overrides import overrides
 import torch
 from allennlp.common.registrable import Registrable
-import logging
 
 
 class ExtendedPointerGenerator(torch.nn.Module, Registrable):
@@ -60,9 +59,14 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
 
         # Soft switch: [batch_size, target_length, num_switches].
         p = torch.nn.functional.softmax(self.switch_linear(inputs), dim=2)
+
         generation_switch = p[:, :, 0].unsqueeze(2)
-        source_copy_switch = p[:, :, 1].unsqueeze(2)
-        target_copy_switch = p[:, :, 2].unsqueeze(2)
+        # TODO: remove, force generate for debug
+
+        if self._source_copy:
+            source_copy_switch = p[:, :, 1].unsqueeze(2) 
+        if self._target_copy:
+            target_copy_switch = p[:, :, 2].unsqueeze(2) 
 
         # Vocab generation.
         # [batch_size, target_length, vocab_size]
@@ -71,7 +75,6 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
         vocab_prob_dist = torch.nn.functional.softmax(scores, dim=2)
         vocab_prob_part = torch.mul(vocab_prob_dist, generation_switch.expand_as(vocab_prob_dist))
         hybrid_prob_dist.append(vocab_prob_part)
-
 
         # Source-side copy.
         if self._source_copy:
@@ -90,5 +93,6 @@ class ExtendedPointerGenerator(torch.nn.Module, Registrable):
                 target_copy_prob_dist, target_copy_switch.expand_as(target_copy_prob_dist)
             )
             hybrid_prob_dist.append(target_copy_prob_part)
+
 
         return {"hybrid_prob_dist": torch.cat(hybrid_prob_dist, dim=2)}

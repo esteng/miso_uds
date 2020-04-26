@@ -3,6 +3,7 @@ import torch
 
 from miso.metrics.continuous_metrics import ContinuousMetric
 from miso.modules.linear.bilinear import BiLinear
+from miso.losses.loss import MSECrossEntropyLoss
 
 class MLP(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, n_layers):
@@ -30,8 +31,8 @@ class EdgeAttributeDecoder(torch.nn.Module):
             hidden_dim,
             n_layers,
             output_dim, 
-            loss_multiplier = 1,
-            loss_function = torch.nn.MSELoss(),
+            loss_multiplier = 10,
+            loss_function = MSECrossEntropyLoss,
             share_networks = False):
         super(EdgeAttributeDecoder, self).__init__()
 

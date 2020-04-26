@@ -34,7 +34,7 @@ class DecompDatasetReader(DatasetReader):
                  source_token_indexers: Dict[str, TokenIndexer],
                  target_token_indexers: Dict[str, TokenIndexer],
                  generation_token_indexers: Dict[str, TokenIndexer],
-                 tokenizer: Tokenizer = AMRTransformerTokenizer,
+                 tokenizer: Tokenizer = None, #AMRTransformerTokenizer,
                  evaluation: bool = False,
                  drop_syntax: bool = True,
                  semantics_only: bool = False,
@@ -260,6 +260,15 @@ class DecompDatasetReader(DatasetReader):
             ),
             padding_value=0
         )
+        #print(list_data['src_copy_indices']) 
+        #print(list_data['src_copy_map']) 
+
+        #print(f'over textfield {[Token(x) for x in list_data["src_copy_vocab"].get_special_tok_list() + list_data["src_tokens"]]}') 
+
+        #print(fields["source_copy_indices"]) 
+        #print(fields["source_attention_map"]) 
+        #sys.exit()
+
 
         # These two fields are used in biaffine parser
         fields["edge_types"] = TextField(
