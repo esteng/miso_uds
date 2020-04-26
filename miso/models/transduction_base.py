@@ -265,12 +265,12 @@ class Transduction(Model):
         encoder_outputs = self._encoder(encoder_inputs, mask)
         encoder_outputs = self._dropout(encoder_outputs)
         # A tuple of (state, memory) with shape [num_layers, batch, encoder_output_size]
-        #encoder_final_states = self._encoder.get_final_states()
-        #self._encoder.reset_states()
+        encoder_final_states = self._encoder.get_final_states()
+        self._encoder.reset_states()
 
         return dict(
             encoder_outputs=encoder_outputs,
-            #final_states=encoder_final_states
+            final_states=encoder_final_states
         )
 
     def _parse(self,

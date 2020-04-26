@@ -239,7 +239,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
-    cuda_device: 0,
+    cuda_device: -1,
     num_serialized_models_to_keep: 5,
     validation_metric: "+s_f1",
     optimizer: {

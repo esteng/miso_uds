@@ -13,6 +13,7 @@ from allennlp.modules import InputVariationalDropout
 from allennlp.nn.util import add_positional_features
 
 from miso.modules.attention_layers import AttentionLayer
+from miso.modules.decoders.decoder import MisoDecoder
 
 logger = logging.getLogger(__name__) 
 
@@ -143,8 +144,8 @@ class MisoTransformerDecoderLayer(torch.nn.Module):
 
         return tgt, tgt_attn, src_attn
 
-
-class MisoTransformerDecoder(torch.nn.Module, Registrable):
+@MisoDecoder.register("transformer_decoder") 
+class MisoTransformerDecoder(MisoDecoder):
     def __init__(self, 
                     decoder_layer: MisoTransformerDecoderLayer, 
                     num_layers: int,

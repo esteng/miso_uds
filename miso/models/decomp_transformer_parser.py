@@ -18,7 +18,7 @@ from allennlp.common.util import START_SYMBOL, END_SYMBOL
 
 from miso.models.transduction_base import Transduction
 from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder, BaseBertWrapper
-from miso.modules.decoders import RNNDecoder
+from miso.modules.decoders import RNNDecoder, MisoTransformerDecoder, MisoDecoder
 from miso.modules.generators import ExtendedPointerGenerator
 from miso.modules.parsers import DeepTreeParser, DecompTreeParser
 from miso.modules.label_smoothing import LabelSmoothing
@@ -36,7 +36,7 @@ from miso.metrics.pearson_r import pearson_r
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-@Model.register("decomp_parser")
+@Model.register("decomp_transformer_parser")
 class DecompParser(Transduction):
 
     def __init__(self,
@@ -50,7 +50,7 @@ class DecompParser(Transduction):
                  decoder_token_embedder: TextFieldEmbedder,
                  decoder_node_index_embedding: Embedding,
                  decoder_pos_embedding: Embedding,
-                 decoder: RNNDecoder,
+                 decoder: MisoTransformerDecoder,
                  extended_pointer_generator: ExtendedPointerGenerator,
                  tree_parser: DecompTreeParser,
                  node_attribute_module: NodeAttributeDecoder,
@@ -145,13 +145,68 @@ class DecompParser(Transduction):
         else:
             return self._test_forward(inputs)
 
+    @overrides
+    def _encode(self,
+                tokens: Dict[str, torch.Tensor],
+                subtoken_ids: torch.Tensor,
+                token_recovery_matrix: torch.Tensor,
+                mask: torch.Tensor,
+                **kwargs) -> Dict:
+
+        # [batch, num_tokens, embedding_size]
+        encoder_inputs = [self._encoder_token_embedder(tokens)]
+        if subtoken_ids is not None and self._bert_encoder is not None:
+            bert_embeddings = self._bert_encoder(
+                input_ids=subtoken_ids,
+                attention_mask=subtoken_ids.ne(0),
+                output_all_encoded_layers=False,
+                token_recovery_matrix=token_recovery_matrix
+            )
+            encoder_inputs += [bert_embeddings]
+        encoder_inputs = torch.cat(encoder_inputs, 2)
+        encoder_inputs = self._dropout(encoder_inputs)
+
+        # [batch, num_tokens, encoder_output_size]
+        encoder_outputs = self._encoder(encoder_inputs, mask)
+        encoder_outputs = self._dropout(encoder_outputs)
+
+        return dict(
+            encoder_outputs=encoder_outputs,
+        )
+
+    @overrides
+    def _decode(self,
+                tokens: Dict[str, torch.Tensor],
+                node_indices: torch.Tensor,
+                encoder_outputs: torch.Tensor,
+                source_mask: torch.Tensor,
+                target_mask: torch.Tensor,
+                **kwargs) -> Dict:
+
+        # [batch, num_tokens, embedding_size]
+        decoder_inputs = torch.cat([
+            self._decoder_token_embedder(tokens),
+            self._decoder_node_index_embedding(node_indices),
+        ], dim=2)
+
+        decoder_inputs = self._dropout(decoder_inputs)
+
+        decoder_outputs = self._decoder(
+            inputs=decoder_inputs,
+            source_memory_bank=encoder_outputs,
+            source_mask = source_mask,
+            target_mask = target_mask
+        )
+
+        return decoder_outputs
+
     def _take_one_step_node_prediction(self,
                                        last_predictions: torch.Tensor,
                                        state: Dict[str, torch.Tensor],
                                        auxiliaries: Dict[str, List[Any]],
                                        misc: Dict,
                                        ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, List[Any]]]:
-        
+
         inputs = self._prepare_next_inputs(
             predictions=last_predictions,
             target_attention_map=state["target_attention_map"],
@@ -161,46 +216,38 @@ class DecompParser(Transduction):
             last_decoding_step=misc["last_decoding_step"],
             source_dynamic_vocab_size=misc["source_dynamic_vocab_size"]
         )
+    
+        # TODO: HERE we go, just concatenate "inputs" to history stored in the state 
+        # need a node index history and a token history 
+        # no need to update history inside of _prepare_next_inputs or double-iterate 
 
         decoder_inputs = torch.cat([
             self._decoder_token_embedder(inputs["tokens"]),
             self._decoder_node_index_embedding(inputs["node_indices"]),
         ], dim=2)
 
-        hidden_states = (
-            # [num_layers, batch_size, hidden_vector_dim]
-            state["hidden_state_1"].permute(1, 0, 2),
-            state["hidden_state_2"].permute(1, 0, 2),
-        )
+
+        if state['input_history'] is not None:
+            decoder_inputs = torch.cat([state['input_history'], decoder_inputs], dim = 1)
+
+        state['input_history'] = decoder_inputs
 
         decoding_outputs = self._decoder.one_step_forward(
-            input_tensor=decoder_inputs,
+            inputs=decoder_inputs,
             source_memory_bank=state["source_memory_bank"],
             source_mask=state["source_mask"],
-            target_memory_bank=state.get("target_memory_bank", None),
             decoding_step=misc["last_decoding_step"] + 1,
             total_decoding_steps=self._max_decoding_steps,
-            input_feed=state.get("input_feed", None),
-            hidden_state=hidden_states,
             coverage=state.get("coverage", None)
         )
-        
 
+        state['attentional_tensor'] = decoding_outputs['attentional_tensor'].squeeze(1)
+        state['output'] = decoding_outputs['output'].squeeze(1)
 
-        state["input_feed"] = decoding_outputs["attentional_tensor"]
-        state["hidden_state_1"] = decoding_outputs["hidden_state"][0].permute(1, 0, 2)
-        state["hidden_state_2"] = decoding_outputs["hidden_state"][1].permute(1, 0, 2)
-        state["rnn_output"] = decoding_outputs["rnn_output"].squeeze(1)
         if decoding_outputs["coverage"] is not None:
             state["coverage"] = decoding_outputs["coverage"]
-        if state.get("target_memory_bank", None) is None:
-            state["target_memory_bank"] = decoding_outputs["attentional_tensor"]
-        else:
-            state["target_memory_bank"] = torch.cat(
-                [state["target_memory_bank"], decoding_outputs["attentional_tensor"]], 1
-            )
 
-        to_print = decoding_outputs["attentional_tensor"][0,0:10,0:10]
+
         node_prediction_outputs = self._extended_pointer_generator(
             inputs=decoding_outputs["attentional_tensor"],
             source_attention_weights=decoding_outputs["source_attention_weights"],
@@ -284,6 +331,7 @@ class DecompParser(Transduction):
         inputs = raw_inputs.copy()
 
         inputs["source_mask"] = get_text_field_mask(raw_inputs["source_tokens"])
+        inputs["target_mask"] = get_text_field_mask(raw_inputs["target_tokens"])
 
         source_subtoken_ids = raw_inputs.get("source_subtoken_ids", None)
         if source_subtoken_ids is None:
@@ -341,15 +389,16 @@ class DecompParser(Transduction):
         batch_size = inputs["source_tokens"]["source_tokens"].size(0)
         bos = self.vocab.get_token_index(START_SYMBOL, self._target_output_namespace)
         start_predictions = inputs["source_tokens"]["source_tokens"].new_full((batch_size,), bos)
+
         start_state = {
             # [batch_size, *]
             "source_memory_bank": encoding_outputs["encoder_outputs"],
-            "hidden_state_1": encoding_outputs["final_states"][0].permute(1, 0, 2),
-            "hidden_state_2": encoding_outputs["final_states"][1].permute(1, 0, 2),
             "source_mask": inputs["source_mask"],
+            "target_mask": inputs["target_mask"], 
             "source_attention_map": inputs["source_attention_map"],
             "target_attention_map": inputs["source_attention_map"].new_zeros(
-                (batch_size, self._max_decoding_steps, self._max_decoding_steps + 1))
+                (batch_size, self._max_decoding_steps, self._max_decoding_steps + 1)),
+            "input_history": None, 
         }
         auxiliaries = {
             "target_dynamic_vocabs": inputs["target_dynamic_vocab"]
@@ -361,8 +410,6 @@ class DecompParser(Transduction):
             "instance_meta": inputs["instance_meta"]
         }
 
-        #print(f"prepared first input hidden_state_1 {start_state['hidden_state_1'].shape}")
-        #print(f"prepared first input hidden_state_2 {start_state['hidden_state_2'].shape}")
         return start_predictions, start_state, auxiliaries, misc
 
     def _prepare_next_inputs(self,
@@ -399,9 +446,12 @@ class DecompParser(Transduction):
                 return instance_i
 
         token_instances = []
+
         node_indices = torch.zeros_like(predictions)
         pos_tags = torch.zeros_like(predictions)
+
         for i, index in enumerate(predictions.tolist()):
+
             instance_meta = meta_data[batch_index(i)]
             pos_tag_lut = instance_meta["pos_tag_lut"]
             target_dynamic_vocab = target_dynamic_vocabs[i]
@@ -425,6 +475,7 @@ class DecompParser(Transduction):
                 pos_tag = pos_tag_lut.get(token, DEFAULT_OOV_TOKEN)
 
             target_token = TextField([Token(token)], instance_meta["target_token_indexers"])
+
             token_instances.append(Instance({"target_tokens": target_token}))
             node_indices[i] = node_index
             pos_tags[i] = self.vocab.get_token_index(pos_tag, self._pos_tag_namespace)
@@ -437,8 +488,10 @@ class DecompParser(Transduction):
         batch.index_instances(self.vocab)
         padding_lengths = batch.get_padding_lengths()
         tokens = {}
+        new_token_history = {}
         for key, tensor in batch.as_tensor_dict(padding_lengths)["target_tokens"].items():
             tokens[key] = tensor.type_as(predictions)
+            # concat in new tokens into history 
 
         return dict(
             tokens=tokens,
@@ -528,8 +581,8 @@ class DecompParser(Transduction):
             node_indices=inputs["target_node_indices"],
             pos_tags=inputs["target_pos_tags"],
             encoder_outputs=encoding_outputs["encoder_outputs"],
-            hidden_states=encoding_outputs["final_states"],
-            mask=inputs["source_mask"]
+            source_mask=inputs["source_mask"],
+            target_mask=inputs["target_mask"]
         )
 
         node_prediction_outputs = self._extended_pointer_generator(
@@ -542,13 +595,15 @@ class DecompParser(Transduction):
 
         # compute node attributes
         node_attribute_outputs = self._node_attribute_predict(
-            decoding_outputs["rnn_outputs"][:,:-1,:],
+            #decoding_outputs["rnn_outputs"][:,:-1,:],
+            decoding_outputs["outputs"][:,:-1,:],
             inputs["node_attribute_truth"],
             inputs["node_attribute_mask"]
         )
 
         edge_prediction_outputs = self._parse(
-            rnn_outputs=decoding_outputs["rnn_outputs"],
+            #rnn_outputs=decoding_outputs["rnn_outputs"],
+            decoding_outputs["outputs"][:,:,:],
             edge_head_mask=inputs["edge_head_mask"],
             edge_heads=inputs["edge_heads"]
         )
@@ -569,6 +624,7 @@ class DecompParser(Transduction):
             source_dynamic_vocab_size=inputs["source_dynamic_vocab_size"],
             source_attention_weights=decoding_outputs["source_attention_weights"],
             coverage_history=decoding_outputs["coverage_history"]
+            #coverage_history=None
         )
         edge_pred_loss = self._compute_edge_prediction_loss(
             edge_head_ll=edge_prediction_outputs["edge_head_ll"],
@@ -611,7 +667,7 @@ class DecompParser(Transduction):
             start_state=start_state,
             auxiliaries=auxiliaries,
             step=lambda x, y, z: self._take_one_step_node_prediction(x, y, z, misc),
-            tracked_state_name="rnn_output",
+            tracked_state_name="output",
             tracked_auxiliary_name="target_dynamic_vocabs"
         )
 
@@ -669,4 +725,3 @@ class DecompParser(Transduction):
         )
 
         return outputs
-
