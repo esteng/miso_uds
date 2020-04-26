@@ -59,7 +59,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   },
 
   model: {
-    type: "decomp_parser",
+    type: "decomp_transformer_parser",
     bert_encoder: null, 
     encoder_token_embedder: {
       token_embedders: {
