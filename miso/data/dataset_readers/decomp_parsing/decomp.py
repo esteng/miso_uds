@@ -713,8 +713,7 @@ class DecompGraph():
             if index != 0:
                 tgt_tokens_to_generate[i] = DEFAULT_OOV_TOKEN
 
-        # TODO remove later 
-        # Bug fix attempt 1: increase by 1 everything, set first to sentinel 0 tok 
+        # Bug fix 1: increase by 1 everything, set first to sentinel 0 tok 
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
 

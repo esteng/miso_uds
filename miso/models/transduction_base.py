@@ -4,6 +4,8 @@ from collections import OrderedDict
 
 from overrides import overrides
 import torch
+from torch.nn import functional as F
+
 from allennlp.data import Vocabulary
 from allennlp.models import Model
 from allennlp.modules import TextFieldEmbedder, Embedding, InputVariationalDropout, Seq2SeqEncoder
@@ -182,6 +184,7 @@ class Transduction(Model):
         _target_copy_indices = ((target_copy_indices + self._vocab_size + source_dynamic_vocab_size) *
                                 valid_target_copy_mask.long())
         _source_copy_indices = (source_copy_indices + self._vocab_size) * valid_source_copy_mask.long()
+
         _generation_outputs = generation_outputs * valid_generation_mask.long()
         hybrid_targets = _target_copy_indices + _source_copy_indices + _generation_outputs
 
@@ -189,8 +192,10 @@ class Transduction(Model):
         log_prob_dist = (prob_dist.view(batch_size * target_length, -1) + self._eps).log()
         flat_hybrid_targets = hybrid_targets.view(batch_size * target_length)
         loss = self._label_smoothing(log_prob_dist, flat_hybrid_targets)
+
         # Coverage loss.
         if coverage_history is not None:
+            #coverage_loss = torch.sum(torch.min(coverage_history.unsqueeze(-1), source_attention_weights), 2)
             coverage_loss = torch.sum(torch.min(coverage_history, source_attention_weights), 2)
             coverage_loss = (coverage_loss * not_pad_mask.float()).sum()
             loss = loss + coverage_loss
@@ -220,6 +225,7 @@ class Transduction(Model):
                 hidden_states: Tuple[torch.Tensor, torch.Tensor],
                 mask: torch.Tensor,
                 **kwargs) -> Dict:
+
         # [batch, num_tokens, embedding_size]
         decoder_inputs = torch.cat([
             self._decoder_token_embedder(tokens),
@@ -250,8 +256,10 @@ class Transduction(Model):
                 attention_mask=subtoken_ids.ne(0),
                 output_all_encoded_layers=False,
                 token_recovery_matrix=token_recovery_matrix
-            )
+            ).detach()
+
             encoder_inputs += [bert_embeddings]
+
         encoder_inputs = torch.cat(encoder_inputs, 2)
         encoder_inputs = self._dropout(encoder_inputs)
 

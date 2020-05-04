@@ -3,6 +3,7 @@ import torch
 import logging
 
 from miso.metrics.continuous_metrics import ContinuousMetric
+from miso.losses.loss import MSECrossEntropyLoss, Loss
 from scipy.stats import pearsonr 
 
 logger = logging.getLogger(__name__) 
@@ -15,8 +16,8 @@ class NodeAttributeDecoder(torch.nn.Module):
                 hidden_dim, 
                 output_dim,
                 n_layers,
-                loss_multiplier = 1,
-                loss_function = torch.nn.MSELoss(),
+                loss_multiplier = 10,
+                loss_function = Loss,
                 activation = torch.nn.ReLU(),
                 share_networks = False):
         super(NodeAttributeDecoder, self).__init__()
@@ -25,6 +26,7 @@ class NodeAttributeDecoder(torch.nn.Module):
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.loss_multiplier = loss_multiplier
+
         self.attr_loss_function = loss_function
         self.mask_loss_function = torch.nn.BCEWithLogitsLoss()
 
@@ -119,7 +121,7 @@ class NodeAttributeDecoder(torch.nn.Module):
                    params['hidden_dim'], 
                    params['output_dim'],
                    params['n_layers'],
-                   params.get("loss_multiplier", 1),
-                   params.get("loss_function",  torch.nn.MSELoss()),
+                   params.get("loss_multiplier", 10),
+                   params.get("loss_function",  MSECrossEntropyLoss()), 
                    params.get("activation", torch.nn.ReLU()),
                    params.get("share_networks", False))

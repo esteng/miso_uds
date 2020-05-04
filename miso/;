@@ -41,4 +41,7 @@ class LabelSmoothing(torch.nn.Module, Registrable):
         mask = target.eq(self._pad_index)
         true_dist.masked_fill_(mask.unsqueeze(1), 0.0)
 
+        logger.info(f"pred is {x}") 
+        logger.info(f"true is {true_dist}") 
+
         return self._criterion(x, true_dist)
