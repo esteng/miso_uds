@@ -4,6 +4,7 @@ import numpy
 from contextlib import contextmanager
 import json
 import logging 
+import sys
 
 import torch
 import spacy
@@ -13,6 +14,7 @@ from allennlp.data import Instance
 from allennlp.common.util import JsonDict
 
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
+from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
 
 logger = logging.getLogger(__name__) 
@@ -200,4 +202,16 @@ class DecompParsingPredictor(Predictor):
             return node_res_dict
 
         return sanitize(outputs)
+
+@Predictor.register("decomp_syntax_parsing")
+class DecompSyntaxParsingPredictor(DecompParsingPredictor):
+    @overrides
+    def dump_line(self, outputs: JsonDict) -> str:
+        print(outputs['nodes']) 
+        print(outputs['edge_heads']) 
+        print(outputs['edge_types']) 
+        sys.exit()
+        # function hijacked from parent class to return a decomp arborescence instead of printing a line 
+        pred_sem_graph, pred_syn_graph = DecompGraphWithSyntax.from_prediction(outputs)
+        return pred_sem_graph, pred_syn_graph 
 

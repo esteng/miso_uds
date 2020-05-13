@@ -237,6 +237,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 500,
+    warmup_epochs: 200,
     patience: 250,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.

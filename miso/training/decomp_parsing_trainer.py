@@ -41,6 +41,7 @@ class DecompTrainer(Trainer):
                  semantics_only: bool,
                  drop_syntax: bool,
                  include_attribute_scores: bool = False,
+                 warmup_epochs: int = 0,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.validation_data_path = validation_data_path
@@ -48,6 +49,9 @@ class DecompTrainer(Trainer):
         self.semantics_only=semantics_only
         self.drop_syntax=drop_syntax
         self.include_attribute_scores=include_attribute_scores
+
+        self._warmup_epochs = warmup_epochs
+        self._curr_epoch = 0
 
     def _update_validation_s_score(self, pred_instances: List[Dict[str, numpy.ndarray]],
                                          true_instances):
@@ -87,6 +91,13 @@ class DecompTrainer(Trainer):
         """
         Computes the validation loss. Returns it and the number of batches.
         """
+        if self._curr_epoch < self._warmup_epochs:
+            # skip the validation step for the warmup period 
+            # this greatly reduces train time, since much of it is spent in validation 
+            # with non-viable models 
+            self._curr_epoch += 1
+            return -1, -1
+
         logger.info("Validating")
 
         self.model.eval()
@@ -207,6 +218,8 @@ def _from_params(cls,  # type: ignore
     drop_syntax = params.pop("drop_syntax", True)
     include_attribute_scores = params.pop("include_attribute_scores", False)
 
+    warmup_epochs = params.pop("warmup_epochs", 0) 
+
     if isinstance(cuda_device, list):
         model_device = cuda_device[0]
     else:
@@ -264,6 +277,7 @@ def _from_params(cls,  # type: ignore
                validation_data_path=validation_data_path,
                validation_prediction_path=validation_prediction_path,
                semantics_only=semantics_only,
+               warmup_epochs = warmup_epochs, 
                drop_syntax=drop_syntax,
                include_attribute_scores=include_attribute_scores,
                patience=patience,

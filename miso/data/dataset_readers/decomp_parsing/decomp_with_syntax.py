@@ -704,14 +704,6 @@ class DecompGraphWithSyntax(DecompGraph):
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
 
-        print("tgt_tokens", tgt_tokens, len(tgt_tokens))
-        print("tgt_indices",tgt_indices, len(tgt_indices))
-
-        print(list(zip(tgt_indices, tgt_tokens)) )
-        head_inds_to_print = [(i+1, h) for i,h in enumerate(head_indices)]
-        print('head_inds', head_inds_to_print, len(head_indices))
-        print("head_tags", head_tags, len(head_tags) )
-
         return {
             "tgt_tokens" : tgt_tokens,
             "tgt_indices": tgt_indices,
@@ -746,10 +738,36 @@ class DecompGraphWithSyntax(DecompGraph):
         build the syntactic graph from a predicted set of nodes, 
         edge heads, and edge labels
         """
-        print(nodes)
-        print(edge_heads) 
-        print(edge_labels) 
-        sys.exit() 
+        logger.info("================================") 
+
+        logger.info("SYNTAX GRAPH") 
+        logger.info(nodes)
+        logger.info(edge_heads) 
+        logger.info(edge_labels) 
+
+        if "@@end-synt@@" not in nodes:
+            return None
+
+        end_point = nodes.index("@@end-synt@@") 
+        try:
+            nodes = nodes[0:end_point]
+            edge_heads = edge_heads[0:end_point]
+            edge_labels = edge_labels[0:end_point]
+
+            graph = nx.DiGraph()
+            for i, n in enumerate(nodes):
+                logger.info(f"adding node {i} with label {n}") 
+                attr = {"form": n}
+                graph.add_node(str(i), **attr)
+
+            for i, (head, label) in enumerate(zip(edge_heads, edge_labels)):
+                logger.info(f"adding edge {i}-{head} with label {label}") 
+                edge = (i, head)
+                attr = {"deprel": label} 
+                graph.add_edge(*edge, **attr)
+
+        except IndexError:
+            return None
 
     @staticmethod 
     def build_sem_graph(nodes, node_attr, corefs,
@@ -757,13 +775,6 @@ class DecompGraphWithSyntax(DecompGraph):
         """
         build the semantic arbor graph from a predicted output
         """
-
-        print(nodes, len(nodes))
-        print(node_attr, len(node_attr))
-
-        print(edge_heads, len(edge_heads))
-        print(edge_labels, len(edge_labels))
-        print(edge_attr, len(edge_attr))
         graph = nx.DiGraph()
         
         real_node_mapping = {}
@@ -847,6 +858,8 @@ class DecompGraphWithSyntax(DecompGraph):
         """
 
         nodes = output['nodes']
+
+        logger.info(f"NODES ARE {nodes}") 
         
         if "@@start-synt@@" in nodes:
             # split on syntax starter
@@ -866,7 +879,6 @@ class DecompGraphWithSyntax(DecompGraph):
             sem_edge_heads = [x-1 for x in sem_edge_heads]
             sem_edge_heads[0] = 0
             
-            print(syn_edge_heads)
             min_head = syn_edge_heads[1]
             syn_edge_heads = [x-min_head for x in syn_edge_heads]
             syn_edge_heads[0] = 0

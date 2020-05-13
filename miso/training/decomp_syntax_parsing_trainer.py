@@ -24,12 +24,14 @@ class DecompSyntaxTrainer(DecompTrainer):
                  semantics_only: bool,
                  drop_syntax: bool,
                  include_attribute_scores: bool = False,
+                 warmup_epochs: int = 0,
                  *args, **kwargs):
         super(DecompSyntaxTrainer, self).__init__(validation_data_path, 
                                                   validation_prediction_path,
                                                   semantics_only,
                                                   drop_syntax,
                                                   include_attribute_scores,
+                                                  warmup_epochs,
                                                   *args, **kwargs)
 
     @overrides
