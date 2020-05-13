@@ -30,6 +30,9 @@ class DecompTreeParser(DeepTreeParser):
             edge_head_ll: [batch_size, query_length, key_length + 1(sentinel)].
             edge_type_ll: [batch_size, query_length, num_labels] (based on gold_edge_head) or None.
         """
+        if gold_edge_heads is not None:
+            gold_edge_heads[gold_edge_heads == -1] = 0
+
         key, edge_head_mask = self._add_sentinel(query, key, edge_head_mask)
         edge_head_query, edge_head_key, edge_type_query, edge_type_key = self._mlp(query, key)
         # [batch_size, query_length, key_length + 1]

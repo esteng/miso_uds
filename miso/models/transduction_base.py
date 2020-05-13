@@ -121,6 +121,10 @@ class Transduction(Model):
         gold_edge_type_ll = edge_type_ll[batch_indices, node_indices, gold_edge_types]
         # Set the ll of invalid nodes to 0.
         num_nodes = valid_node_mask.sum().float()
+
+        # don't incur loss on EOS/SOS token
+        valid_node_mask[gold_edge_heads == -1] = 0
+
         valid_node_mask = valid_node_mask.bool()
         gold_edge_head_ll.masked_fill_(~valid_node_mask, 0)
         gold_edge_type_ll.masked_fill_(~valid_node_mask, 0)

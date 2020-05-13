@@ -20,7 +20,7 @@ from allennlp.common.util import import_submodules
 from miso.predictors.decomp_parsing_predictor import sanitize 
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 
-#from decomp import UDSVisualization, serve_parser
+from decomp import UDSVisualization, serve_parser
 
 def parse_api_sentence(input_line, args, predictor):
     #semantics_only = args.semantics_only

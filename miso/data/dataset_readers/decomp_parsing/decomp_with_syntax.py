@@ -4,6 +4,7 @@ import sys
 import logging
 from collections import defaultdict, Counter, namedtuple
 from typing import List, Dict
+from overrides import overrides
 
 import networkx as nx
 import numpy as np
@@ -13,75 +14,16 @@ from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
 from miso.data.dataset_readers.amr_parsing.amr.utils.prepare_istog_instance import is_english_punct
-
+from miso.data.dataset_readers.decomp_parsing.decomp import (DecompGraph, parse_attributes, WORDSENSE_RE, 
+                                                            QUOTED_RE, NODE_ATTRIBUTES, SPACY_MODEL, 
+                                                            SourceCopyVocabulary)
 from decomp.semantics.uds import UDSGraph
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-# spacy model required for decoding at test time, when POS tags needed for an input string 
-SPACY_MODEL = "en_core_web_sm"
-try:
-  nlp = spacy.load(SPACY_MODEL)
-except:
-  import subprocess
-  logger.info(f"Downloading spacy model: {SPACY_MODEL}")
-  subprocess.check_output(["python", "-m", "spacy", "download", SPACY_MODEL])
-  nlp = spacy.load(SPACY_MODEL)
+class DecompGraphWithSyntax(DecompGraph): 
 
-WORDSENSE_RE = re.compile(r'-\d\d$')
-QUOTED_RE = re.compile(r'^".*"$')
-NODE_ATTRIBUTES = [re.compile("wordsense.*"),
-                   re.compile("genericity.*"),
-                   re.compile("factuality.*"),
-                   re.compile("time.*")]
-
-def parse_attributes(attr_list: List, mask_list: List, ontology: List) -> Dict : 
-    """
-    parses slices of predicted attribute/mask matrices into a dictionary
-    with the ontology as keys and the attributes as values if the mask value is > 0.5. 
-    Lists given per node (i.e. attr_list is the list of attribute values predicted for a single
-    node) 
-
-    Parameters
-        attr_list: List
-                a list of predicted attribute values where each 
-                index corresponds to an ontology key 
-        mask_list: List
-                a list of predicted mask values 
-                (does attribute apply to the node?)
-        ontology: List
-                the node/edge attribute ontology used 
-    Returns:
-        to_ret: Dict
-            a dict with ontology labels as keys and attribute
-            values as values, where k,v pairs only included if 
-            mask value > 0.5 (i.e. attribute applies) 
-    """
-    if mask_list is None:
-        assert(len(attr_list) == len(ontology))
-        return {k:v for k,v in zip(ontology, attr_list)}
-
-    def sigmoid(x):
-        return 1/(1+np.exp(-x))
-
-    assert(len(attr_list) == len(ontology))
-    assert(len(mask_list) == len(ontology))
-    to_ret = {}
-
-    for k, attr_v, mask_v in zip(ontology, attr_list, mask_list):
-        mask_val = sigmoid(mask_v)
-        if mask_val > 0.5:
-            # upper and lower bound 
-            if attr_v > 0:
-                attr_v = min(3, attr_v)
-            if attr_v < 0:
-                attr_v = max(-3, attr_v)
-            to_ret[k] = attr_v
-    return to_ret 
-
-class DecompGraph():
-
-    def __init__(self, graph, keep_punct = False, drop_syntax = True, order = "inorder"):
+    def __init__(self, graph, keep_punct = False, drop_syntax = True, order = "inorder", syntactic_method = "concat"):
         """
         :param graph: nx.Digraph
             the input decomp graph from UDSv1.0
@@ -94,53 +36,20 @@ class DecompGraph():
             match the true word-order most closely. 'inorder' has highest performance
         """
         # remove non-semantics, non-syntax nodes
-        self.graph = graph 
-        just_graph, self.sem_roots = self.remove_performative(graph)
-        self.graph_size = len(just_graph.semantics_subgraph)
+        super(DecompGraphWithSyntax, self).__init__(graph, keep_punct, drop_syntax, order) 
+        self.syntactic_method = syntactic_method 
 
-        self.name = graph.name
-        self.ignore_list = []
-        for node in self.graph.nodes:
-            if "author" in node or \
-               "addressee" in node or \
-               "speaker" in node or \
-                node.endswith("arg-0") or \
-                node.endswith("-pred-root") or \
-                node.endswith("-root-0"):
-                self.ignore_list.append(node)
-
-        self.keep_punct = keep_punct
-        self.drop_syntax = drop_syntax
-        self.order = order
-        # We will set this with the gold graph and the predicted graph and use for eval
-        self.arbor_graph = None
-
-    def remove_performative(self, graph):
+    @overrides 
+    def get_list_node(self, semantics_only):
         """
-        remove performative nodes, since in UDSv1.0 they are deterministically 
-        added and have no attributes attached to them
-        """
-        to_remove = []
-        sem_roots = []
-        for node in graph.nodes:
-            if "author" in node or "addressee" in node or node.endswith("arg-0") or node.endswith("pred-root"):
-                if node.endswith("arg-0"):
-                    sem_roots = [e[1] for e in graph.edges if e[0] == node and "root" not in e[1]]
-                to_remove.append(node)                
-        for node in to_remove:
-            graph.graph.remove_node(node)
-        return graph, sem_roots
-
-    def get_list_node(self,  drop_syntax = False, semantics_only = False):
-        """
-        Does DFS to linearize the decomp graph, removing all syntax-syntax edges and propagating 
-        syntax info to semantics nodes
+        Does DFS to linearize the decomp graph, this time keeping all syntax-syntax edges and still propagating syntax info to semantics nodes
 
         Params
         ------
-            drop_sytax: true if you want to replace all syntax-semantics edges that do not represent head relations with "nonhead"
             semantics_only: true if you only want to parse semantics nodes and drop syntax nodes from the output arboresence entirely 
         """
+        drop_syntax = True 
+
         arbor_graph = nx.DiGraph()
         root_id =  self.graph.rootid
 
@@ -459,19 +368,66 @@ class DecompGraph():
 
         return node_list, [semantic_root] , arbor_graph
 
-    def get_src_tokens(self):
-        src_tokens = self.graph.sentence.split(" ")
-        pos_tags = []
-        for node in self.graph.syntax_subgraph:
-            pos_tags.append(self.graph.nodes[node]['upos'])
-        return src_tokens, pos_tags
 
-    def re_in(self, key, list_rerum):
-        for regex in list_rerum:
-            if regex.match(key):
-                return True
-        return False
+    def linearize_syntactic_graph(self, bos = "@@start-synt@@", eos = "@@end-synt@@"):
+        syntax_graph = self.graph.syntax_subgraph
 
+        possible_roots = set(syntax_graph.nodes.keys())
+        for source_node, target_node in syntax_graph.edges:
+            possible_roots -= set([target_node])
+
+        assert(len(possible_roots) == 1)
+        root = list(possible_roots)[0]
+
+        node_list = [bos]
+        node_name_list = ["BOS"]
+        head_lookup = {root: 0}
+        head_inds = [0]
+        head_labels = ["EOS/SOS"]
+        head_mask = [0]
+
+        # do BFS
+        idx = 1
+        frontier = [root]
+        while len(frontier) > 0:
+            curr_node = frontier.pop(0)
+            node_list.append(syntax_graph.nodes[curr_node]['form'])
+            node_name_list.append(curr_node) 
+            head_inds.append(head_lookup[curr_node])
+
+            # get deprel 
+            head_node = node_name_list[head_inds[-1]]
+            edge = (head_node, curr_node)
+            try:
+                label = syntax_graph.edges[edge]['deprel']
+            except KeyError:
+                # root 
+                label = "root" 
+
+            head_labels.append(label)
+            head_mask.append(1)
+            curr_children = [e[1] for e in syntax_graph.edges if e[0] == curr_node]
+            for c in curr_children:
+                head_lookup[c] = idx
+
+            frontier += curr_children
+            idx += 1
+
+        head_inds[0] = -1
+        node_list.append(eos)
+        node_name_list.append("EOS")
+        #head_inds.append()
+        #head_labels.append("EOS") 
+
+        head_mask.append(0)
+
+        #print(len(node_list) , len(node_name_list) , len(head_inds) , len(head_labels))
+        #assert(len(node_list) == len(node_name_list) == len(head_inds) == len(head_labels))
+
+        return node_list, node_name_list, head_inds, head_labels, head_mask 
+
+
+    @overrides 
     def get_list_data(self, bos=None, eos=None, bert_tokenizer=None, max_tgt_length=None, semantics_only = False):
         """
         convert a decomp graph into a shallow format where semantics nodes are labelled with their syntactic head
@@ -483,7 +439,7 @@ class DecompGraph():
         After converting the graph, traverses the new graph (called an arbor_graph) and returns a list of nodes and relations.
         Using this list, builds all the data to be put into fields by ~/data/datset_readers/decomp_reader
         """
-        node_list, sem_roots, arbor_graph = self.get_list_node(self.drop_syntax, semantics_only)
+        node_list, sem_roots, arbor_graph = self.get_list_node(semantics_only)
 
         if node_list is None:
             return None
@@ -547,6 +503,50 @@ class DecompGraph():
 
             visited[node] = 1
 
+
+        # add bos and eos to semantics 
+        copy_offset = 0
+        if bos:
+            tgt_tokens = [bos] + tgt_tokens
+            tgt_attributes = [{}] + tgt_attributes
+            edge_attributes = [{}] + edge_attributes
+            copy_offset += 1
+            node_name_list = ["@start@"] + node_name_list
+        #if eos:
+        #    tgt_tokens = tgt_tokens + [eos]
+        #    tgt_attributes = tgt_attributes + [{}]
+        #    edge_attributes = edge_attributes + [{}]
+        #    node_name_list =  node_name_list + ["@end@"]
+        #    copy_offset += 1
+
+
+
+        # add syntactic subgraph 
+        (synt_node_list, synt_node_name_list, 
+         synt_head_indices, synt_head_labels, synt_mask)  = self.linearize_syntactic_graph()
+
+        #if False:
+        if self.syntactic_method == "concat":
+            # for bos 
+            copy_offset += 1
+            # tack syntactic subgraph to the end 
+            max_head_idx = len(tgt_tokens) - 1
+            # increment by max head idx seen 
+            synt_head_indices = [x + max_head_idx for x in synt_head_indices if x != 0]
+            # sentinel 
+            synt_head_indices[0] = -1
+            tgt_tokens += synt_node_list 
+            # -2 is also a sentinel we'll have to filter out in the model
+            head_indices += [-2] + synt_head_indices
+            head_tags += synt_head_labels
+            mask += synt_mask
+            node_name_list += synt_node_name_list
+
+            # pad 
+            tgt_attributes += [{} for i in range(len(synt_node_list))]
+            edge_attributes += [{} for i in range(len(synt_head_indices)+2)]
+        
+        # TODO: modified to add back in the syntax EOS if trimmed 
         def trim_very_long_tgt_tokens(tgt_tokens, 
                                     head_tags, 
                                     head_indices, 
@@ -556,17 +556,17 @@ class DecompGraph():
                                     node_to_idx,
                                     node_name_list):
 
-            tgt_tokens = tgt_tokens[:max_tgt_length]
+            tgt_tokens = tgt_tokens[:max_tgt_length] 
 
-            head_tags = head_tags[:max_tgt_length]
-            head_indices = head_indices[:max_tgt_length]
-            mask = mask[:max_tgt_length]
+            head_tags = head_tags[:max_tgt_length] 
+            head_indices = head_indices[:max_tgt_length] 
+            mask = mask[:max_tgt_length] 
 
 
-            tgt_attributes = tgt_attributes[:max_tgt_length]
-            edge_attributes = edge_attributes[:max_tgt_length]
+            tgt_attributes = tgt_attributes[:max_tgt_length] 
+            edge_attributes = edge_attributes[:max_tgt_length] 
 
-            node_name_list = node_name_list[:max_tgt_length ]
+            node_name_list = node_name_list[:max_tgt_length ] 
 
             for node, indices in node_to_idx.items():
                 invalid_indices = [index for index in indices if index >= max_tgt_length]
@@ -598,19 +598,6 @@ class DecompGraph():
                                                        node_to_idx,
                                                        node_name_list)
 
-        copy_offset = 0
-        if bos:
-            tgt_tokens = [bos] + tgt_tokens
-            tgt_attributes = [{}] + tgt_attributes
-            edge_attributes = [{}] + edge_attributes
-            copy_offset += 1
-            node_name_list = ["@start@"] + node_name_list
-        if eos:
-            tgt_tokens = tgt_tokens + [eos]
-            tgt_attributes = tgt_attributes + [{}]
-            edge_attributes = edge_attributes + [{}]
-            node_name_list =  node_name_list + ["@end@"]
-        
         # Target side Coreference
 
         tgt_token_counter = Counter(tgt_tokens)
@@ -713,9 +700,17 @@ class DecompGraph():
             if index != 0:
                 tgt_tokens_to_generate[i] = DEFAULT_OOV_TOKEN
 
-        # Bug fix 1: increase by 1 everything, set first to sentinel 0 tok 
+        # transduction fix 1: increase by 1 everything, set first to sentinel 0 tok 
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
+
+        print("tgt_tokens", tgt_tokens, len(tgt_tokens))
+        print("tgt_indices",tgt_indices, len(tgt_indices))
+
+        print(list(zip(tgt_indices, tgt_tokens)) )
+        head_inds_to_print = [(i+1, h) for i,h in enumerate(head_indices)]
+        print('head_inds', head_inds_to_print, len(head_indices))
+        print("head_tags", head_tags, len(head_tags) )
 
         return {
             "tgt_tokens" : tgt_tokens,
@@ -745,42 +740,30 @@ class DecompGraph():
             "node_name_list": node_name_list
         }
 
-    @classmethod
-    def from_prediction(cls, output):
+    @staticmethod
+    def build_syn_graph(nodes, edge_heads, edge_labels): 
         """
-        build an arbor graph from a prediction
+        build the syntactic graph from a predicted set of nodes, 
+        edge heads, and edge labels
+        """
+        print(nodes)
+        print(edge_heads) 
+        print(edge_labels) 
+        sys.exit() 
 
-        Parameters
-        ---------
-        output: Dict
-            output of decomp predictor
+    @staticmethod 
+    def build_sem_graph(nodes, node_attr, corefs,
+                        edge_heads, edge_labels, edge_attr):
+        """
+        build the semantic arbor graph from a predicted output
         """
 
-        nodes = output['nodes']
-        edge_heads = output['edge_heads']
-        edge_heads = [x-1 for x in edge_heads]
-        edge_heads[0] = 0
+        print(nodes, len(nodes))
+        print(node_attr, len(node_attr))
 
-        edge_labels = output['edge_types']
-
-        node_attr = output['node_attributes'][0]
-        edge_attr = output['edge_attributes']
-        node_mask = output['node_attributes_mask'][0]
-        edge_mask = output['edge_attributes_mask']
-
-        print(f"nodes {len(nodes)}") 
-
-        print(f"nodes {nodes}") 
-    
-        # off by 1 fixed here 
-        node_attr = [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))][1:] + [{}]
-        edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
-
-        print(f"node attr { len(node_attr)}" ) 
-        print(f"node attr { node_attr }" ) 
-        
-        corefs = output['node_indices']
-
+        print(edge_heads, len(edge_heads))
+        print(edge_labels, len(edge_labels))
+        print(edge_attr, len(edge_attr))
         graph = nx.DiGraph()
         
         real_node_mapping = {}
@@ -849,11 +832,70 @@ class DecompGraph():
             except KeyError:
                 graph.nodes[node]['type'] = "syntax"
 
-        cls.arbor_graph = graph
         return graph
 
-    def serialize(self):
-        return nx.adjacency_data(self.arbor_graph)
+
+    @classmethod
+    def from_prediction(cls, output):
+        """
+        build an arbor graph from a prediction
+
+        Parameters
+        ---------
+        output: Dict
+            output of decomp predictor
+        """
+
+        nodes = output['nodes']
+        
+        if "@@start-synt@@" in nodes:
+            # split on syntax starter
+            split_point = nodes.index("@@start-synt@@")
+        else:
+            # can't make a prediction until model has learned this 
+            return None, None
+
+        try:
+            sem_nodes = nodes[0: split_point]
+            syn_nodes = nodes[split_point + 1:]
+
+            edge_heads = output['edge_heads']
+            sem_edge_heads = edge_heads[0:split_point]
+            syn_edge_heads = edge_heads[split_point + 1:]
+
+            sem_edge_heads = [x-1 for x in sem_edge_heads]
+            sem_edge_heads[0] = 0
+            
+            print(syn_edge_heads)
+            min_head = syn_edge_heads[1]
+            syn_edge_heads = [x-min_head for x in syn_edge_heads]
+            syn_edge_heads[0] = 0
+
+            edge_labels = output['edge_types']
+            sem_edge_labels = edge_labels[0: split_point]
+            syn_edge_labels = edge_labels[split_point+1:]
+
+            node_attr = output['node_attributes'][0][0:split_point]
+            edge_attr = output['edge_attributes'][0:split_point]
+            node_mask = output['node_attributes_mask'][0][0:split_point]
+            edge_mask = output['edge_attributes_mask'][0:split_point]
+
+            # off by 1 fixed here 
+            node_attr = [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))][1:] + [{}]
+            edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
+
+            corefs = output['node_indices'][0:split_point]
+            
+            sem_graph = cls.build_sem_graph(sem_nodes, node_attr, corefs,
+                                            sem_edge_heads, sem_edge_labels, edge_attr)
+            cls.arbor_graph = sem_graph
+
+            syn_graph = cls.build_syn_graph(syn_nodes, syn_edge_heads, syn_edge_labels)
+        except IndexError:
+            # any index error means not enough training 
+            return None, None
+
+        return sem_graph, syn_graph 
 
     @staticmethod
     def get_triples(arbor_graph, 
@@ -1072,44 +1114,3 @@ class DecompGraph():
 
         uds_graph = UDSGraph(uds_subgraph, name)
         return uds_graph
-
-class SourceCopyVocabulary:
-    def __init__(self, sentence, pad_token=DEFAULT_PADDING_TOKEN, unk_token=DEFAULT_OOV_TOKEN):
-        if type(sentence) is not list:
-            sentence = sentence.split(" ")
-
-        self.src_tokens = sentence
-        self.pad_token = pad_token
-        self.unk_token = unk_token
-
-        self.token_to_idx = {self.pad_token : 0, self.unk_token : 1}
-        self.idx_to_token = {0 : self.pad_token, 1 : self.unk_token}
-
-        self.vocab_size = 2
-
-        for token in sentence:
-            if token not in self.token_to_idx:
-                self.token_to_idx[token] = self.vocab_size
-                self.idx_to_token[self.vocab_size] = token
-                self.vocab_size += 1
-
-    def get_token_from_idx(self, idx):
-        return self.idx_to_token[idx]
-
-    def get_token_idx(self, token):
-        return self.token_to_idx.get(token, self.token_to_idx[self.unk_token])
-
-    def index_sequence(self, list_tokens):
-        return [self.get_token_idx(token) for token in list_tokens]
-
-    def get_copy_map(self, list_tokens):
-        src_indices = [self.get_token_idx(self.unk_token)] + self.index_sequence(list_tokens)
-        return [
-            (src_idx, src_token_idx) for src_idx, src_token_idx in enumerate(src_indices)
-        ]
-
-    def get_special_tok_list(self):
-        return [self.pad_token, self.unk_token]
-
-    def __repr__(self):
-        return json.dumps(self.idx_to_token)

@@ -18,7 +18,7 @@ from decomp import UDSCorpus
 from miso.data.fields.continuous_label_field import ContinuousLabelField
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
 from miso.data.dataset_readers.decomp_parsing.tests import DROP_TEST_CASES, NODROP_TEST_CASES, test_reader
-from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
+from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax 
 from miso.data.dataset_readers.decomp_parsing.uds import TestUDSCorpus
 from miso.data.tokenizers import AMRTransformerTokenizer
 
@@ -162,8 +162,8 @@ class DecompDatasetReader(DatasetReader):
 
         fields: Dict[str, Field] = {}
 
-        max_tgt_length = None if self.eval else 60
-        d = DecompGraph(graph, drop_syntax = self.drop_syntax, order = self.order)
+        max_tgt_length = None if self.eval else 120
+        d = DecompGraphWithSyntax(graph, drop_syntax = self.drop_syntax, order = self.order)
         list_data = d.get_list_data(
              bos=START_SYMBOL, 
              eos=END_SYMBOL, 
@@ -338,6 +338,7 @@ class DecompDatasetReader(DatasetReader):
 
         to_print_keys = ["target_attributes", "target_tokens"]
         to_print = {k:v for k, v in fields.items() if k in to_print_keys}
+        
 
         return Instance(fields)
 
