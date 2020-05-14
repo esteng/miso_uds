@@ -1,4 +1,4 @@
-local data_dir = "train";
+local data_dir = "dev";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
 {
@@ -34,7 +34,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 100,
+    line_limit: 1,
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -237,7 +237,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 500,
-    warmup_epochs: 400,
+    warmup_epochs: 10,
     patience: 500,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.

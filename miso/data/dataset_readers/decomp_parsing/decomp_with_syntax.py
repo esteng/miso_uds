@@ -151,7 +151,6 @@ class DecompGraphWithSyntax(DecompGraph):
                 synt_node = re.sub("semantics", "syntax", node)
                 synt_node = re.sub("-arg", "", synt_node)
                 synt_node = re.sub("-pred", "", synt_node)
-                print(f"tryint to get {node} head {synt_node}") 
                 num = int(synt_node.split("-")[2])
                 synt_d = self.graph.nodes[synt_node]
                 syn_dep = (num, [synt_d['form'], synt_d['upos'], synt_d['id']])
@@ -369,7 +368,7 @@ class DecompGraphWithSyntax(DecompGraph):
         return node_list, [semantic_root] , arbor_graph
 
 
-    def linearize_syntactic_graph(self, bos = "@@start-synt@@", eos = "@@end-synt@@"):
+    def linearize_syntactic_graph(self, bos = "@@start-synt@@", eos = "@@end@@"):
         syntax_graph = self.graph.syntax_subgraph
 
         possible_roots = set(syntax_graph.nodes.keys())
@@ -547,6 +546,8 @@ class DecompGraphWithSyntax(DecompGraph):
             # pad 
             tgt_attributes += [{} for i in range(len(synt_node_list))]
             edge_attributes += [{} for i in range(len(synt_head_indices)+2)]
+
+        max_tgt_length -= copy_offset
         
         # TODO: modified to add back in the syntax EOS if trimmed 
         def trim_very_long_tgt_tokens(tgt_tokens, 
@@ -568,10 +569,10 @@ class DecompGraphWithSyntax(DecompGraph):
             tgt_attributes = tgt_attributes[:max_tgt_length] 
             edge_attributes = edge_attributes[:max_tgt_length] 
 
-            node_name_list = node_name_list[:max_tgt_length ] 
+            node_name_list = node_name_list[:max_tgt_length] 
 
             for node, indices in node_to_idx.items():
-                invalid_indices = [index for index in indices if index >= max_tgt_length - copy_offset]
+                invalid_indices = [index for index in indices if index >= max_tgt_length]
                 for index in invalid_indices:
                     indices.remove(index)
             return (tgt_tokens, 
@@ -678,8 +679,11 @@ class DecompGraphWithSyntax(DecompGraph):
         src_copy_invalid_ids = set(src_copy_vocab.index_sequence(
             [t for t in src_tokens if is_english_punct(t)]))
 
-
+        #print(tgt_tokens) 
         node_indices = tgt_indices[:]
+        #print(node_indices)
+        #print(f"before {list(zip(tgt_tokens, node_indices))}") 
+
         if bos:
             node_indices = node_indices[1:]
         if eos:
@@ -701,6 +705,7 @@ class DecompGraphWithSyntax(DecompGraph):
         for i, index in enumerate(tgt_copy_indices):
             if index != 0:
                 tgt_tokens_to_generate[i] = DEFAULT_OOV_TOKEN
+
 
         # transduction fix 1: increase by 1 everything, set first to sentinel 0 tok 
         head_indices = [x + 1 for x in head_indices]
@@ -740,10 +745,10 @@ class DecompGraphWithSyntax(DecompGraph):
         build the syntactic graph from a predicted set of nodes, 
         edge heads, and edge labels
         """
-        if "@@end-synt@@" not in nodes:
+        if "@@end@@" not in nodes:
             return None
 
-        end_point = nodes.index("@@end-synt@@") 
+        end_point = nodes.index("@@end@@") 
         try:
             nodes = nodes[0:end_point]
             edge_heads = edge_heads[0:end_point]

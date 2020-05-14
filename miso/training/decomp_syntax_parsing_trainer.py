@@ -56,7 +56,9 @@ class DecompSyntaxTrainer(DecompTrainer):
             true_nodes = all_true_nodes[i]
 
             split_point = true_nodes.index("@@start-synt@@") - 1
-            end_point = true_nodes.index("@@end-synt@@") - 1
+            pred_nodes = pred_instances[i]['nodes']
+
+            end_point = min(true_nodes.index("@@end@@") - 1, len(pred_nodes)-1)
 
             try:
                 pred_edge_heads = pred_instances[i]['edge_heads'][split_point + 1:end_point]
