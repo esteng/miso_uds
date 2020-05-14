@@ -738,13 +738,6 @@ class DecompGraphWithSyntax(DecompGraph):
         build the syntactic graph from a predicted set of nodes, 
         edge heads, and edge labels
         """
-        logger.info("================================") 
-
-        logger.info("SYNTAX GRAPH") 
-        logger.info(nodes)
-        logger.info(edge_heads) 
-        logger.info(edge_labels) 
-
         if "@@end-synt@@" not in nodes:
             return None
 
@@ -756,12 +749,10 @@ class DecompGraphWithSyntax(DecompGraph):
 
             graph = nx.DiGraph()
             for i, n in enumerate(nodes):
-                logger.info(f"adding node {i} with label {n}") 
                 attr = {"form": n}
                 graph.add_node(str(i), **attr)
 
             for i, (head, label) in enumerate(zip(edge_heads, edge_labels)):
-                logger.info(f"adding edge {i}-{head} with label {label}") 
                 edge = (i, head)
                 attr = {"deprel": label} 
                 graph.add_edge(*edge, **attr)
@@ -858,8 +849,6 @@ class DecompGraphWithSyntax(DecompGraph):
         """
 
         nodes = output['nodes']
-
-        logger.info(f"NODES ARE {nodes}") 
         
         if "@@start-synt@@" in nodes:
             # split on syntax starter

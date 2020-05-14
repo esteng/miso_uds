@@ -6,7 +6,10 @@ from typing import Dict, Optional, List, Tuple, Iterable
 import sys
 from overrides import overrides
 
+import torch 
+
 from allennlp.training.trainer_base import TrainerBase
+from allennlp.training.metrics import AttachmentScores
 
 from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax
 from miso.training.decomp_parsing_trainer import DecompTrainer 
@@ -34,10 +37,64 @@ class DecompSyntaxTrainer(DecompTrainer):
                                                   warmup_epochs,
                                                   *args, **kwargs)
 
+        self.attachment_scorer = AttachmentScores()
+
+    def _update_attachment_scores(self, pred_instances, true_instances):
+        las = []
+        uas = []
+
+        # flatten true instances 
+
+        all_true_nodes = [true_inst for batch in true_instances for true_inst in batch[0]['tgt_tokens_str'] ]
+        all_true_edge_heads = [true_inst for batch in true_instances for true_inst in batch[0]['edge_heads'] ]
+        all_true_edge_types = [true_inst for batch in true_instances for true_inst in batch[0]['edge_types']['edge_types']]
+        all_true_masks = [true_inst for batch in true_instances for true_inst in batch[0]['valid_node_mask']]
+        assert(len(all_true_nodes) == len(all_true_edge_heads) == len(all_true_edge_types) == len(all_true_masks)  == len(pred_instances)) 
+
+        for i in range(len(pred_instances)):
+            # get rid of @start@ symbol 
+            true_nodes = all_true_nodes[i]
+
+            split_point = true_nodes.index("@@start-synt@@") - 1
+            end_point = true_nodes.index("@@end-synt@@") - 1
+
+            try:
+                pred_edge_heads = pred_instances[i]['edge_heads'][split_point + 1:end_point]
+                pred_edge_types = pred_instances[i]['edge_types_inds'][split_point+1:end_point]
+            except IndexError:
+                las.append(0)
+                uas.append(0)
+                continue
+           
+            gold_edge_heads = all_true_edge_heads[i][split_point+1:end_point]
+            gold_edge_types = all_true_edge_types[i][split_point+1:end_point]
+            valid_node_mask = all_true_masks[i][split_point+1:end_point]
+
+            gold_edge_heads = torch.tensor(gold_edge_heads) 
+            pred_edge_heads = torch.tensor(pred_edge_heads) 
+            gold_edge_types = torch.tensor(gold_edge_types)
+            pred_edge_types = torch.tensor(pred_edge_types) 
+            valid_node_mask = torch.tensor(valid_node_mask) 
+
+            self.attachment_scorer(predicted_indices=pred_edge_heads,
+                                            predicted_labels=pred_edge_types,
+                                            gold_indices=gold_edge_heads,
+                                            gold_labels=gold_edge_types,
+                                            mask=valid_node_mask
+                                            )
+
+        scores = self.attachment_scorer.get_metric(reset = True) 
+        self.model.syntax_las = scores["LAS"] * 100
+        self.model.syntax_uas = scores["UAS"] * 100
+
     @overrides
     def _update_validation_s_score(self, pred_instances: List[Dict[str, numpy.ndarray]],
                                          true_instances):
         """Write the validation output in pkl format, and compute the S score."""
+        # compute attachement scores here without having to override another function
+        self._update_attachment_scores(pred_instances, true_instances) 
+
+
         logger.info("Computing S")
 
         for batch in true_instances:

@@ -58,6 +58,7 @@ class Transduction(Model):
         # metrics
         self._node_pred_metrics = ExtendedPointerGeneratorMetrics()
         self._edge_pred_metrics = AttachmentScores()
+        self._synt_edge_pred_metrics = AttachmentScores()
 
         self._label_smoothing = label_smoothing
         self._dropout = InputVariationalDropout(p=dropout)
@@ -72,6 +73,7 @@ class Transduction(Model):
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         node_pred_metrics = self._node_pred_metrics.get_metric(reset)
         edge_pred_metrics = self._edge_pred_metrics.get_metric(reset)
+        synt_edge_pred_metrics = self._synt_edge_pred_metrics.get_metric(reset)
         metrics = OrderedDict(
             ppl=node_pred_metrics["ppl"],
             node_pred=node_pred_metrics["accuracy"] * 100,

@@ -310,6 +310,9 @@ class DecompDatasetReader(DatasetReader):
             list_data["src_tokens"]
         )
         
+        fields["edge_types_str"] = MetadataField(
+            list_data['head_tags']
+        ) 
 
         fields["tgt_tokens_str"] = MetadataField(
             list_data.get("tgt_tokens", [])

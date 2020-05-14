@@ -219,11 +219,13 @@ class DecompParser(Transduction):
                                edge_predictions: Dict[str, torch.Tensor]) -> Tuple[List[List[int]], List[List[str]]]:
         edge_head_predictions = edge_predictions["edge_heads"].tolist()
         edge_type_predictions = []
+        edge_type_ind_predictions = edge_predictions["edge_types"]
+
         for edge_types in edge_predictions["edge_types"].tolist():
             edge_type_predictions.append([
                 self.vocab.get_token_from_index(edge_type, self._edge_type_namespace) for edge_type in edge_types]
             )
-        return edge_head_predictions, edge_type_predictions
+        return edge_head_predictions, edge_type_predictions, edge_type_ind_predictions
 
     def _read_node_predictions(self,
                                predictions: torch.Tensor,
@@ -635,7 +637,9 @@ class DecompParser(Transduction):
             edge_head_mask=edge_head_mask
         )
 
-        edge_head_predictions, edge_type_predictions = self._read_edge_predictions(edge_predictions)
+        (edge_head_predictions, 
+        edge_type_predictions, 
+        edge_type_ind_predictions) = self._read_edge_predictions(edge_predictions)
 
         edge_attribute_outputs = self._edge_attribute_predict(
                 edge_predictions["edge_type_query"],
@@ -662,6 +666,7 @@ class DecompParser(Transduction):
             node_indices=node_index_predictions,
             edge_heads=edge_head_predictions,
             edge_types=edge_type_predictions,
+            edge_types_inds=edge_type_ind_predictions,
             node_attributes=node_attribute_outputs['pred_dict']['pred_attributes'],
             node_attributes_mask=node_attribute_outputs['pred_dict']['pred_mask'],
             edge_attributes=edge_attribute_outputs['pred_dict']['pred_attributes'],
