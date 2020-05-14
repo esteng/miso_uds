@@ -512,6 +512,7 @@ class DecompGraphWithSyntax(DecompGraph):
             edge_attributes = [{}] + edge_attributes
             copy_offset += 1
             node_name_list = ["@start@"] + node_name_list
+
         #if eos:
         #    tgt_tokens = tgt_tokens + [eos]
         #    tgt_attributes = tgt_attributes + [{}]
@@ -523,12 +524,13 @@ class DecompGraphWithSyntax(DecompGraph):
 
         # add syntactic subgraph 
         (synt_node_list, synt_node_name_list, 
-         synt_head_indices, synt_head_labels, synt_mask)  = self.linearize_syntactic_graph()
+         synt_head_indices, synt_head_labels, 
+         synt_mask)  = self.linearize_syntactic_graph()
 
         #if False:
         if self.syntactic_method == "concat":
             # for bos 
-            copy_offset += 1
+            #copy_offset += 1
             # tack syntactic subgraph to the end 
             max_head_idx = len(tgt_tokens) - 1
             # increment by max head idx seen 
@@ -569,7 +571,7 @@ class DecompGraphWithSyntax(DecompGraph):
             node_name_list = node_name_list[:max_tgt_length ] 
 
             for node, indices in node_to_idx.items():
-                invalid_indices = [index for index in indices if index >= max_tgt_length]
+                invalid_indices = [index for index in indices if index >= max_tgt_length - copy_offset]
                 for index in invalid_indices:
                     indices.remove(index)
             return (tgt_tokens, 

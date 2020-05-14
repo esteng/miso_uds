@@ -1,4 +1,4 @@
-local data_dir = "dev";
+local data_dir = "train";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
 {
@@ -34,7 +34,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 2,
+    line_limit: 100,
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
