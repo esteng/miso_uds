@@ -162,7 +162,8 @@ class DecompDatasetReader(DatasetReader):
 
         fields: Dict[str, Field] = {}
 
-        max_tgt_length = None if self.eval else 120
+        #max_tgt_length = None if self.eval else 120
+        max_tgt_length = None 
         d = DecompGraphWithSyntax(graph, drop_syntax = self.drop_syntax, order = self.order)
         list_data = d.get_list_data(
              bos=START_SYMBOL, 

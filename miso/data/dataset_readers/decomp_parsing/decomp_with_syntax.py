@@ -547,7 +547,7 @@ class DecompGraphWithSyntax(DecompGraph):
             tgt_attributes += [{} for i in range(len(synt_node_list))]
             edge_attributes += [{} for i in range(len(synt_head_indices)+2)]
 
-        max_tgt_length -= copy_offset
+        #max_tgt_length -= copy_offset
         
         # TODO: modified to add back in the syntax EOS if trimmed 
         def trim_very_long_tgt_tokens(tgt_tokens, 
