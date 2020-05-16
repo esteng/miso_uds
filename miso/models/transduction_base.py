@@ -119,6 +119,10 @@ class Transduction(Model):
         node_indices = torch.arange(0, target_length).view(1, target_length) \
             .expand(batch_size, target_length).type_as(gold_edge_heads)
 
+        #print(f"gold_edge_heads {gold_edge_heads}")
+        #print(f"valid_mask {valid_node_mask}" )
+        #sys.exit()
+
         gold_edge_head_ll = edge_head_ll[batch_indices, node_indices, gold_edge_heads]
         gold_edge_type_ll = edge_type_ll[batch_indices, node_indices, gold_edge_types]
         # Set the ll of invalid nodes to 0.
