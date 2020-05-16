@@ -368,7 +368,13 @@ class DecompGraphWithSyntax(DecompGraph):
         return node_list, [semantic_root] , arbor_graph
 
 
-    def linearize_syntactic_graph(self, bos = "@@start-synt@@", eos = "@@end@@"):
+    def linearize_syntactic_graph(self):
+        """ 
+        do BFS on the syntax graph to get 
+        a list of nodes, head indices, edge labels 
+        doesn't add EOS or BOS tokens since those 
+        change depending on concat/combo strategy 
+        """
         syntax_graph = self.graph.syntax_subgraph
 
         possible_roots = set(syntax_graph.nodes.keys())
@@ -378,24 +384,32 @@ class DecompGraphWithSyntax(DecompGraph):
         assert(len(possible_roots) == 1)
         root = list(possible_roots)[0]
 
-        node_list = [bos]
-        node_name_list = ["BOS"]
+        node_list = []
+        node_name_list = []
         head_lookup = {root: 0}
-        head_inds = [0]
-        head_labels = ["EOS/SOS"]
-        head_mask = [0]
+        head_inds = []
+        head_labels = []
+        head_mask = []  
 
         # do BFS
-        idx = 1
+        idx = 0
         frontier = [root]
         while len(frontier) > 0:
             curr_node = frontier.pop(0)
             node_list.append(syntax_graph.nodes[curr_node]['form'])
             node_name_list.append(curr_node) 
+           
             head_inds.append(head_lookup[curr_node])
-
             # get deprel 
-            head_node = node_name_list[head_inds[-1]]
+            if len(head_inds) > 0:
+                head_node = node_name_list[head_inds[-1]]
+            else:
+                head_node = root 
+                
+            if head_node == "BOS":
+                # root 
+                head_node = curr_node
+
             edge = (head_node, curr_node)
             try:
                 label = syntax_graph.edges[edge]['deprel']
@@ -411,17 +425,6 @@ class DecompGraphWithSyntax(DecompGraph):
 
             frontier += curr_children
             idx += 1
-
-        head_inds[0] = -1
-        node_list.append(eos)
-        node_name_list.append("EOS")
-        #head_inds.append()
-        #head_labels.append("EOS") 
-
-        head_mask.append(0)
-
-        #print(len(node_list) , len(node_name_list) , len(head_inds) , len(head_labels))
-        #assert(len(node_list) == len(node_name_list) == len(head_inds) == len(head_labels))
 
         return node_list, node_name_list, head_inds, head_labels, head_mask 
 
@@ -522,30 +525,93 @@ class DecompGraphWithSyntax(DecompGraph):
 
 
         # add syntactic subgraph 
-        (synt_node_list, synt_node_name_list, 
-         synt_head_indices, synt_head_labels, 
-         synt_mask)  = self.linearize_syntactic_graph()
+        (syn_tokens, syn_node_name_list, 
+         syn_head_indices, syn_head_tags, 
+         syn_mask)  = self.linearize_syntactic_graph()
 
-        #if False:
-        if self.syntactic_method == "concat":
-            # for bos 
-            #copy_offset += 1
-            # tack syntactic subgraph to the end 
-            max_head_idx = len(tgt_tokens) - 1
-            # increment by max head idx seen 
-            synt_head_indices = [x + max_head_idx for x in synt_head_indices if x != 0]
-            # sentinel 
-            synt_head_indices[0] = -1
-            tgt_tokens += synt_node_list 
-            # -2 is also a sentinel we'll have to filter out in the model
-            head_indices += [-2] + synt_head_indices
-            head_tags += synt_head_labels
-            mask += synt_mask
-            node_name_list += synt_node_name_list
+        def concat_two(tokens1, tokens2, 
+                       heads1, heads2,
+                       labels1, labels2,
+                       mask1, mask2,
+                       names1, names2, 
+                       add_bos=True,
+                       add_eos=True,
+                       add_sep=True):
+            offset = len(tokens1) 
+            if add_bos:
+                tokens1 = ["@start@"] + tokens1
+                names1 = ["BOS"] + names1 
+                mask1 = [0] + mask1
+            if add_eos:
+                tokens2 = tokens2 + ["@end@"]
+                names2 = names2 + ["EOS"]
+                mask2 = mask2 + [0]
+            if add_sep: 
+                tokens1 = tokens1 + ["@syntax-sep@"]
+                heads1 = heads1 + [-2]
+                labels1 = labels1 + ["SEP"]
+                names1 = names1 + ["SEP"]
+                mask1 = mask1 + [0]
+                offset += 1
 
-            # pad 
-            tgt_attributes += [{} for i in range(len(synt_node_list))]
-            edge_attributes += [{} for i in range(len(synt_head_indices)+2)]
+            tokens = tokens1 + tokens2
+            # increment heads by offset of first seq 
+            heads2 = [x + offset for x in heads2]
+            # root is sentinel 
+            heads2[0] = -1
+            heads = heads1 + heads2
+            labels = labels1 + labels2 
+            mask = mask1 + mask2
+            names = names1 + names2
+
+            return tokens, heads, labels, mask, names 
+            
+        sem_tokens = tgt_tokens[1:]
+        sem_head_indices = head_indices
+        sem_head_tags = head_tags
+        sem_mask = mask 
+        sem_node_name_list = node_name_list
+
+        if self.syntactic_method == "concat-after":
+            (tgt_tokens, 
+             head_indices, 
+             head_tags, 
+             mask,
+             node_name_list) = concat_two(sem_tokens, syn_tokens,
+                                          sem_head_indices, syn_head_indices,
+                                          sem_head_tags, syn_head_tags,
+                                          sem_mask, syn_mask,
+                                          sem_node_name_list, syn_node_name_list)
+
+            # pad attributes 
+            tgt_attributes += [{} for i in range(len(syn_tokens)+2)]
+            edge_attributes += [{} for i in range(len(syn_head_indices)+2)]
+
+        elif self.syntactic_method == "concat-before":
+            (tgt_tokens, 
+             head_indices, 
+             head_tags, 
+             mask,
+             node_name_list) = concat_two(syn_tokens, sem_tokens,
+                                          syn_head_indices, sem_head_indices,
+                                          syn_head_tags, sem_head_tags, 
+                                          syn_mask, sem_mask,
+                                          syn_node_name_list, sem_node_name_list)
+
+            # pad attributes 
+            tgt_attributes = [{} for i in range(len(syn_tokens)+1)] + tgt_attributes + [{}]
+            edge_attributes = [{} for i in range(len(syn_head_indices)+1)] + edge_attributes + [{}]
+
+        else:
+            raise NotImplementedError
+
+        #print(tgt_tokens)
+        #print(head_indices)
+        #print(head_tags)
+        #inds = [i for i in range(len(head_tags))]
+        #print(list(zip(inds, tgt_tokens[1:-1], head_indices, head_tags)))
+        #print(tgt_attributes)
+        #print(edge_attributes)
 
         max_tgt_length -= copy_offset
         
@@ -575,6 +641,7 @@ class DecompGraphWithSyntax(DecompGraph):
                 invalid_indices = [index for index in indices if index >= max_tgt_length]
                 for index in invalid_indices:
                     indices.remove(index)
+
             return (tgt_tokens, 
                    head_tags, 
                    head_indices, 
@@ -745,10 +812,10 @@ class DecompGraphWithSyntax(DecompGraph):
         build the syntactic graph from a predicted set of nodes, 
         edge heads, and edge labels
         """
-        if "@@end@@" not in nodes:
+        if "@end@" not in nodes:
             return None
 
-        end_point = nodes.index("@@end@@") 
+        end_point = nodes.index("@end@") 
         try:
             nodes = nodes[0:end_point]
             edge_heads = edge_heads[0:end_point]
@@ -775,6 +842,9 @@ class DecompGraphWithSyntax(DecompGraph):
         """
         graph = nx.DiGraph()
         
+        #for i in range(1, len(edge_heads)):
+        #    edge_heads[i] -= 1
+
         real_node_mapping = {}
 
         # Steps
@@ -845,7 +915,7 @@ class DecompGraphWithSyntax(DecompGraph):
 
 
     @classmethod
-    def from_prediction(cls, output):
+    def from_prediction(cls, output, syntactic_method):
         """
         build an arbor graph from a prediction
 
@@ -854,54 +924,94 @@ class DecompGraphWithSyntax(DecompGraph):
         output: Dict
             output of decomp predictor
         """
+        def split_two(split, nodes, heads, tags, corefs,
+                      node_attr, edge_attr, 
+                      node_mask, edge_mask):
+            nodes1, nodes2 = nodes[0:split], nodes[split+1:]
+            heads1, heads2 = heads[0:split], heads[split+1:]
+            tags1, tags2 = tags[0:split], tags[split+1:]
+            node_attr1, node_attr2 = node_attr[0:split], node_attr[split+1:]
+            edge_attr1, edge_attr2 = edge_attr[0:split], edge_attr[split+1:]
+            node_mask1, node_mask2 = node_mask[0:split], node_mask[split+1:]
+            edge_mask1, edge_mask2 = edge_mask[0:split], edge_mask[split+1:]
+            corefs1, corefs2 = corefs[0:split], corefs[split+1:]
 
-        nodes = output['nodes']
+            offset = len(nodes1) 
+
+            heads2 = [x - (offset + 2)  for x in heads2]
+            corefs2 = [x - (offset + 1) for x in corefs2]
+
+            heads2[0] = 0
+
+            return (nodes1, nodes2, heads1, heads2, 
+                    tags1, tags2, corefs1, corefs2,
+                    node_attr1, node_attr2, 
+                    edge_attr1, edge_attr2, 
+                    node_mask1, node_mask2,
+                    edge_mask1, edge_mask2)  
         
-        if "@@start-synt@@" in nodes:
+        nodes = output['nodes']
+        if "@syntax-sep@" in nodes:
             # split on syntax starter
-            split_point = nodes.index("@@start-synt@@")
+            split_point = nodes.index("@syntax-sep@")
         else:
             # can't make a prediction until model has learned this 
             return None, None
 
+        corefs = output['node_indices']
+        edge_heads = output['edge_heads'] 
+        edge_tags = output['edge_types']
+
+        node_attr = output['node_attributes'][0]
+        edge_attr = output['edge_attributes']
+        node_mask = output['node_attributes_mask'][0]
+        edge_mask = output['edge_attributes_mask']
+
         try:
-            sem_nodes = nodes[0: split_point]
-            syn_nodes = nodes[split_point + 1:]
+            output = split_two(split_point, nodes, edge_heads,
+                               edge_tags, corefs, node_attr,
+                               edge_attr, node_mask, edge_mask)
 
-            edge_heads = output['edge_heads']
-            sem_edge_heads = edge_heads[0:split_point]
-            syn_edge_heads = edge_heads[split_point + 1:]
-
-            sem_edge_heads = [x-1 for x in sem_edge_heads]
-            sem_edge_heads[0] = 0
-            
-            min_head = syn_edge_heads[1]
-            syn_edge_heads = [x-min_head for x in syn_edge_heads]
-            syn_edge_heads[0] = 0
-
-            edge_labels = output['edge_types']
-            sem_edge_labels = edge_labels[0: split_point]
-            syn_edge_labels = edge_labels[split_point+1:]
-
-            node_attr = output['node_attributes'][0][0:split_point]
-            edge_attr = output['edge_attributes'][0:split_point]
-            node_mask = output['node_attributes_mask'][0][0:split_point]
-            edge_mask = output['edge_attributes_mask'][0:split_point]
-
-            # off by 1 fixed here 
-            node_attr = [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))][1:] + [{}]
-            edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
-
-            corefs = output['node_indices'][0:split_point]
-            
-            sem_graph = cls.build_sem_graph(sem_nodes, node_attr, corefs,
-                                            sem_edge_heads, sem_edge_labels, edge_attr)
-            cls.arbor_graph = sem_graph
-
-            syn_graph = cls.build_syn_graph(syn_nodes, syn_edge_heads, syn_edge_labels)
         except IndexError:
             # any index error means not enough training 
             return None, None
+
+        if syntactic_method == "concat-after":
+            # unpack output semantics first 
+            (sem_nodes, syn_nodes, sem_heads, syn_heads, sem_tags, syn_tags,
+            corefs, __, node_attr, __, edge_attr, __, node_mask, __, 
+            edge_mask, __) = output 
+             
+        elif syntactic_method == "concat-before":
+            # unpack output syntax first 
+            (syn_nodes, sem_nodes, syn_heads, sem_heads, syn_tags, sem_tags,
+             __, corefs, __, node_attr, __, edge_attr, __, node_mask, __,
+             edge_mask) = output 
+        else:
+            raise NotImplementedError
+
+        #print(f"syntax") 
+        #print(syn_nodes)
+        #print(syn_heads)
+        #print(syn_tags)
+        #print(f"semantics") 
+        #print(sem_nodes)
+        #print(sem_heads)
+        #print(sem_tags)
+        #print(corefs) 
+        #print(node_attr)
+        #print(edge_attr) 
+
+        # off by 1 fixed here 
+        node_attr = [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))][1:] + [{}]
+        edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
+
+        
+        sem_graph = cls.build_sem_graph(sem_nodes, node_attr, corefs,
+                                        sem_heads, sem_tags, edge_attr)
+        cls.arbor_graph = sem_graph
+
+        syn_graph = cls.build_syn_graph(syn_nodes, syn_heads, syn_tags)
 
         return sem_graph, syn_graph 
 

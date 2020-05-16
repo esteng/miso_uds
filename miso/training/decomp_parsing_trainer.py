@@ -267,6 +267,7 @@ def _from_params(cls,  # type: ignore
     should_log_parameter_statistics = params.pop_bool("should_log_parameter_statistics", True)
     should_log_learning_rate = params.pop_bool("should_log_learning_rate", False)
     log_batch_size_period = params.pop_int("log_batch_size_period", None)
+    syntactic_method = params.pop("syntactic_method", None)
 
     params.assert_empty(cls.__name__)
     return cls(model=model,
@@ -278,6 +279,7 @@ def _from_params(cls,  # type: ignore
                validation_prediction_path=validation_prediction_path,
                semantics_only=semantics_only,
                warmup_epochs = warmup_epochs, 
+               syntactic_method = syntactic_method,
                drop_syntax=drop_syntax,
                include_attribute_scores=include_attribute_scores,
                patience=patience,

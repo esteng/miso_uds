@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 @TrainerBase.register("decomp_syntax_parsing")
 class DecompSyntaxTrainer(DecompTrainer):
-
     def __init__(self,
                  validation_data_path: str,
                  validation_prediction_path: str,
@@ -28,6 +27,7 @@ class DecompSyntaxTrainer(DecompTrainer):
                  drop_syntax: bool,
                  include_attribute_scores: bool = False,
                  warmup_epochs: int = 0,
+                 syntactic_method: str = 'concat-after',
                  *args, **kwargs):
         super(DecompSyntaxTrainer, self).__init__(validation_data_path, 
                                                   validation_prediction_path,
@@ -38,6 +38,7 @@ class DecompSyntaxTrainer(DecompTrainer):
                                                   *args, **kwargs)
 
         self.attachment_scorer = AttachmentScores()
+        self.syntactic_method = syntactic_method
 
     def _update_attachment_scores(self, pred_instances, true_instances):
         las = []
@@ -55,10 +56,10 @@ class DecompSyntaxTrainer(DecompTrainer):
             # get rid of @start@ symbol 
             true_nodes = all_true_nodes[i]
 
-            split_point = true_nodes.index("@@start-synt@@") - 1
+            split_point = true_nodes.index("@syntax-sep@") - 1
             pred_nodes = pred_instances[i]['nodes']
 
-            end_point = min(true_nodes.index("@@end@@") - 1, len(pred_nodes)-1)
+            end_point = min(true_nodes.index("@end@") - 1, len(pred_nodes)-1)
 
             try:
                 pred_edge_heads = pred_instances[i]['edge_heads'][split_point + 1:end_point]
@@ -72,11 +73,8 @@ class DecompSyntaxTrainer(DecompTrainer):
             gold_edge_types = all_true_edge_types[i][split_point+1:end_point]
             valid_node_mask = all_true_masks[i][split_point+1:end_point]
 
-            gold_edge_heads = torch.tensor(gold_edge_heads) 
             pred_edge_heads = torch.tensor(pred_edge_heads) 
-            gold_edge_types = torch.tensor(gold_edge_types)
             pred_edge_types = torch.tensor(pred_edge_types) 
-            valid_node_mask = torch.tensor(valid_node_mask) 
 
             self.attachment_scorer(predicted_indices=pred_edge_heads,
                                             predicted_labels=pred_edge_types,
@@ -104,7 +102,7 @@ class DecompSyntaxTrainer(DecompTrainer):
 
         true_graphs = [true_inst for batch in true_instances for true_inst in batch[0]['graph'] ]
         true_sents = [true_inst for batch in true_instances for true_inst in batch[0]['src_tokens_str']]
-        pred_graphs = [DecompGraphWithSyntax.from_prediction(pred_inst) for pred_inst in pred_instances]
+        pred_graphs = [DecompGraphWithSyntax.from_prediction(pred_inst, self.syntactic_method) for pred_inst in pred_instances]
         pred_sem_graphs, pred_syn_graphs = zip(*pred_graphs)
 
         ret = compute_s_metric(true_graphs, pred_sem_graphs, true_sents, 

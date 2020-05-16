@@ -35,6 +35,7 @@ class DecompDatasetReader(DatasetReader):
                  target_token_indexers: Dict[str, TokenIndexer],
                  generation_token_indexers: Dict[str, TokenIndexer],
                  tokenizer: Tokenizer = AMRTransformerTokenizer,
+                 syntactic_method: str = "concat-after",
                  evaluation: bool = False,
                  drop_syntax: bool = True,
                  semantics_only: bool = False,
@@ -47,6 +48,7 @@ class DecompDatasetReader(DatasetReader):
         super().__init__(lazy=lazy)
         self.drop_syntax = drop_syntax 
         self.semantics_only = semantics_only
+        self.syntactic_method = syntactic_method
         self.line_limit = line_limit
         self.order = order 
 
@@ -163,7 +165,7 @@ class DecompDatasetReader(DatasetReader):
         fields: Dict[str, Field] = {}
 
         max_tgt_length = None if self.eval else 120
-        d = DecompGraphWithSyntax(graph, drop_syntax = self.drop_syntax, order = self.order)
+        d = DecompGraphWithSyntax(graph, drop_syntax = self.drop_syntax, order = self.order, syntactic_method = self.syntactic_method)
         list_data = d.get_list_data(
              bos=START_SYMBOL, 
              eos=END_SYMBOL, 
