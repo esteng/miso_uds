@@ -952,7 +952,12 @@ class DecompGraphWithSyntax(DecompGraph):
             offset = len(nodes1) 
 
             heads2 = [x - (offset + 2)  for x in heads2]
+
+            # Hack: need to make sure all of the corefs > 0, no hard
+            # constraint for that in the code at test time so we post-
+            # process
             corefs2 = [x - (offset + 1) for x in corefs2]
+            corefs2 = [x if x >= 0 else 0 for x in corefs2]
 
             heads2[0] = 0
 
