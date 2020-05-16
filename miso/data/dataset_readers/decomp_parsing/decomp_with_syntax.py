@@ -597,6 +597,10 @@ class DecompGraphWithSyntax(DecompGraph):
                                           syn_head_tags, sem_head_tags, 
                                           syn_mask, sem_mask,
                                           syn_node_name_list, sem_node_name_list)
+            # offset node_to_idx 
+            for node, idx_list in node_to_idx.items():
+                idx_list = [x + len(syn_tokens) + 1 for x in idx_list]
+                node_to_idx[node] = idx_list 
 
             # pad attributes 
             tgt_attributes = [{} for i in range(len(syn_tokens)+1)] + tgt_attributes + [{}]
@@ -756,6 +760,9 @@ class DecompGraphWithSyntax(DecompGraph):
         if eos:
             node_indices = node_indices[:-1]
         node_mask = np.array([1] * len(node_indices), dtype='uint8')
+        node_mask[tgt_tokens.index("@syntax-sep@")-1] = 0
+
+
         edge_mask = np.zeros((len(node_indices), len(node_indices)), dtype='uint8')
         for i in range(1, len(node_indices)):
             for j in range(i):
@@ -812,14 +819,14 @@ class DecompGraphWithSyntax(DecompGraph):
         build the syntactic graph from a predicted set of nodes, 
         edge heads, and edge labels
         """
-        if "@end@" not in nodes:
-            return None
+        #if "@end@" not in nodes:
+        #    return None
 
-        end_point = nodes.index("@end@") 
+        #end_point = nodes.index("@end@") 
         try:
-            nodes = nodes[0:end_point]
-            edge_heads = edge_heads[0:end_point]
-            edge_labels = edge_labels[0:end_point]
+            #nodes = nodes[0:end_point]
+            #edge_heads = edge_heads[0:end_point]
+            #edge_labels = edge_labels[0:end_point]
 
             graph = nx.DiGraph()
             for i, n in enumerate(nodes):
@@ -835,15 +842,16 @@ class DecompGraphWithSyntax(DecompGraph):
             return None
 
     @staticmethod 
-    def build_sem_graph(nodes, node_attr, corefs,
+    def build_sem_graph(syntactic_method, nodes, node_attr, corefs,
                         edge_heads, edge_labels, edge_attr):
         """
         build the semantic arbor graph from a predicted output
         """
         graph = nx.DiGraph()
         
-        #for i in range(1, len(edge_heads)):
-        #    edge_heads[i] -= 1
+        if syntactic_method == "concat-after": 
+            for i in range(1, len(edge_heads)):
+                edge_heads[i] -= 1
 
         real_node_mapping = {}
 
@@ -887,6 +895,10 @@ class DecompGraphWithSyntax(DecompGraph):
             child = f"predicted-{child_idx}"
             parent = f"predicted-{head_idx}"
 
+            if child == parent:
+                # skip root-root edge
+                continue
+
             if label != "EMPTY":
             # both parent and child are semantics nodes 
                 #logger.info(f"semrl is {attr['semrel']}")
@@ -924,17 +936,18 @@ class DecompGraphWithSyntax(DecompGraph):
         output: Dict
             output of decomp predictor
         """
-        def split_two(split, nodes, heads, tags, corefs,
+        def split_two(split, end, nodes, heads, tags, corefs,
                       node_attr, edge_attr, 
                       node_mask, edge_mask):
-            nodes1, nodes2 = nodes[0:split], nodes[split+1:]
-            heads1, heads2 = heads[0:split], heads[split+1:]
-            tags1, tags2 = tags[0:split], tags[split+1:]
-            node_attr1, node_attr2 = node_attr[0:split], node_attr[split+1:]
-            edge_attr1, edge_attr2 = edge_attr[0:split], edge_attr[split+1:]
-            node_mask1, node_mask2 = node_mask[0:split], node_mask[split+1:]
-            edge_mask1, edge_mask2 = edge_mask[0:split], edge_mask[split+1:]
-            corefs1, corefs2 = corefs[0:split], corefs[split+1:]
+
+            nodes1, nodes2 = nodes[0:split], nodes[split+1:end]
+            heads1, heads2 = heads[0:split], heads[split+1:end]
+            tags1, tags2 = tags[0:split], tags[split+1:end]
+            node_attr1, node_attr2 = node_attr[0:split], node_attr[split+1:end]
+            edge_attr1, edge_attr2 = edge_attr[0:split], edge_attr[split+1:end]
+            node_mask1, node_mask2 = node_mask[0:split], node_mask[split+1:end]
+            edge_mask1, edge_mask2 = edge_mask[0:split], edge_mask[split+1:end]
+            corefs1, corefs2 = corefs[0:split], corefs[split+1:end]
 
             offset = len(nodes1) 
 
@@ -954,6 +967,7 @@ class DecompGraphWithSyntax(DecompGraph):
         if "@syntax-sep@" in nodes:
             # split on syntax starter
             split_point = nodes.index("@syntax-sep@")
+            end_point = len(nodes)
         else:
             # can't make a prediction until model has learned this 
             return None, None
@@ -968,7 +982,7 @@ class DecompGraphWithSyntax(DecompGraph):
         edge_mask = output['edge_attributes_mask']
 
         try:
-            output = split_two(split_point, nodes, edge_heads,
+            output = split_two(split_point, end_point, nodes, edge_heads,
                                edge_tags, corefs, node_attr,
                                edge_attr, node_mask, edge_mask)
 
@@ -1007,7 +1021,8 @@ class DecompGraphWithSyntax(DecompGraph):
         edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
 
         
-        sem_graph = cls.build_sem_graph(sem_nodes, node_attr, corefs,
+        sem_graph = cls.build_sem_graph(syntactic_method, sem_nodes, 
+                                        node_attr, corefs,
                                         sem_heads, sem_tags, edge_attr)
         cls.arbor_graph = sem_graph
 
