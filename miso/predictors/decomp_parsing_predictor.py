@@ -205,13 +205,13 @@ class DecompParsingPredictor(Predictor):
 
 @Predictor.register("decomp_syntax_parsing")
 class DecompSyntaxParsingPredictor(DecompParsingPredictor):
+    def __init__(self, syntactic_method):
+        super(DecompSyntaxParsingPredictor, self).__init__() 
+        self.syntactic_method = syntactic_method
+
     @overrides
     def dump_line(self, outputs: JsonDict) -> str:
-        print(outputs['nodes']) 
-        print(outputs['edge_heads']) 
-        print(outputs['edge_types']) 
-        sys.exit()
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
-        pred_sem_graph, pred_syn_graph = DecompGraphWithSyntax.from_prediction(outputs)
+        pred_sem_graph, pred_syn_graph = DecompGraphWithSyntax.from_prediction(outputs, syntactic_method) 
         return pred_sem_graph, pred_syn_graph 
 
