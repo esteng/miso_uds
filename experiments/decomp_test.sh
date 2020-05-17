@@ -9,8 +9,8 @@ EXP_DIR=experiments
 # Import utility functions.
 source ${EXP_DIR}/utils.sh
 
-CHECKPOINT_DIR=decomp-parsing-ckpt
-TRAINING_CONFIG=miso/training_config/debug_decomp_transductive_semantic_parsing.jsonnet
+CHECKPOINT_DIR=decomp-synt-sem-ckpt
+TRAINING_CONFIG=miso/training_config/overfit_synt_sem.jsonnet
 TEST_DATA=dev
 
 
@@ -23,6 +23,18 @@ function train() {
     --include-package miso.training \
     --include-package miso.metrics \
     -s ${CHECKPOINT_DIR} \
+    ${TRAINING_CONFIG}
+}
+
+function resume() {
+    python scripts/edit_config.py ${CHECKPOINT_DIR}/config.json ${TRAINING_CONFIG}
+    python -m allennlp.run train \
+    --include-package miso.data.dataset_readers \
+    --include-package miso.models \
+    --include-package miso.training \
+    --include-package miso.metrics \
+    -s ${CHECKPOINT_DIR} \
+    --recover \
     ${TRAINING_CONFIG}
 }
 
@@ -50,10 +62,11 @@ function eval() {
     echo ${PYTHONPATH}
     python -m miso.commands.s_score eval \
     ${model_file} ${TEST_DATA} \
-    --predictor "decomp_parsing" \
+    --predictor "decomp_syntax_parsing" \
     --batch-size 1 \
+    --beam-size 1 \
     --use-dataset-reader \
-    --line-limit 2 \
+    --line-limit 1 \
     --cuda-device -1 \
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
@@ -118,6 +131,8 @@ function main() {
         test
     elif [[ "${action}" == "train" ]]; then
         train
+    elif [[ "${action}" == "resume" ]]; then
+        resume
     elif [[ "${action}" == "all" ]]; then
         train
         test
