@@ -565,6 +565,22 @@ class DecompGraphWithSyntax(DecompGraph):
             names = names1 + names2
 
             return tokens, heads, labels, mask, names 
+
+        def reorder_syntax_for_encoder(tokens, inds, tags, mask, nodes):
+            """
+            reorder tokens and relabel indices so that order corresponds to syntactic order 
+            """
+            # nodes has corrected ordering 
+            everything_zipped = zip(tokens, inds, tags, mask, nodes)
+            correct_order_zipped = sorted(everything_zipped, key = lambda x: x[-1])
+            new_tokens, new_inds, new_tags, new_mask, new_nodes = zip(*correct_order_zipped)
+            # get mapping from old inds to new inds 
+            for i, (head_idx) in enumerate(new_inds):
+                head_node = nodes[head_idx]
+                new_head_idx = new_nodes.index(head_node)
+                new_inds[i] = new_head_idx
+
+            return new_tokens, new_inds, new_tags, new_mask, new_nodes
             
         sem_tokens = tgt_tokens[1:]
         sem_head_indices = head_indices
@@ -606,9 +622,27 @@ class DecompGraphWithSyntax(DecompGraph):
             tgt_attributes = [{} for i in range(len(syn_tokens)+1)] + tgt_attributes + [{}]
             edge_attributes = [{} for i in range(len(syn_head_indices)+1)] + edge_attributes + [{}]
 
+        elif self.syntactic_method == "encoder-side":
+            # add bos, eos to semantics 
+            # no bos or eos for syntax, but it needs to re-ordered 
+            sem_tokens = ["@start@"] + sem_tokens + ["@end@"]
+            sem_mask = [0] + sem_mask + [0] 
+            sem_node_name_list = ["BOS"] + sem_node_name_list + ["EOS"]
+
+            (syn_tokens, 
+            syn_head_indices, 
+            syn_head_tags, 
+            syn_mask, 
+            syn_node_name_list) = reorder_syntax_for_encoder(syn_tokens,
+                                                    syn_head_indices,
+                                                    syn_head_tags,
+                                                    syn_mask,
+                                                    syn_node_name_list)
+
+
         else:
             raise NotImplementedError
-
+        #print("TRUE") 
         #print(tgt_tokens)
         #print(head_indices)
         #print(head_tags)
@@ -1009,15 +1043,15 @@ class DecompGraphWithSyntax(DecompGraph):
         else:
             raise NotImplementedError
 
-        #print(f"syntax") 
-        #print(syn_nodes)
-        #print(syn_heads)
-        #print(syn_tags)
-        #print(f"semantics") 
-        #print(sem_nodes)
-        #print(sem_heads)
-        #print(sem_tags)
-        #print(corefs) 
+        print(f"syntax") 
+        print(syn_nodes)
+        print(syn_heads)
+        print(syn_tags)
+        print(f"semantics") 
+        print(sem_nodes)
+        print(sem_heads)
+        print(sem_tags)
+        print(corefs) 
         #print(node_attr)
         #print(edge_attr) 
 

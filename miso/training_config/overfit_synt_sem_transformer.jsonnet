@@ -3,7 +3,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
 {
   dataset_reader: {
-    type: "decomp",
+    type: "decomp_syntax_semantics",
     source_token_indexers: {
       source_tokens: {
         type: "single_id",
@@ -32,20 +32,22 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
+    syntactic_method: "concat-before",
     drop_syntax: "true",
     semantics_only: "false",
     line_limit: 2,
     order: "inorder",
-    #tokenizer: {
-    #            type: "pretrained_transformer_for_amr",
-    #            model_name: "bert-base-cased",
-    #            args: null,
-    #            kwargs: {do_lowercase: 'false'},
-    #            #kwargs: null,
-    #           },
+    tokenizer: {
+                type: "pretrained_transformer_for_amr",
+                model_name: "bert-base-cased",
+                args: null,
+                kwargs: {do_lowercase: 'false'},
+                #kwargs: null,
+               },
   },
   train_data_path: data_dir,
   validation_data_path: "dev",
+  #validation_data_path: null,
   test_data_path: null,
   datasets_for_vocab_creation: [
     "train"
@@ -59,14 +61,14 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       generation_tokens: 1,
     },
     max_vocab_size: {
-      source_tokens: 18000,
-      target_tokens: 12200,
-      generation_tokens: 12200,
+      source_tokens: 1000,
+      target_tokens: 1000,
+      generation_tokens: 1000,
     },
   },
 
   model: {
-    type: "decomp_transformer_parser",
+    type: "decomp_transformer_syntax_parser",
     bert_encoder: null,
     #bert_encoder: {
     #                type: "seq2seq_bert_encoder",
@@ -93,7 +95,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.01,
+          dropout: 0.33,
         },
       },
     },
@@ -109,8 +111,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       hidden_dim: 64,
       projection_dim: 64, 
       num_layers: 4,
-      #recurrent_dropout_probability: 0.33,
-      #use_highway: false,
     },
     decoder_token_embedder: {
       token_embedders: {
@@ -133,7 +133,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.01,
+          dropout: 0.33,
         },
       },
     },
@@ -158,8 +158,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         norm: {type: "scale_norm",
                dim: 64},
         dim_feedforward: 128,
-        dropout: 0.2, 
-        init_scale: 4,
+        dropout: 0.0, 
+        init_scale: 16,
       },
       source_attention_layer: {
         type: "global",
@@ -208,14 +208,14 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         input_dim: 64,
         hidden_dim: 128,
         output_dim: 44,
-        n_layers: 4, 
+        n_layers: 2, 
         loss_multiplier: 10,
     },
     edge_attribute_module: {
         h_input_dim: 32,
         hidden_dim: 200,
         output_dim: 14,
-        n_layers: 4, 
+        n_layers: 2, 
         loss_multiplier: 10,
     },
     label_smoothing: {
@@ -242,10 +242,11 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   },
 
   trainer: {
-    type: "decomp_parsing",
+    type: "decomp_syntax_parsing",
     num_epochs: 500,
-    warmup_epochs: 480,
-    patience: 1000,
+    warmup_epochs: 490,
+    syntactic_method: "concat-before",
+    patience: 600,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -267,7 +268,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
-    #validation_prediction_path: "decomp_validation.txt",
+    #validation_data_path: null,
+    validation_prediction_path: "decomp_validation.txt",
     semantics_only: "false",
     drop_syntax: "true",
   },

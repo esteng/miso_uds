@@ -42,6 +42,7 @@ class DecompTrainer(Trainer):
                  drop_syntax: bool,
                  include_attribute_scores: bool = False,
                  warmup_epochs: int = 0,
+                 syntactic_method:str = None,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.validation_data_path = validation_data_path
