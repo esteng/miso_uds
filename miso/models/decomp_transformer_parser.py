@@ -17,6 +17,7 @@ from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 from allennlp.common.util import START_SYMBOL, END_SYMBOL
 
 from miso.models.transduction_base import Transduction
+from miso.models.decomp_parser import DecompParser 
 from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder, BaseBertWrapper
 from miso.modules.decoders import RNNDecoder, MisoTransformerDecoder, MisoDecoder
 from miso.modules.generators import ExtendedPointerGenerator
@@ -37,7 +38,7 @@ from miso.metrics.pearson_r import pearson_r
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 @Model.register("decomp_transformer_parser")
-class DecompParser(Transduction):
+class DecompTransformerParser(DecompParser):
 
     def __init__(self,
                  vocab: Vocabulary,
@@ -69,81 +70,26 @@ class DecompParser(Transduction):
                          # source-side
                          bert_encoder=bert_encoder,
                          encoder_token_embedder=encoder_token_embedder,
+                         encoder_pos_embedding=encoder_pos_embedding,
                          encoder=encoder,
                          # target-side
                          decoder_token_embedder=decoder_token_embedder,
                          decoder_node_index_embedding=decoder_node_index_embedding,
+                         decoder_pos_embedding=decoder_pos_embedding,
                          decoder=decoder,
                          extended_pointer_generator=extended_pointer_generator,
                          tree_parser=tree_parser,
+                         node_attribute_module=node_attribute_module,
+                         edge_attribute_module=edge_attribute_module,
                          # misc
                          label_smoothing=label_smoothing,
                          target_output_namespace=target_output_namespace,
+                         pos_tag_namespace=pos_tag_namespace,
+                         edge_type_namespace=edge_type_namespace,
                          dropout=dropout,
+                         beam_size=beam_size,
+                         max_decoding_steps=max_decoding_steps,
                          eps=eps)
-
-        self._decomp_metrics = DecompAttrMetrics() 
-        self._node_attribute_module=node_attribute_module
-        self._edge_attribute_module=edge_attribute_module
-        # source-side
-        self._encoder_pos_embedding = encoder_pos_embedding
-
-        # target-side
-        self._decoder_pos_embedding = decoder_pos_embedding
-
-        # metrics
-        self.val_s_f1 = .0
-        self.val_s_precision = .0
-        self.val_s_recall = .0
-
-        self._beam_size = beam_size
-        self._max_decoding_steps = max_decoding_steps
-
-        # dynamic initialization
-        self._target_output_namespace = target_output_namespace
-        self._pos_tag_namespace = pos_tag_namespace
-        self._edge_type_namespace = edge_type_namespace
-        self._vocab_size = self.vocab.get_vocab_size(target_output_namespace)
-        self._vocab_pad_index = self.vocab.get_token_index(DEFAULT_PADDING_TOKEN, target_output_namespace)
-        self._vocab_bos_index = self.vocab.get_token_index(START_SYMBOL, target_output_namespace)
-        self._vocab_eos_index = self.vocab.get_token_index(END_SYMBOL, target_output_namespace)
-        self._extended_pointer_generator.reset_vocab_linear(
-            vocab_size=vocab.get_vocab_size(target_output_namespace),
-            vocab_pad_index=self._vocab_pad_index
-        )
-        self._tree_parser.reset_edge_type_bilinear(num_labels=vocab.get_vocab_size(edge_type_namespace))
-        self._label_smoothing.reset_parameters(pad_index=self._vocab_pad_index)
-        self._beam_search = BeamSearch(self._vocab_eos_index, self._max_decoding_steps, self._beam_size)
-
-        self.oracle = False 
-
-    @overrides
-    def get_metrics(self, reset: bool = False) -> Dict[str, float]:
-        node_pred_metrics = self._node_pred_metrics.get_metric(reset)
-        edge_pred_metrics = self._edge_pred_metrics.get_metric(reset)
-        decomp_metrics = self._decomp_metrics.get_metric(reset) 
-
-        metrics = OrderedDict(
-            ppl=node_pred_metrics["ppl"],
-            node_pred=node_pred_metrics["accuracy"] * 100,
-            generate=node_pred_metrics["generate"] * 100,
-            src_copy=node_pred_metrics["src_copy"] * 100,
-            tgt_copy=node_pred_metrics["tgt_copy"] * 100,
-            node_pearson=decomp_metrics["node_pearson_r"],
-            edge_pearson=decomp_metrics["edge_pearson_r"],
-            pearson=decomp_metrics["pearson_r"],
-            uas=edge_pred_metrics["UAS"] * 100,
-            las=edge_pred_metrics["LAS"] * 100,
-        )
-        metrics["s_f1"] = self.val_s_f1
-        return metrics
-
-    def forward(self, **raw_inputs: Dict) -> Dict:
-        inputs = self._prepare_inputs(raw_inputs)
-        if self.training or self.oracle:
-            return self._training_forward(inputs)
-        else:
-            return self._test_forward(inputs)
 
     @overrides
     def _encode(self,
@@ -200,6 +146,7 @@ class DecompParser(Transduction):
 
         return decoder_outputs
 
+    @overrides
     def _take_one_step_node_prediction(self,
                                        last_predictions: torch.Tensor,
                                        state: Dict[str, torch.Tensor],
@@ -262,69 +209,6 @@ class DecompParser(Transduction):
 
         return log_probs, state, auxiliaries
 
-    def _read_edge_predictions(self,
-                               edge_predictions: Dict[str, torch.Tensor]) -> Tuple[List[List[int]], List[List[str]]]:
-        edge_head_predictions = edge_predictions["edge_heads"].tolist()
-        edge_type_predictions = []
-        for edge_types in edge_predictions["edge_types"].tolist():
-            edge_type_predictions.append([
-                self.vocab.get_token_from_index(edge_type, self._edge_type_namespace) for edge_type in edge_types]
-            )
-        return edge_head_predictions, edge_type_predictions
-
-    def _read_node_predictions(self,
-                               predictions: torch.Tensor,
-                               meta_data: List[Dict],
-                               target_dynamic_vocabs: List[Dict],
-                               source_dynamic_vocab_size: int
-                               ) -> Tuple[List[List[str]], List[List[int]], torch.Tensor, torch.Tensor]:
-        """
-        :param predictions: [batch_size, max_steps].
-        :return:
-            node_predictions: [batch_size, max_steps].
-            node_index_predictions: [batch_size, max_steps].
-            edge_head_mask: [batch_size, max_steps, max_steps].
-            valid_node_mask: [batch_size, max_steps].
-        """
-        batch_size, max_steps = predictions.size()
-        node_predictions = []
-        node_index_predictions = []
-        edge_head_mask = predictions.new_ones((batch_size, max_steps, max_steps))
-        edge_head_mask = torch.tril(edge_head_mask, diagonal=-1).long()
-        valid_node_mask = predictions.new_zeros((batch_size, max_steps))
-        for i in range(batch_size):
-            nodes = []
-            node_indices = []
-            instance_meta = meta_data[i]
-            source_dynamic_vocab = instance_meta["source_dynamic_vocab"]
-            target_dynamic_vocab = target_dynamic_vocabs[i]
-            prediction_list = predictions[i].tolist()
-            for j, index in enumerate(prediction_list):
-                if index == self._vocab_eos_index:
-                    break
-                valid_node_mask[i, j] = 1
-                if index < self._vocab_size:
-                    node = self.vocab.get_token_from_index(index, self._target_output_namespace)
-                    node_index = j
-                elif self._vocab_size <= index < self._vocab_size + source_dynamic_vocab_size:
-                    node = source_dynamic_vocab.get_token_from_idx(index - self._vocab_size)
-                    node_index = j
-                else:
-                    node = target_dynamic_vocab[index - self._vocab_size - source_dynamic_vocab_size]
-                    target_dynamic_vocab_index = index - self._vocab_size - source_dynamic_vocab_size
-                    # Valid target_dynamic_vocab_index starts from 1; 0 is reserved for sentinel.
-                    # Minus 1 to ensure node indices created here are consistent with node indices
-                    # created by pre-defined vocab and source-side copy.
-                    node_index = target_dynamic_vocab_index - 1
-                    for k, prev_node_index in enumerate(node_indices):
-                        if node_index == prev_node_index:
-                            edge_head_mask[i, j, k] = 0
-                nodes.append(node)
-                node_indices.append(node_index)
-            node_predictions.append(nodes)
-            node_index_predictions.append(node_indices)
-        return node_predictions, node_index_predictions, edge_head_mask, valid_node_mask
-    
 
     @overrides
     def _prepare_inputs(self, raw_inputs):
@@ -383,7 +267,8 @@ class DecompParser(Transduction):
         ))
 
         return inputs
-
+    
+    @overrides
     def _prepare_decoding_start_state(self, inputs: Dict, encoding_outputs: Dict[str, torch.Tensor]) \
             -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict]:
         batch_size = inputs["source_tokens"]["source_tokens"].size(0)
@@ -412,6 +297,7 @@ class DecompParser(Transduction):
 
         return start_predictions, start_state, auxiliaries, misc
 
+    @overrides
     def _prepare_next_inputs(self,
                              predictions: torch.Tensor,
                              target_attention_map: torch.Tensor,
@@ -500,72 +386,6 @@ class DecompParser(Transduction):
             pos_tags=pos_tags.unsqueeze(1),
         )
 
-    def _node_attribute_predict(self, rnn_outputs, tgt_attr, tgt_attr_mask):
-        pred_dict = self._node_attribute_module(rnn_outputs)
-        if tgt_attr is not None:
-            pred_attrs = pred_dict["pred_attributes"].clone()
-            pred_mask = pred_dict["pred_mask"].clone()
-            tgt_attr_copy = tgt_attr.detach().clone()
-            tgt_mask_copy = tgt_attr_mask.detach().clone()
-
-            mask_binary = torch.gt(tgt_mask_copy, 0)
-            target_attrs = tgt_attr[mask_binary==1]
- 
-            flat_true = target_attrs.reshape(-1).detach().cpu().numpy()
-
-            loss = self._node_attribute_module.compute_loss(pred_dict["pred_attributes"],
-                                                            pred_dict["pred_mask"],
-                                                            tgt_attr, 
-                                                            tgt_attr_mask)
-
-            self._decomp_metrics(pred_attrs,
-                                 pred_mask,
-                                 tgt_attr_copy, 
-                                 tgt_mask_copy,
-                                 "node"
-                                 )
-
-
-
-            loss = loss['loss']
-        else:
-            loss = -1.0000
-        return {"pred_dict": pred_dict, "loss": loss}
-
-    def _edge_attribute_predict(self, query, 
-                                      key, 
-                                      edge_heads, 
-                                      tgt_attr,
-                                      tgt_attr_mask):
-
-        batch_size = key.size(0)
-        batch_index = torch.arange(0, batch_size).view(batch_size, 1).type_as(edge_heads)
-        # [batch_size, query_length, hidden_size]
-        selected_key = key[batch_index, edge_heads].contiguous()
-        query = query.contiguous()
-
-        pred_dict = self._edge_attribute_module(query, selected_key)
-
-        if tgt_attr is not None:
-            self._decomp_metrics(pred_dict["pred_attributes"],
-                                 pred_dict["pred_mask"],
-                                 tgt_attr, 
-                                 tgt_attr_mask,
-                                 "edge"
-                                 )
-
-            loss = self._edge_attribute_module.compute_loss(pred_dict["pred_attributes"],
-                                                            pred_dict["pred_mask"],
-                                                            tgt_attr,
-                                                            tgt_attr_mask)
-
-
-            loss = loss['loss']
-        else:
-            loss = -1.0000
-
-        return {"pred_dict": pred_dict, "loss": loss}
-
     @overrides
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
         encoding_outputs = self._encode(
@@ -595,14 +415,12 @@ class DecompParser(Transduction):
 
         # compute node attributes
         node_attribute_outputs = self._node_attribute_predict(
-            #decoding_outputs["rnn_outputs"][:,:-1,:],
             decoding_outputs["outputs"][:,:-1,:],
             inputs["node_attribute_truth"],
             inputs["node_attribute_mask"]
         )
 
         edge_prediction_outputs = self._parse(
-            #rnn_outputs=decoding_outputs["rnn_outputs"],
             decoding_outputs["outputs"][:,:,:],
             edge_head_mask=inputs["edge_head_mask"],
             edge_heads=inputs["edge_heads"]
@@ -646,6 +464,7 @@ class DecompParser(Transduction):
                     node_attributes = node_attribute_outputs['pred_dict']['pred_attributes'],
                     edge_attributes = edge_attribute_outputs['pred_dict']['pred_attributes'])
 
+    @overrides
     def _test_forward(self, inputs: Dict) -> Dict:
         encoding_outputs = self._encode(
             tokens=inputs["source_tokens"],
@@ -658,11 +477,11 @@ class DecompParser(Transduction):
         start_predictions, start_state, auxiliaries, misc = self._prepare_decoding_start_state(inputs, encoding_outputs)
 
         # all_predictions: [batch_size, beam_size, max_steps]
-        # rnn_outputs: [batch_size, beam_size, max_steps, hidden_vector_dim]
+        # outputs: [batch_size, beam_size, max_steps, hidden_vector_dim]
         # log_probs: [batch_size, beam_size]
 
     
-        all_predictions, rnn_outputs, log_probs, target_dynamic_vocabs = self._beam_search.search(
+        all_predictions, outputs, log_probs, target_dynamic_vocabs = self._beam_search.search(
             start_predictions=start_predictions,
             start_state=start_state,
             auxiliaries=auxiliaries,
@@ -681,17 +500,18 @@ class DecompParser(Transduction):
 
 
         node_attribute_outputs = self._node_attribute_predict(
-            rnn_outputs[:,:,:-1,:],
+            outputs[:,:,:-1,:],
             None, None
         )
 
         edge_predictions = self._parse(
-            # Remove the first RNN state because it represents <BOS>.
-            rnn_outputs=rnn_outputs[:, 0],
+            rnn_outputs=outputs[:, 0],
             edge_head_mask=edge_head_mask
         )
 
-        edge_head_predictions, edge_type_predictions = self._read_edge_predictions(edge_predictions)
+        (edge_head_predictions, 
+        edge_type_predictions, 
+        edge_type_ind_predictions) = self._read_edge_predictions(edge_predictions)
 
         edge_attribute_outputs = self._edge_attribute_predict(
                 edge_predictions["edge_type_query"],
@@ -718,6 +538,7 @@ class DecompParser(Transduction):
             node_indices=node_index_predictions,
             edge_heads=edge_head_predictions,
             edge_types=edge_type_predictions,
+            edge_types_inds=edge_type_ind_predictions,
             node_attributes=node_attribute_outputs['pred_dict']['pred_attributes'],
             node_attributes_mask=node_attribute_outputs['pred_dict']['pred_mask'],
             edge_attributes=edge_attribute_outputs['pred_dict']['pred_attributes'],
