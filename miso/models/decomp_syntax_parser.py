@@ -125,35 +125,39 @@ class DecompSyntaxParser(DecompParser):
                             arc_logits, 
                             label_logits, 
                             inputs): 
-        bsz, __, n_len, __ = arc_logits.shape 
-
-        arc_logits.reshape(bsz, n_len, n_len) 
+        bsz, n_len, __ = arc_logits.shape 
 
         __, n_labels, __, __ = label_logits.shape
 
         gold_heads = inputs["syn_edge_heads"]
+        neg_mask = gold_heads.eq(0).unsqueeze(-1)
+
         gold_labels = inputs["syn_edge_types"]["syn_edge_types"]
 
         mask = ~gold_heads.eq(0)
-
-        gold_head_inds = gold_heads.reshape(bsz,  1, n_len, 1)
-        gold_head_inds = gold_head_inds.repeat(1, n_labels, 1, 1).long()
-        
-        # get label logits at GOLD heads 
-        pred_label_logits = torch.gather(label_logits, 
-                                          dim = 3,
-                                          index = gold_head_inds)
-
-        pred_inds = torch.argmax(arc_logits, dim = 2) 
-        pred_labels = torch.argmax(pred_label_logits, dim = 1) 
-
+        __, pred_inds = arc_logits.max(dim = -1) 
         pred_inds = pred_inds.reshape(bsz, n_len) 
-        pred_labels = pred_labels.reshape(bsz, n_len) 
 
         print(f"pred inds {pred_inds[0]}") 
         print(f"gold inds {gold_heads[0]}") 
-        print(f"pred labels {pred_labels[0]}") 
-        print(f"gold labels {gold_labels[0]}") 
+
+        gold_head_inds = gold_heads.reshape(bsz,  1, n_len, 1)
+        gold_head_inds = gold_head_inds.repeat(1, n_labels, 1, 1).long()
+
+        ## get label logits at GOLD heads 
+        pred_label_logits = torch.gather(label_logits, 
+                                          dim = -1,
+                                          index = gold_head_inds)
+
+        neg_mask = neg_mask.unsqueeze(1)
+        pred_label_logits = pred_label_logits.masked_fill_(neg_mask, -1e8)
+        pred_label_logits = pred_label_logits.reshape(bsz * n_len, n_labels    )
+
+        __, pred_labels = pred_label_logits.max(dim = 1) 
+        pred_labels = pred_labels.reshape(bsz, n_len) 
+
+        print(f"pred_labels {pred_labels[0]}") 
+        print(f"gold_labels {gold_labels[0]}") 
 
         self._syntax_metrics(predicted_indices = pred_inds, 
                              predicted_labels = pred_labels,
@@ -162,8 +166,8 @@ class DecompSyntaxParser(DecompParser):
                              mask = mask) 
 
         scores = self._syntax_metrics.get_metric(reset=True)
-        self.syntax_las = scores["LAS"]
-        self.syntax_uas = scores["UAS"]
+        self.syntax_las = scores["LAS"] * 100
+        self.syntax_uas = scores["UAS"] * 100
 
     @overrides
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
@@ -246,9 +250,10 @@ class DecompSyntaxParser(DecompParser):
             valid_node_mask=inputs["valid_node_mask"]
         )
 
-        loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
-               node_attribute_outputs['loss'] + edge_attribute_outputs['loss'] + \
-               biaffine_loss
+        #loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
+        #       node_attribute_outputs['loss'] + edge_attribute_outputs['loss'] + \
+        #       biaffine_loss
+        loss = biaffine_loss
 
         # compute combined pearson 
         self._decomp_metrics(None, None, None, None, "both")

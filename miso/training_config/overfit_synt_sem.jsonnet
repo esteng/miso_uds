@@ -150,12 +150,12 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     biaffine_parser: {
         label_mlp: {input_dim: 128,
                     num_layers: 2,
-                    hidden_dims: [128, 128],
+                    hidden_dims: [32, 32],
                     activations: "relu",
                     dropout: 0.0 },
         arc_mlp: {input_dim: 128,
                     num_layers: 2,
-                    hidden_dims: [128, 128],
+                    hidden_dims: [32, 32],
                     activations: "relu",
                     dropout: 0.0 },
         n_labels: 37,
@@ -250,16 +250,16 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 403,
-    warmup_epochs: 400,
+    num_epochs: 603,
+    warmup_epochs: 600,
     syntactic_method: "encoder-side",
-    patience: 500,
+    patience: 10000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
     cuda_device: -1,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+s_f1",
+    validation_metric: "+syn_las",
     optimizer: {
       type: "adam",
       weight_decay: 3e-9,
