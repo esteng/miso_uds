@@ -81,8 +81,8 @@ class DeepBiaffineParser(torch.nn.Module, Registrable):
         self.arc_bilinear = BiaffineAttn(dep_dim, head_dim, 1, add_head_bias = False) 
 
         # losses
-        self.arc_criterion = torch.nn.CrossEntropyLoss(ignore_index=-1) 
-        self.label_criterion = torch.nn.CrossEntropyLoss(ignore_index=-1) 
+        self.arc_criterion = torch.nn.CrossEntropyLoss(ignore_index=-1, size_average=True) 
+        self.label_criterion = torch.nn.CrossEntropyLoss(ignore_index=-1, size_average=True) 
 
     def forward(self, encoder_reps: torch.Tensor): 
         # encoder_reps: b x n x d
@@ -130,7 +130,7 @@ class DeepBiaffineParser(torch.nn.Module, Registrable):
         # gold_heads: b x n x 1  -> bxn 
         neg_mask = gold_heads.eq(0).unsqueeze(-1) 
         # gold_labels: b x n x 1
-        arc_logits = arc_logits.masked_fill_(neg_mask, self._minus_inf) 
+        #arc_logits = arc_logits.masked_fill_(neg_mask, self._minus_inf) 
         arc_logits = arc_logits.reshape(bsz * n_len, n_len) 
 
         gold_heads_masked = gold_heads.reshape(-1) + -1 * neg_mask.reshape(-1) 
@@ -146,20 +146,24 @@ class DeepBiaffineParser(torch.nn.Module, Registrable):
                                           index = gold_head_inds)
         ##print("labels: {chosen_label_logits}") 
         neg_mask = neg_mask.unsqueeze(1) 
-        chosen_label_logits = chosen_label_logits.masked_fill_(neg_mask, self._minus_inf)
+        #chosen_label_logits = chosen_label_logits.masked_fill_(neg_mask, self._minus_inf)
 
         chosen_label_logits = chosen_label_logits.reshape(bsz * n_len, n_labels) 
         #__, pred_labels = chosen_label_logits.max(dim=1)
         gold_labels = gold_labels.reshape(-1) 
 
 
+
         # mask out invalid positions 
         gold_labels_masked = gold_labels +  -1 * neg_mask.reshape(-1) 
+        __, pred_labels = torch.max(chosen_label_logits, dim=-1) 
+        print(f"gold_labels {gold_labels_masked}") 
+        print(f"pred labels {pred_labels}") 
 
         label_loss = self.label_criterion(chosen_label_logits, gold_labels_masked) 
 
-        print(f"arc loss {arc_loss}") 
-        print(f"label_loss {label_loss}") 
+        #print(f"arc loss {arc_loss}") 
+        #print(f"label_loss {label_loss}") 
         return arc_loss + label_loss
 
     def mst_decode(self, encoder_reps: torch.Tensor,
