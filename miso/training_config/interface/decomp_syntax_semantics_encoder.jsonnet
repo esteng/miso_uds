@@ -155,7 +155,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
                     hidden_dims: [400, 400, 400],
                     activations: "relu",
                     dropout: 0.33 },
-        n_labels: 37,
+        n_labels: 60,
     }, 
     decoder: {
       rnn_cell: {
