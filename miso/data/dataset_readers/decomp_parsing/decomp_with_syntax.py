@@ -607,9 +607,9 @@ class DecompGraphWithSyntax(DecompGraph):
         elif self.syntactic_method == "encoder-side":
             # add bos, eos to semantics 
             # no bos or eos for syntax, but it needs to re-ordered 
-            sem_tokens = ["@start@"] + sem_tokens + ["@end@"]
-            sem_mask = [0] + sem_mask + [0] 
-            sem_node_name_list = ["BOS"] + sem_node_name_list + ["EOS"]
+            #sem_tokens = ["@start@"] + sem_tokens + ["@end@"]
+            #sem_mask = [0] + sem_mask + [0] 
+            #sem_node_name_list = ["BOS"] + sem_node_name_list + ["EOS"]
 
             (syn_tokens, 
             syn_head_indices, 
@@ -712,19 +712,11 @@ class DecompGraphWithSyntax(DecompGraph):
 
         tgt_indices = [i for i in range(len(tgt_tokens))]
         
-        try:
-            for node, indices in node_to_idx.items():
-                if len(indices) > 1:
-                    copy_idx = indices[0] + copy_offset
-                    for token_idx in indices[1:]:
-                        tgt_indices[token_idx + copy_offset] = copy_idx
-        except IndexError:
-            print(tgt_tokens)
-            print(len(tgt_tokens))
-            print(tgt_indices)
-            print(copy_offset)
-            print(node_to_idx)
-            sys.exit() 
+        for node, indices in node_to_idx.items():
+            if len(indices) > 1:
+                copy_idx = indices[0] + copy_offset
+                for token_idx in indices[1:]:
+                    tgt_indices[token_idx + copy_offset] = copy_idx
 
         tgt_copy_map = [(token_idx, copy_idx) for token_idx, copy_idx in enumerate(tgt_indices)]
         tgt_copy_indices = tgt_indices[:]
@@ -824,6 +816,10 @@ class DecompGraphWithSyntax(DecompGraph):
         # transduction fix 1: increase by 1 everything, set first to sentinel 0 tok 
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
+
+        #print(f"syn_tokens {syn_tokens}") 
+        #print(f"syn_head_indices {syn_head_indices}") 
+        #print(f"syn_head_tags {syn_head_tags}") 
 
         return {
             "tgt_tokens" : tgt_tokens,
