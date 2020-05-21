@@ -75,13 +75,16 @@ class DecompSyntaxTrainer(DecompTrainer):
 
             pred_edge_heads = torch.tensor(pred_edge_heads) 
             pred_edge_types = torch.tensor(pred_edge_types) 
-
-            self.attachment_scorer(predicted_indices=pred_edge_heads,
-                                            predicted_labels=pred_edge_types,
-                                            gold_indices=gold_edge_heads,
-                                            gold_labels=gold_edge_types,
-                                            mask=valid_node_mask
-                                            )
+            
+            try:
+                self.attachment_scorer(predicted_indices=pred_edge_heads,
+                                                predicted_labels=pred_edge_types,
+                                                gold_indices=gold_edge_heads,
+                                                gold_labels=gold_edge_types,
+                                                mask=valid_node_mask
+                                                )
+            except RuntimeError:
+                continue
 
         scores = self.attachment_scorer.get_metric(reset = True) 
         self.model.syntax_las = scores["LAS"] * 100
@@ -92,6 +95,7 @@ class DecompSyntaxTrainer(DecompTrainer):
                                          true_instances):
         """Write the validation output in pkl format, and compute the S score."""
         # compute attachement scores here without having to override another function
+
         self._update_attachment_scores(pred_instances, true_instances) 
 
 

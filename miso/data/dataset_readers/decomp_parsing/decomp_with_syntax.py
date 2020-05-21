@@ -603,6 +603,10 @@ class DecompGraphWithSyntax(DecompGraph):
             tgt_attributes += [{} for i in range(len(syn_tokens)+2)]
             edge_attributes += [{} for i in range(len(syn_head_indices)+2)]
 
+            # need to skip since truncating might mess up the graphs big time
+            if len(tgt_tokens) > max_tgt_length:
+                return None
+
         elif self.syntactic_method == "concat-before":
             (tgt_tokens, 
              head_indices, 
@@ -622,6 +626,9 @@ class DecompGraphWithSyntax(DecompGraph):
             tgt_attributes = [{} for i in range(len(syn_tokens)+1)] + tgt_attributes + [{}]
             edge_attributes = [{} for i in range(len(syn_head_indices)+1)] + edge_attributes + [{}]
 
+            if len(tgt_tokens) > max_tgt_length:
+                return None
+
         elif self.syntactic_method == "encoder-side":
             # add bos, eos to semantics 
             # no bos or eos for syntax, but it needs to re-ordered 
@@ -639,9 +646,10 @@ class DecompGraphWithSyntax(DecompGraph):
                                                     syn_mask,
                                                     syn_node_name_list)
 
-
+            
         else:
             raise NotImplementedError
+
         #print("TRUE") 
         #print(tgt_tokens)
         #print(head_indices)
