@@ -515,12 +515,12 @@ class DecompGraphWithSyntax(DecompGraph):
             copy_offset += 1
             node_name_list = ["@start@"] + node_name_list
 
-        #if eos:
-        #    tgt_tokens = tgt_tokens + [eos]
-        #    tgt_attributes = tgt_attributes + [{}]
-        #    edge_attributes = edge_attributes + [{}]
-        #    node_name_list =  node_name_list + ["@end@"]
-        #    copy_offset += 1
+        if eos and not self.syntactic_method.startswith("concat"): 
+            tgt_tokens = tgt_tokens + [eos]
+            tgt_attributes = tgt_attributes + [{}]
+            edge_attributes = edge_attributes + [{}]
+            node_name_list =  node_name_list + ["@end@"]
+            copy_offset += 1
 
 
 
@@ -573,7 +573,7 @@ class DecompGraphWithSyntax(DecompGraph):
             # nodes has corrected ordering 
             everything_zipped = zip(tokens, inds, tags, mask, nodes)
             correct_order_zipped = sorted(everything_zipped, key = lambda x: x[-1])
-            new_tokens, new_inds, new_tags, new_mask, new_nodes = zip(*correct_order_zipped)
+            new_tokens, new_inds, new_tags, new_mask, new_nodes = [list(x) for x in zip(*correct_order_zipped)]
             # get mapping from old inds to new inds 
             for i, (head_idx) in enumerate(new_inds):
                 head_node = nodes[head_idx]
@@ -646,7 +646,6 @@ class DecompGraphWithSyntax(DecompGraph):
                                                     syn_mask,
                                                     syn_node_name_list)
 
-            
         else:
             raise NotImplementedError
 
@@ -802,7 +801,9 @@ class DecompGraphWithSyntax(DecompGraph):
         if eos:
             node_indices = node_indices[:-1]
         node_mask = np.array([1] * len(node_indices), dtype='uint8')
-        node_mask[tgt_tokens.index("@syntax-sep@")-1] = 0
+
+        if self.syntactic_method.startswith("concat"): 
+            node_mask[tgt_tokens.index("@syntax-sep@")-1] = 0
 
 
         edge_mask = np.zeros((len(node_indices), len(node_indices)), dtype='uint8')
@@ -835,6 +836,11 @@ class DecompGraphWithSyntax(DecompGraph):
             "tgt_copy_indices" : tgt_copy_indices,
             "tgt_copy_map" : tgt_copy_map,
             "tgt_tokens_to_generate": tgt_tokens_to_generate, 
+            "syn_tokens": syn_tokens, 
+            "syn_head_indices": syn_head_indices,
+            "syn_head_tags": syn_head_tags,
+            "syn_node_name_list": syn_node_name_list,
+            "syn_mask": syn_mask,
             "edge_mask": edge_mask,
             "node_mask": node_mask,
             "head_tags": head_tags,

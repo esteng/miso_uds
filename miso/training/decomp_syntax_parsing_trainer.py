@@ -45,21 +45,39 @@ class DecompSyntaxTrainer(DecompTrainer):
         uas = []
 
         # flatten true instances 
+        if self.syntactic_method.startswith("concat"):
+            token_key = "tgt_tokens_str"
+            head_key = "edge_heads"
+            label_key = "edge_types"
+            mask_key = "valid_node_mask" 
+            pred_node_key = "nodes"
+        else:
+            token_key = "syn_tokens_str"
+            head_key = "syn_edge_heads" 
+            label_key = "syn_edge_types" 
+            mask_key = "syn_node_mask" 
+            pred_node_key = "syn_nodes" 
 
-        all_true_nodes = [true_inst for batch in true_instances for true_inst in batch[0]['tgt_tokens_str'] ]
-        all_true_edge_heads = [true_inst for batch in true_instances for true_inst in batch[0]['edge_heads'] ]
-        all_true_edge_types = [true_inst for batch in true_instances for true_inst in batch[0]['edge_types']['edge_types']]
-        all_true_masks = [true_inst for batch in true_instances for true_inst in batch[0]['valid_node_mask']]
+        all_true_nodes = [true_inst for batch in true_instances for true_inst in batch[0][token_key] ]
+        all_true_edge_heads = [true_inst for batch in true_instances for true_inst in batch[0][head_key] ]
+        all_true_edge_types = [true_inst for batch in true_instances for true_inst in batch[0][label_key][label_key]]
+        all_true_masks = [true_inst for batch in true_instances for true_inst in batch[0][mask_key]]
         assert(len(all_true_nodes) == len(all_true_edge_heads) == len(all_true_edge_types) == len(all_true_masks)  == len(pred_instances)) 
 
         for i in range(len(pred_instances)):
             # get rid of @start@ symbol 
             true_nodes = all_true_nodes[i]
+           
+            if self.syntactic_method.startswith("concat"): 
+                split_point = true_nodes.index("@syntax-sep@") - 1
+                end_point = min(true_nodes.index("@end@") - 1, len(pred_nodes)-1)
 
-            split_point = true_nodes.index("@syntax-sep@") - 1
-            pred_nodes = pred_instances[i]['nodes']
+            else:
+                split_point = 0
+                end_point = len(true_nodes) 
 
-            end_point = min(true_nodes.index("@end@") - 1, len(pred_nodes)-1)
+            pred_nodes = pred_instances[i][syn_nodes]
+
 
             try:
                 pred_edge_heads = pred_instances[i]['edge_heads'][split_point + 1:end_point]
@@ -95,9 +113,8 @@ class DecompSyntaxTrainer(DecompTrainer):
                                          true_instances):
         """Write the validation output in pkl format, and compute the S score."""
         # compute attachement scores here without having to override another function
-
-        self._update_attachment_scores(pred_instances, true_instances) 
-
+        if self.syntactic_method.startswith("concat"): 
+            self._update_attachment_scores(pred_instances, true_instances) 
 
         logger.info("Computing S")
 

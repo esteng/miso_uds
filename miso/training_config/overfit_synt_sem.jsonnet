@@ -32,7 +32,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    syntactic_method: "concat-before",
+    syntactic_method: "encoder-side",
     drop_syntax: "true",
     semantics_only: "false",
     line_limit: 2,
@@ -147,6 +147,19 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       vocab_namespace: "pos_tags",
       embedding_dim: 50,
     },
+    biaffine_parser: {
+        label_mlp: {input_dim: 128,
+                    num_layers: 2,
+                    hidden_dims: [32, 32],
+                    activations: "relu",
+                    dropout: 0.0 },
+        arc_mlp: {input_dim: 128,
+                    num_layers: 2,
+                    hidden_dims: [32, 32],
+                    activations: "relu",
+                    dropout: 0.0 },
+        n_labels: 37,
+    }, 
     decoder: {
       rnn_cell: {
         input_size: 300 + 50 + 50 + 128,
@@ -237,16 +250,16 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 403,
-    warmup_epochs: 400,
-    syntactic_method: "concat-before",
-    patience: 500,
+    num_epochs: 603,
+    warmup_epochs: 600,
+    syntactic_method: "encoder-side",
+    patience: 10000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
-    cuda_device: -1,
+    cuda_device: 0,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+s_f1",
+    validation_metric: "+syn_las",
     optimizer: {
       type: "adam",
       weight_decay: 3e-9,
