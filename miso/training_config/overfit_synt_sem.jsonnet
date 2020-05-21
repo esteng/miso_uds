@@ -35,7 +35,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     syntactic_method: "encoder-side",
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 2,
+    line_limit: 1000,
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -45,7 +45,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
                 #kwargs: null,
                },
   },
-  train_data_path: data_dir,
+  train_data_path: "train",
   validation_data_path: "dev",
   #validation_data_path: null,
   test_data_path: null,
@@ -158,7 +158,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
                     hidden_dims: [32, 32],
                     activations: "relu",
                     dropout: 0.0 },
-        n_labels: 37,
+        n_labels: 40,
     }, 
     decoder: {
       rnn_cell: {

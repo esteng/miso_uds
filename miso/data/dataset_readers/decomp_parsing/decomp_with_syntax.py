@@ -506,24 +506,6 @@ class DecompGraphWithSyntax(DecompGraph):
             visited[node] = 1
 
 
-        # add bos and eos to semantics 
-        copy_offset = 0
-        if bos:
-            tgt_tokens = [bos] + tgt_tokens
-            tgt_attributes = [{}] + tgt_attributes
-            edge_attributes = [{}] + edge_attributes
-            copy_offset += 1
-            node_name_list = ["@start@"] + node_name_list
-
-        if eos and not self.syntactic_method.startswith("concat"): 
-            tgt_tokens = tgt_tokens + [eos]
-            tgt_attributes = tgt_attributes + [{}]
-            edge_attributes = edge_attributes + [{}]
-            node_name_list =  node_name_list + ["@end@"]
-            copy_offset += 1
-
-
-
         # add syntactic subgraph 
         (syn_tokens, syn_node_name_list, 
          syn_head_indices, syn_head_tags, 
@@ -649,8 +631,6 @@ class DecompGraphWithSyntax(DecompGraph):
         #print(list(zip(inds, tgt_tokens[1:-1], head_indices, head_tags)))
         #print(tgt_attributes)
         #print(edge_attributes)
-
-        max_tgt_length -= copy_offset
         
         # TODO: modified to add back in the syntax EOS if trimmed 
         def trim_very_long_tgt_tokens(tgt_tokens, 
@@ -705,6 +685,23 @@ class DecompGraphWithSyntax(DecompGraph):
                                                        node_to_idx,
                                                        node_name_list)
 
+        # add bos and eos to semantics 
+        copy_offset = 0
+        if not self.syntactic_method.startswith("concat"): 
+            if bos:
+                tgt_tokens = [bos] + tgt_tokens
+                tgt_attributes = [{}] + tgt_attributes
+                edge_attributes = [{}] + edge_attributes
+                copy_offset += 1
+                node_name_list = ["@start@"] + node_name_list
+
+            if eos: 
+                tgt_tokens = tgt_tokens + [eos]
+                tgt_attributes = tgt_attributes + [{}]
+                edge_attributes = edge_attributes + [{}]
+                node_name_list =  node_name_list + ["@end@"]
+
+
         # Target side Coreference
 
         tgt_token_counter = Counter(tgt_tokens)
@@ -714,12 +711,20 @@ class DecompGraphWithSyntax(DecompGraph):
                 tgt_copy_mask[i] = 1
 
         tgt_indices = [i for i in range(len(tgt_tokens))]
-
-        for node, indices in node_to_idx.items():
-            if len(indices) > 1:
-                copy_idx = indices[0] + copy_offset
-                for token_idx in indices[1:]:
-                    tgt_indices[token_idx + copy_offset] = copy_idx
+        
+        try:
+            for node, indices in node_to_idx.items():
+                if len(indices) > 1:
+                    copy_idx = indices[0] + copy_offset
+                    for token_idx in indices[1:]:
+                        tgt_indices[token_idx + copy_offset] = copy_idx
+        except IndexError:
+            print(tgt_tokens)
+            print(len(tgt_tokens))
+            print(tgt_indices)
+            print(copy_offset)
+            print(node_to_idx)
+            sys.exit() 
 
         tgt_copy_map = [(token_idx, copy_idx) for token_idx, copy_idx in enumerate(tgt_indices)]
         tgt_copy_indices = tgt_indices[:]
