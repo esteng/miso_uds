@@ -520,9 +520,6 @@ class DecompGraphWithSyntax(DecompGraph):
             tgt_attributes = tgt_attributes + [{}]
             edge_attributes = edge_attributes + [{}]
             node_name_list =  node_name_list + ["@end@"]
-            copy_offset += 1
-
-
 
         # add syntactic subgraph 
         (syn_tokens, syn_node_name_list, 
