@@ -250,8 +250,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 603,
-    warmup_epochs: 600,
+    num_epochs: 203,
+    warmup_epochs: 20,
     syntactic_method: "encoder-side",
     patience: 10000,
     grad_norm: 5.0,
@@ -259,7 +259,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     grad_clipping: null,
     cuda_device: -1,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+syn_las",
+    validation_metric: "+s_f1",
     optimizer: {
       type: "adam",
       weight_decay: 3e-9,

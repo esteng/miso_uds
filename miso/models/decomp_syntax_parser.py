@@ -138,9 +138,6 @@ class DecompSyntaxParser(DecompParser):
         __, pred_inds = arc_logits.max(dim = -1) 
         pred_inds = pred_inds.reshape(bsz, n_len) 
 
-        print(f"pred inds {pred_inds[0]}") 
-        print(f"gold inds {gold_heads[0]}") 
-
         gold_head_inds = gold_heads.reshape(bsz,  1, n_len, 1)
         gold_head_inds = gold_head_inds.repeat(1, n_labels, 1, 1).long()
 
@@ -155,9 +152,6 @@ class DecompSyntaxParser(DecompParser):
 
         __, pred_labels = pred_label_logits.max(dim = 1) 
         pred_labels = pred_labels.reshape(bsz, n_len) 
-
-        print(f"pred_labels {pred_labels[0]}") 
-        print(f"gold_labels {gold_labels[0]}") 
 
         self._syntax_metrics(predicted_indices = pred_inds, 
                              predicted_labels = pred_labels,
@@ -250,10 +244,9 @@ class DecompSyntaxParser(DecompParser):
             valid_node_mask=inputs["valid_node_mask"]
         )
 
-        #loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
-        #       node_attribute_outputs['loss'] + edge_attribute_outputs['loss'] + \
-        #       biaffine_loss
-        loss = biaffine_loss
+        loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
+               node_attribute_outputs['loss'] + edge_attribute_outputs['loss'] + \
+               biaffine_loss
 
         # compute combined pearson 
         self._decomp_metrics(None, None, None, None, "both")
