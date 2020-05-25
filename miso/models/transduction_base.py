@@ -100,7 +100,8 @@ class Transduction(Model):
                                       pred_edge_types: torch.Tensor,
                                       gold_edge_heads: torch.Tensor,
                                       gold_edge_types: torch.Tensor,
-                                      valid_node_mask: torch.Tensor) -> Dict:
+                                      valid_node_mask: torch.Tensor,
+                                      syntax: bool = False) -> Dict:
         """
         Compute the edge prediction loss.
 
@@ -140,8 +141,17 @@ class Transduction(Model):
         # Negative log-likelihood.
         loss = -(gold_edge_head_ll.sum() + gold_edge_type_ll.sum())
         # Update metrics.
-        if self.training:
+        if self.training and not syntax:
             self._edge_pred_metrics(
+                predicted_indices=pred_edge_heads,
+                predicted_labels=pred_edge_types,
+                gold_indices=gold_edge_heads,
+                gold_labels=gold_edge_types,
+                mask=valid_node_mask
+            )
+
+        elif self.training and syntax:
+            self._syntax_metrics(
                 predicted_indices=pred_edge_heads,
                 predicted_labels=pred_edge_types,
                 gold_indices=gold_edge_heads,

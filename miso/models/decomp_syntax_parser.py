@@ -57,7 +57,7 @@ class DecompSyntaxParser(DecompParser):
                  target_output_namespace: str,
                  pos_tag_namespace: str,
                  edge_type_namespace: str,
-                 biaffine_parser: DeepBiaffineParser = None,
+                 biaffine_parser: DeepTreeParser = None,
                  dropout: float = 0.0,
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
@@ -121,47 +121,37 @@ class DecompSyntaxParser(DecompParser):
         metrics["syn_uas"] = self.syntax_uas
         return metrics
 
-    def update_syntax_scores(self, 
-                            arc_logits, 
-                            label_logits, 
-                            inputs): 
-        bsz, n_len, __ = arc_logits.shape 
-
-        __, n_labels, __, __ = label_logits.shape
-
-        gold_heads = inputs["syn_edge_heads"]
-        neg_mask = gold_heads.eq(0).unsqueeze(-1)
-
-        gold_labels = inputs["syn_edge_types"]["syn_edge_types"]
-
-        mask = ~gold_heads.eq(0)
-        __, pred_inds = arc_logits.max(dim = -1) 
-        pred_inds = pred_inds.reshape(bsz, n_len) 
-
-        gold_head_inds = gold_heads.reshape(bsz,  1, n_len, 1)
-        gold_head_inds = gold_head_inds.repeat(1, n_labels, 1, 1).long()
-
-        ## get label logits at GOLD heads 
-        pred_label_logits = torch.gather(label_logits, 
-                                          dim = -1,
-                                          index = gold_head_inds)
-
-        neg_mask = neg_mask.unsqueeze(1)
-        pred_label_logits = pred_label_logits.masked_fill_(neg_mask, -1e8)
-        pred_label_logits = pred_label_logits.reshape(bsz * n_len, n_labels    )
-
-        __, pred_labels = pred_label_logits.max(dim = 1) 
-        pred_labels = pred_labels.reshape(bsz, n_len) 
-
-        self._syntax_metrics(predicted_indices = pred_inds, 
-                             predicted_labels = pred_labels,
-                             gold_indices = gold_heads,
-                             gold_labels = gold_labels,
-                             mask = mask) 
-
+    def _update_syntax_scores(self):
         scores = self._syntax_metrics.get_metric(reset=True)
         self.syntax_las = scores["LAS"] * 100
         self.syntax_uas = scores["UAS"] * 100
+
+    def _compute_biaffine_loss(self, biaffine_outputs, inputs):
+        edge_prediction_loss = self._compute_edge_prediction_loss(
+                                biaffine_outputs['edge_head_ll'],
+                                biaffine_outputs['edge_type_ll'],
+                                biaffine_outputs['edge_heads'],
+                                biaffine_outputs['edge_types'],
+                                inputs['syn_edge_heads'],
+                                inputs['syn_edge_types']['syn_edge_types'],
+                                inputs['syn_valid_node_mask'],
+                                syntax=True)
+        return edge_prediction_loss['loss']
+
+    def _parse_syntax(self,
+                      encoder_outputs: torch.Tensor,
+                      edge_head_mask: torch.Tensor,
+                      edge_heads: torch.Tensor = None) -> Dict:
+
+        parser_outputs = self.biaffine_parser(
+                                query=encoder_outputs,
+                                key=encoder_outputs,
+                                edge_head_mask=edge_head_mask,
+                                gold_edge_heads=edge_heads
+                            )
+
+        return parser_outputs
+
 
     @overrides
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
@@ -175,13 +165,17 @@ class DecompSyntaxParser(DecompParser):
         
         # if we're doing encoder-side 
         if "syn_tokens_str" in inputs.keys():
-            arc_logits, label_logits = self.biaffine_parser(encoding_outputs['encoder_outputs']) 
-            biaffine_loss = self.biaffine_parser.compute_loss(arc_logits,
-                                                             label_logits,
-                                                             inputs['syn_edge_heads'],
-                                                             inputs['syn_edge_types']['syn_edge_types']) 
+            #arc_logits, label_logits = self.biaffine_parser(encoding_outputs['encoder_outputs']) 
+            biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
+                                            inputs["syn_edge_head_mask"],
+                                            inputs["syn_edge_heads"])
 
-            self.update_syntax_scores(arc_logits, label_logits, inputs)    
+
+
+            biaffine_loss = self._compute_biaffine_loss(biaffine_outputs,
+                                                        inputs)
+
+            self._update_syntax_scores()
 
 
         else:
@@ -247,6 +241,7 @@ class DecompSyntaxParser(DecompParser):
         loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
                node_attribute_outputs['loss'] + edge_attribute_outputs['loss'] + \
                biaffine_loss
+        #loss = biaffine_loss
 
         # compute combined pearson 
         self._decomp_metrics(None, None, None, None, "both")

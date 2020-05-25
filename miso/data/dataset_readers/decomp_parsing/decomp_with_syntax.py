@@ -621,8 +621,13 @@ class DecompGraphWithSyntax(DecompGraph):
                                                     syn_mask,
                                                     syn_node_name_list)
 
-        else:
-            raise NotImplementedError
+        syn_node_mask = np.array([1] * len(syn_tokens), dtype='uint8')
+        syn_node_indices = [i+1 for i in range(len(syn_tokens))]
+        syn_edge_mask = np.ones((len(syn_tokens), len(syn_tokens)), dtype='uint8')
+
+        # increment by one for the biaffine parser 
+        syn_head_indices = [x+1 for x in syn_head_indices]
+
         #print("TRUE") 
         #print(tgt_tokens)
         #print(head_indices)
@@ -833,7 +838,8 @@ class DecompGraphWithSyntax(DecompGraph):
             "syn_head_indices": syn_head_indices,
             "syn_head_tags": syn_head_tags,
             "syn_node_name_list": syn_node_name_list,
-            "syn_mask": syn_mask,
+            "syn_node_mask": syn_node_mask,
+            "syn_edge_mask": syn_edge_mask,
             "edge_mask": edge_mask,
             "node_mask": node_mask,
             "head_tags": head_tags,

@@ -79,7 +79,6 @@ class DecompSyntaxTrainer(DecompTrainer):
 
             pred_nodes = pred_instances[i][syn_nodes]
 
-
             try:
                 pred_edge_heads = pred_instances[i]['edge_heads'][split_point + 1:end_point]
                 pred_edge_types = pred_instances[i]['edge_types_inds'][split_point+1:end_point]

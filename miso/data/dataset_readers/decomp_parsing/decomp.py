@@ -768,17 +768,10 @@ class DecompGraph():
         node_mask = output['node_attributes_mask'][0]
         edge_mask = output['edge_attributes_mask']
 
-        print(f"nodes {len(nodes)}") 
-
-        print(f"nodes {nodes}") 
-    
         # off by 1 fixed here 
         node_attr = [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))][1:] + [{}]
         edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
 
-        print(f"node attr { len(node_attr)}" ) 
-        print(f"node attr { node_attr }" ) 
-        
         corefs = output['node_indices']
 
         graph = nx.DiGraph()
