@@ -562,6 +562,10 @@ class DecompGraphWithSyntax(DecompGraph):
                 new_head_idx = new_nodes.index(head_node)
                 new_inds[i] = new_head_idx
 
+            # set root to 0 and increment by 1 
+            #new_inds = [x + 1 for x in new_inds]
+            #new_inds[new_tags.index("root")] = 0
+
             return new_tokens, new_inds, new_tags, new_mask, new_nodes
             
         sem_tokens = tgt_tokens[1:]
@@ -626,7 +630,8 @@ class DecompGraphWithSyntax(DecompGraph):
         syn_edge_mask = np.ones((len(syn_tokens), len(syn_tokens)), dtype='uint8')
 
         # increment by one for the biaffine parser 
-        syn_head_indices = [x+1 for x in syn_head_indices]
+        syn_head_indices = [x for x in syn_head_indices]
+        #syn_head_indices = [x+1 for x in syn_head_indices]
 
         #print("TRUE") 
         #print(tgt_tokens)
@@ -972,7 +977,6 @@ class DecompGraphWithSyntax(DecompGraph):
 
         return graph
 
-
     @classmethod
     def from_prediction(cls, output, syntactic_method):
         """
@@ -1016,13 +1020,6 @@ class DecompGraphWithSyntax(DecompGraph):
                     edge_mask1, edge_mask2)  
         
         nodes = output['nodes']
-        if "@syntax-sep@" in nodes:
-            # split on syntax starter
-            split_point = nodes.index("@syntax-sep@")
-            end_point = len(nodes)
-        else:
-            # can't make a prediction until model has learned this 
-            return None, None
 
         corefs = output['node_indices']
         edge_heads = output['edge_heads'] 
@@ -1032,15 +1029,35 @@ class DecompGraphWithSyntax(DecompGraph):
         edge_attr = output['edge_attributes']
         node_mask = output['node_attributes_mask'][0]
         edge_mask = output['edge_attributes_mask']
+        
+        if syntactic_method.startswith("concat"): 
+            if "@syntax-sep@" in nodes:
+                # split on syntax starter
+                split_point = nodes.index("@syntax-sep@")
+                end_point = len(nodes)
+            else:
+                # can't make a prediction until model has learned this 
+                return None, None
+            try:
+                output = split_two(split_point, end_point, nodes, edge_heads,
+                                   edge_tags, corefs, node_attr,
+                                   edge_attr, node_mask, edge_mask)
 
-        try:
-            output = split_two(split_point, end_point, nodes, edge_heads,
-                               edge_tags, corefs, node_attr,
-                               edge_attr, node_mask, edge_mask)
+            except IndexError:
+                # any index error means not enough training 
+                return None, None
 
-        except IndexError:
-            # any index error means not enough training 
-            return None, None
+        elif syntactic_method == "encoder-side":
+            sem_nodes = nodes
+            syn_nodes = output['syn_nodes']
+            N = len(syn_nodes) 
+            sem_heads = edge_heads 
+            syn_heads = output['syn_edge_heads'][0:N]
+            sem_tags = edge_tags 
+            syn_tags = output['syn_edge_types'][0:N] 
+
+        else:
+            raise NotImplementedError
 
         if syntactic_method == "concat-after":
             # unpack output semantics first 
@@ -1054,17 +1071,18 @@ class DecompGraphWithSyntax(DecompGraph):
              __, corefs, __, node_attr, __, edge_attr, __, node_mask, __,
              edge_mask) = output 
         else:
-            raise NotImplementedError
+            # encoder side 
+            pass
 
-        print(f"syntax") 
-        print(syn_nodes)
-        print(syn_heads)
-        print(syn_tags)
-        print(f"semantics") 
-        print(sem_nodes)
-        print(sem_heads)
-        print(sem_tags)
-        print(corefs) 
+        #print(f"syntax") 
+        #print(syn_nodes)
+        #print(syn_heads)
+        #print(syn_tags)
+        #print(f"semantics") 
+        #print(sem_nodes)
+        #print(sem_heads)
+        #print(sem_tags)
+        #print(corefs) 
         #print(node_attr)
         #print(edge_attr) 
 

@@ -169,9 +169,8 @@ class DecompSyntaxParser(DecompParser):
         
         # if we're doing encoder-side 
         if "syn_tokens_str" in inputs.keys():
-            #arc_logits, label_logits = self.biaffine_parser(encoding_outputs['encoder_outputs']) 
+            pass
 
-            print(f"inputs {inputs['syn_edge_heads']}") 
             biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
                                             inputs["syn_edge_head_mask"],
                                             inputs["syn_edge_heads"],
@@ -269,6 +268,14 @@ class DecompSyntaxParser(DecompParser):
 
         # if we're doing encoder-side 
         if self.biaffine_parser is not None:
+            #print(f"true heads: {inputs['syn_edge_heads']}") 
+            #print(f"true labels: {inputs['syn_edge_types']['syn_edge_types']}") 
+            # add sentinel root token 
+            #memory_bank = encoding_outputs['encoder_outputs']
+            #batch_size, _, hidden_size = memory_bank.size()
+            #sentinel_tok = self.biaffine_parser.head_sentinel.expand([batch_size, 1, hidden_size]) 
+            #memory_bank = torch.cat([sentinel_tok, memory_bank], dim = 1)
+
             biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
                                                   inputs["syn_edge_head_mask"],
                                                   None,
@@ -342,6 +349,9 @@ class DecompSyntaxParser(DecompParser):
             loss=loss,
             nodes=node_predictions,
             node_indices=node_index_predictions,
+            syn_nodes=inputs['syn_tokens_str'], 
+            syn_edge_heads=biaffine_outputs['edge_heads'],
+            syn_edge_types=biaffine_outputs['edge_types'],  
             edge_heads=edge_head_predictions,
             edge_types=edge_type_predictions,
             edge_types_inds=edge_type_ind_predictions,

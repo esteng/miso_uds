@@ -153,6 +153,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       edge_head_vector_dim: 256,
       edge_type_vector_dim: 128,
       num_labels: 16,
+      is_syntax: true,
       attention: {
         type: "biaffine",
         query_vector_dim: 256,
@@ -249,8 +250,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 201,
-    warmup_epochs: 1,
+    num_epochs: 151,
+    warmup_epochs: 100,
     syntactic_method: "encoder-side",
     patience: 10000,
     grad_norm: 5.0,

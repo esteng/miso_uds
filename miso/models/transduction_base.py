@@ -120,23 +120,18 @@ class Transduction(Model):
         node_indices = torch.arange(0, target_length).view(1, target_length) \
             .expand(batch_size, target_length).type_as(gold_edge_heads)
 
-        #print(f"gold_edge_heads {gold_edge_heads}")
-        #print(f"valid_mask {valid_node_mask}" )
-        #sys.exit()
-
         gold_edge_head_ll = edge_head_ll[batch_indices, node_indices, gold_edge_heads]
         gold_edge_type_ll = edge_type_ll[batch_indices, node_indices, gold_edge_types]
         # Set the ll of invalid nodes to 0.
         num_nodes = valid_node_mask.sum().float()
 
-        # don't incur loss on EOS/SOS token
-        valid_node_mask[gold_edge_heads == -1] = 0
+        if not syntax: 
+            # don't incur loss on EOS/SOS token
+            valid_node_mask[gold_edge_heads == -1] = 0
 
         valid_node_mask = valid_node_mask.bool()
         gold_edge_head_ll.masked_fill_(~valid_node_mask, 0)
         gold_edge_type_ll.masked_fill_(~valid_node_mask, 0)
-
-        lower_bound = torch.min(gold_edge_head_ll) * edge_head_ll.shape[1] 
 
         # Negative log-likelihood.
         loss = -(gold_edge_head_ll.sum() + gold_edge_type_ll.sum())

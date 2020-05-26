@@ -121,14 +121,14 @@ class DecompSyntaxTrainer(DecompTrainer):
         true_graphs = [true_inst for batch in true_instances for true_inst in batch[0]['graph'] ]
         true_sents = [true_inst for batch in true_instances for true_inst in batch[0]['src_tokens_str']]
 
-        if self.syntactic_method == "encoder-side":
-            pred_graphs = [DecompGraph.from_prediction(pred_inst) for pred_inst in pred_instances]
-            pred_sem_graphs = pred_graphs 
-            pred_syn_graphs = None
-        else:
-            pred_graphs = [DecompGraphWithSyntax.from_prediction(pred_inst, self.syntactic_method) for pred_inst in pred_instances]
+        #if self.syntactic_method == "encoder-side":
+        #    pred_graphs = [DecompGraph.from_prediction(pred_inst) for pred_inst in pred_instances]
+        #    pred_sem_graphs = pred_graphs 
+        #    pred_syn_graphs = None
+        #else:
+        pred_graphs = [DecompGraphWithSyntax.from_prediction(pred_inst, self.syntactic_method) for pred_inst in pred_instances]
 
-            pred_sem_graphs, pred_syn_graphs = zip(*pred_graphs)
+        pred_sem_graphs, pred_syn_graphs = zip(*pred_graphs)
 
         ret = compute_s_metric(true_graphs, pred_sem_graphs, true_sents, 
                                self.semantics_only, 
