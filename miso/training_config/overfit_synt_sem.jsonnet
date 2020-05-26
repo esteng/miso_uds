@@ -249,8 +249,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 601,
-    warmup_epochs: 600,
+    num_epochs: 201,
+    warmup_epochs: 1,
     syntactic_method: "encoder-side",
     patience: 10000,
     grad_norm: 5.0,
