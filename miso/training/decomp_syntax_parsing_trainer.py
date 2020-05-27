@@ -71,11 +71,11 @@ class DecompSyntaxTrainer(DecompTrainer):
             pred_nodes = pred_instances[i][pred_node_key]
 
             if self.syntactic_method.startswith("concat"): 
-                split_point = true_nodes.index("@syntax-sep@") - 1
                 if self.syntactic_method == "concat-just-syntax":
                     split_point = -1
-                    end_point = true_nodes.index("@syntax-sep@") - 1
+                    end_point = min(true_nodes.index("@end@") - 1, len(pred_nodes) -1) 
                 else:
+                    split_point = true_nodes.index("@syntax-sep@") - 1
                     end_point = min(true_nodes.index("@end@") - 1, len(pred_nodes)-1)
 
             else:
@@ -90,7 +90,7 @@ class DecompSyntaxTrainer(DecompTrainer):
                 las.append(0)
                 uas.append(0)
                 continue
-           
+
             gold_edge_heads = all_true_edge_heads[i][split_point+1:end_point]
             gold_edge_types = all_true_edge_types[i][split_point+1:end_point]
             valid_node_mask = all_true_masks[i][split_point+1:end_point]
