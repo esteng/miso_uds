@@ -356,6 +356,9 @@ class DecompDatasetReader(DatasetReader):
                 label_namespace="syn_edge_heads"
             )
 
+            fields['syn_edge_head_mask'] = ArrayField(list_data['syn_edge_mask'])
+            fields['syn_valid_node_mask'] = ArrayField(list_data['syn_node_mask'])
+
             fields["syn_tokens_str"] = MetadataField(
                     list_data["syn_tokens"])
 

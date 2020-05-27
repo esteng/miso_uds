@@ -57,7 +57,7 @@ class DecompSyntaxParser(DecompParser):
                  target_output_namespace: str,
                  pos_tag_namespace: str,
                  edge_type_namespace: str,
-                 biaffine_parser: DeepBiaffineParser = None,
+                 biaffine_parser: DeepTreeParser = None,
                  dropout: float = 0.0,
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
@@ -121,47 +121,41 @@ class DecompSyntaxParser(DecompParser):
         metrics["syn_uas"] = self.syntax_uas
         return metrics
 
-    def update_syntax_scores(self, 
-                            arc_logits, 
-                            label_logits, 
-                            inputs): 
-        bsz, n_len, __ = arc_logits.shape 
-
-        __, n_labels, __, __ = label_logits.shape
-
-        gold_heads = inputs["syn_edge_heads"]
-        neg_mask = gold_heads.eq(0).unsqueeze(-1)
-
-        gold_labels = inputs["syn_edge_types"]["syn_edge_types"]
-
-        mask = ~gold_heads.eq(0)
-        __, pred_inds = arc_logits.max(dim = -1) 
-        pred_inds = pred_inds.reshape(bsz, n_len) 
-
-        gold_head_inds = gold_heads.reshape(bsz,  1, n_len, 1)
-        gold_head_inds = gold_head_inds.repeat(1, n_labels, 1, 1).long()
-
-        ## get label logits at GOLD heads 
-        pred_label_logits = torch.gather(label_logits, 
-                                          dim = -1,
-                                          index = gold_head_inds)
-
-        neg_mask = neg_mask.unsqueeze(1)
-        pred_label_logits = pred_label_logits.masked_fill_(neg_mask, -1e8)
-        pred_label_logits = pred_label_logits.reshape(bsz * n_len, n_labels    )
-
-        __, pred_labels = pred_label_logits.max(dim = 1) 
-        pred_labels = pred_labels.reshape(bsz, n_len) 
-
-        self._syntax_metrics(predicted_indices = pred_inds, 
-                             predicted_labels = pred_labels,
-                             gold_indices = gold_heads,
-                             gold_labels = gold_labels,
-                             mask = mask) 
-
+    def _update_syntax_scores(self):
         scores = self._syntax_metrics.get_metric(reset=True)
         self.syntax_las = scores["LAS"] * 100
         self.syntax_uas = scores["UAS"] * 100
+
+    def _compute_biaffine_loss(self, biaffine_outputs, inputs):
+        edge_prediction_loss = self._compute_edge_prediction_loss(
+                                biaffine_outputs['edge_head_ll'],
+                                biaffine_outputs['edge_type_ll'],
+                                biaffine_outputs['edge_heads'],
+                                biaffine_outputs['edge_types'],
+                                inputs['syn_edge_heads'],
+                                inputs['syn_edge_types']['syn_edge_types'],
+                                inputs['syn_valid_node_mask'],
+                                syntax=True)
+        return edge_prediction_loss['loss']
+
+    def _parse_syntax(self,
+                      encoder_outputs: torch.Tensor,
+                      edge_head_mask: torch.Tensor,
+                      edge_heads: torch.Tensor = None, 
+                      valid_node_mask: torch.Tensor = None,
+                      do_mst = False) -> Dict:
+
+        parser_outputs = self.biaffine_parser(
+                                query=encoder_outputs,
+                                key=encoder_outputs,
+                                edge_head_mask=edge_head_mask,
+                                gold_edge_heads=edge_heads,
+                                decode_mst = do_mst,
+                                valid_node_mask = valid_node_mask
+                            )
+
+        return parser_outputs
+
 
     @overrides
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
@@ -175,13 +169,19 @@ class DecompSyntaxParser(DecompParser):
         
         # if we're doing encoder-side 
         if "syn_tokens_str" in inputs.keys():
-            arc_logits, label_logits = self.biaffine_parser(encoding_outputs['encoder_outputs']) 
-            biaffine_loss = self.biaffine_parser.compute_loss(arc_logits,
-                                                             label_logits,
-                                                             inputs['syn_edge_heads'],
-                                                             inputs['syn_edge_types']['syn_edge_types']) 
+            pass
 
-            self.update_syntax_scores(arc_logits, label_logits, inputs)    
+            biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
+                                            inputs["syn_edge_head_mask"],
+                                            inputs["syn_edge_heads"],
+                                            do_mst = False) 
+
+
+
+            biaffine_loss = self._compute_biaffine_loss(biaffine_outputs,
+                                                        inputs)
+
+            self._update_syntax_scores()
 
 
         else:
@@ -247,6 +247,7 @@ class DecompSyntaxParser(DecompParser):
         loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
                node_attribute_outputs['loss'] + edge_attribute_outputs['loss'] + \
                biaffine_loss
+        #loss = biaffine_loss
 
         # compute combined pearson 
         self._decomp_metrics(None, None, None, None, "both")
@@ -255,5 +256,109 @@ class DecompSyntaxParser(DecompParser):
                     node_attributes = node_attribute_outputs['pred_dict']['pred_attributes'],
                     edge_attributes = edge_attribute_outputs['pred_dict']['pred_attributes'])
 
+    @overrides
+    def _test_forward(self, inputs: Dict) -> Dict:
+        encoding_outputs = self._encode(
+            tokens=inputs["source_tokens"],
+            pos_tags=inputs["source_pos_tags"],
+            subtoken_ids=inputs["source_subtoken_ids"],
+            token_recovery_matrix=inputs["source_token_recovery_matrix"],
+            mask=inputs["source_mask"]
+        )
+
+        # if we're doing encoder-side 
+        if self.biaffine_parser is not None:
+            #print(f"true heads: {inputs['syn_edge_heads']}") 
+            #print(f"true labels: {inputs['syn_edge_types']['syn_edge_types']}") 
+            # add sentinel root token 
+            #memory_bank = encoding_outputs['encoder_outputs']
+            #batch_size, _, hidden_size = memory_bank.size()
+            #sentinel_tok = self.biaffine_parser.head_sentinel.expand([batch_size, 1, hidden_size]) 
+            #memory_bank = torch.cat([sentinel_tok, memory_bank], dim = 1)
+
+            biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
+                                                  inputs["syn_edge_head_mask"],
+                                                  None,
+                                                  valid_node_mask = inputs["syn_valid_node_mask"],
+                                                  do_mst=True)
+            
+
+        
+
+
+        start_predictions, start_state, auxiliaries, misc = self._prepare_decoding_start_state(inputs, encoding_outputs)
+
+        # all_predictions: [batch_size, beam_size, max_steps]
+        # rnn_outputs: [batch_size, beam_size, max_steps, hidden_vector_dim]
+        # log_probs: [batch_size, beam_size]
 
     
+        all_predictions, rnn_outputs, log_probs, target_dynamic_vocabs = self._beam_search.search(
+            start_predictions=start_predictions,
+            start_state=start_state,
+            auxiliaries=auxiliaries,
+            step=lambda x, y, z: self._take_one_step_node_prediction(x, y, z, misc),
+            tracked_state_name="rnn_output",
+            tracked_auxiliary_name="target_dynamic_vocabs"
+        )
+
+        node_predictions, node_index_predictions, edge_head_mask, valid_node_mask = self._read_node_predictions(
+            # Remove the last one because we can't get the RNN state for the last one.
+            predictions=all_predictions[:, 0, :-1],
+            meta_data=inputs["instance_meta"],
+            target_dynamic_vocabs=target_dynamic_vocabs[0],
+            source_dynamic_vocab_size=inputs["source_dynamic_vocab_size"]
+        )
+
+
+        node_attribute_outputs = self._node_attribute_predict(
+            rnn_outputs[:,:,:-1,:],
+            None, None
+        )
+
+        edge_predictions = self._parse(
+            # Remove the first RNN state because it represents <BOS>.
+            rnn_outputs=rnn_outputs[:, 0],
+            edge_head_mask=edge_head_mask
+        )
+
+        (edge_head_predictions, 
+        edge_type_predictions, 
+        edge_type_ind_predictions) = self._read_edge_predictions(edge_predictions)
+
+        edge_attribute_outputs = self._edge_attribute_predict(
+                edge_predictions["edge_type_query"],
+                edge_predictions["edge_type_key"],
+                edge_predictions["edge_heads"],
+                None, None
+                )
+
+        edge_pred_loss = self._compute_edge_prediction_loss(
+            edge_head_ll=edge_predictions["edge_head_ll"],
+            edge_type_ll=edge_predictions["edge_type_ll"],
+            pred_edge_heads=edge_predictions["edge_heads"],
+            pred_edge_types=edge_predictions["edge_types"],
+            gold_edge_heads=edge_predictions["edge_heads"],
+            gold_edge_types=edge_predictions["edge_types"],
+            valid_node_mask=valid_node_mask
+        )
+
+        loss = -log_probs[:, 0].sum() / edge_pred_loss["num_nodes"] + edge_pred_loss["loss_per_node"]
+
+        outputs = dict(
+            loss=loss,
+            nodes=node_predictions,
+            node_indices=node_index_predictions,
+            syn_nodes=inputs['syn_tokens_str'], 
+            syn_edge_heads=biaffine_outputs['edge_heads'],
+            syn_edge_types=biaffine_outputs['edge_types'],  
+            edge_heads=edge_head_predictions,
+            edge_types=edge_type_predictions,
+            edge_types_inds=edge_type_ind_predictions,
+            node_attributes=node_attribute_outputs['pred_dict']['pred_attributes'],
+            node_attributes_mask=node_attribute_outputs['pred_dict']['pred_mask'],
+            edge_attributes=edge_attribute_outputs['pred_dict']['pred_attributes'],
+            edge_attributes_mask=edge_attribute_outputs['pred_dict']['pred_mask'],
+        )
+
+        return outputs

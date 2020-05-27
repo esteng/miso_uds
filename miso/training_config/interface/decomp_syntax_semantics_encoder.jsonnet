@@ -145,17 +145,17 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       embedding_dim: 50,
     },
     biaffine_parser: {
-        label_mlp: {input_dim: 1024,
-                    num_layers: 3,
-                    hidden_dims: [400, 400, 400],
-                    activations: "relu",
-                    dropout: 0.33 },
-        arc_mlp: {input_dim: 1024,
-                    num_layers: 3,
-                    hidden_dims: [400, 400, 400],
-                    activations: "relu",
-                    dropout: 0.33 },
-        n_labels: 60,
+      query_vector_dim: 1024,
+      key_vector_dim: 1024,
+      edge_head_vector_dim: 512,
+      edge_type_vector_dim: 1024,
+      num_labels: 60,
+      is_syntax: true,
+      attention: {
+        type: "biaffine",
+        query_vector_dim: 512,
+        key_vector_dim: 512,
+      },
     }, 
     decoder: {
       rnn_cell: {
@@ -241,17 +241,17 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 16,
+    batch_size: 10,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 16,
+    batch_size: 10,
   },
 
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 250,
-    warmup_epochs: 10,
+    #warmup_epochs: 3,
     patience: 40,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
