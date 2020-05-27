@@ -215,7 +215,7 @@ class DecompSyntaxParser(DecompParser):
             )
         except ValueError:
             # concat-just-syntax case
-            node_attribute_outputs = {"loss": torch.tensor([0.0]),
+            node_attribute_outputs = {"loss": 0.0,
                                       "pred_dict": {"pred_attributes": []}}
 
             just_syntax = True
@@ -236,7 +236,7 @@ class DecompSyntaxParser(DecompParser):
                     )
         except ValueError:
             # concat-just-syntax case
-            edge_attribute_outputs = {"loss": torch.tensor([0.0]),
+            edge_attribute_outputs = {"loss": 0.0,
                                       "pred_dict": {"pred_attributes": []}}
             just_syntax = True
 
