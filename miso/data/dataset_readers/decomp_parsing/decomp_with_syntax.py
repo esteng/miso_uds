@@ -617,9 +617,9 @@ class DecompGraphWithSyntax(DecompGraph):
 
         elif self.syntactic_method == "concat-just-syntax":
             # add bos and eos 
-            syn_tokens = ["@start@"] + syn_tokens + ["@syntax-sep@"]
-            syn_node_name_list = ["BOS"] + syn_node_name_list + ["EOS"]
-            syn_mask = [0] + syn_mask + [0]
+            #syn_tokens = ["@start@"] + syn_tokens + ["@syntax-sep@"]
+            #syn_node_name_list = ["BOS"] + syn_node_name_list + ["EOS"]
+            #syn_mask = [0] + syn_mask + [0]
 
             tgt_tokens = syn_tokens
             head_indices = syn_head_indices
@@ -627,7 +627,7 @@ class DecompGraphWithSyntax(DecompGraph):
             mask = syn_mask
             node_name_list = syn_node_name_list
             tgt_attributes = [{} for i in range(len(syn_tokens))] 
-            edge_attributes = [{} for i in range(len(syn_head_indices)+2)] 
+            edge_attributes = [{} for i in range(len(syn_head_indices))] 
 
             if len(tgt_tokens) > max_tgt_length:
                 return None
@@ -720,7 +720,7 @@ class DecompGraphWithSyntax(DecompGraph):
 
         # add bos and eos to semantics 
         copy_offset = 0
-        if not self.syntactic_method.startswith("concat"): 
+        if self.syntactic_method not in ['concat-before', 'concat-after']: 
             if bos:
                 tgt_tokens = [bos] + tgt_tokens
                 tgt_attributes = [{}] + tgt_attributes
@@ -734,6 +734,14 @@ class DecompGraphWithSyntax(DecompGraph):
                 edge_attributes = edge_attributes + [{}]
                 node_name_list =  node_name_list + ["@end@"]
 
+        if self.syntactic_method == "concat-just-syntax":
+            # trim off the semantics nodes 
+            try:
+                for k,v in node_to_idx.items():
+                    v=[v[0]]
+                    node_to_idx[k] = v
+            except IndexError:
+                return None
 
         # Target side Coreference
 
@@ -744,7 +752,12 @@ class DecompGraphWithSyntax(DecompGraph):
                 tgt_copy_mask[i] = 1
 
         tgt_indices = [i for i in range(len(tgt_tokens))]
-        
+      
+        #print(tgt_tokens) 
+        #print(tgt_indices)
+        #print(list(zip(tgt_indices, tgt_tokens)))
+        #print(node_to_idx) 
+
         for node, indices in node_to_idx.items():
             if len(indices) > 1:
                 copy_idx = indices[0] + copy_offset
@@ -827,7 +840,7 @@ class DecompGraphWithSyntax(DecompGraph):
         if self.syntactic_method.startswith("concat"): 
             try:
                 node_mask[tgt_tokens.index("@syntax-sep@")-1] = 0
-            except IndexError:
+            except (IndexError, ValueError) as e:
                 # concat-just-syntax case, syntax-sep already masked
                 pass 
 
@@ -1049,7 +1062,7 @@ class DecompGraphWithSyntax(DecompGraph):
         node_mask = output['node_attributes_mask'][0]
         edge_mask = output['edge_attributes_mask']
         
-        if syntactic_method.startswith("concat"): 
+        if syntactic_method in ["concat-before", "concat-after"]:
             if "@syntax-sep@" in nodes:
                 # split on syntax starter
                 split_point = nodes.index("@syntax-sep@")
@@ -1066,6 +1079,19 @@ class DecompGraphWithSyntax(DecompGraph):
             except IndexError:
                 # any index error means not enough training 
                 return None, None
+
+        elif syntactic_method == "concat-just-syntax": 
+            syn_nodes = nodes
+            syn_heads = edge_heads
+            syn_tags = edge_tags
+            syn_mask = edge_mask
+            sem_nodes = []
+            sem_heads = []
+            sem_tags = []
+            corefs = []
+            node_attr = []
+            edge_attr = []
+            node_mask = []
 
         elif syntactic_method == "encoder-side":
             sem_nodes = nodes
@@ -1085,8 +1111,7 @@ class DecompGraphWithSyntax(DecompGraph):
             corefs, __, node_attr, __, edge_attr, __, node_mask, __, 
             edge_mask, __) = output 
              
-        elif (syntactic_method == "concat-before" or \
-              syntactic_method == "concat-just-syntax"): 
+        elif syntactic_method == "concat-before": 
             # unpack output syntax first 
             (syn_nodes, sem_nodes, syn_heads, sem_heads, syn_tags, sem_tags,
              __, corefs, __, node_attr, __, edge_attr, __, node_mask, __,
@@ -1095,14 +1120,14 @@ class DecompGraphWithSyntax(DecompGraph):
             # encoder side 
             pass
 
-        #print(f"syntax") 
-        #print(syn_nodes)
-        #print(syn_heads)
-        #print(syn_tags)
-        #print(f"semantics") 
-        #print(sem_nodes)
-        #print(sem_heads)
-        #print(sem_tags)
+        print(f"syntax") 
+        print(syn_nodes)
+        print(syn_heads)
+        print(syn_tags)
+        print(f"semantics") 
+        print(sem_nodes)
+        print(sem_heads)
+        print(sem_tags)
         #print(corefs) 
         #print(node_attr)
         #print(edge_attr) 
