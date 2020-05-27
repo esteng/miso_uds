@@ -166,6 +166,8 @@ class DecompSyntaxParser(DecompParser):
             token_recovery_matrix=inputs["source_token_recovery_matrix"],
             mask=inputs["source_mask"]
         )
+
+        just_syntax = False
         
         # if we're doing encoder-side 
         if "syn_tokens_str" in inputs.keys():
@@ -203,13 +205,20 @@ class DecompSyntaxParser(DecompParser):
             source_attention_map=inputs["source_attention_map"],
             target_attention_map=inputs["target_attention_map"]
         )
+        
+        try:
+            # compute node attributes
+            node_attribute_outputs = self._node_attribute_predict(
+                decoding_outputs["rnn_outputs"][:,:-1,:],
+                inputs["node_attribute_truth"],
+                inputs["node_attribute_mask"]
+            )
+        except ValueError:
+            # concat-just-syntax case
+            node_attribute_outputs = {"loss": torch.tensor([0.0]),
+                                      "pred_dict": {"pred_attributes": []}}
 
-        # compute node attributes
-        node_attribute_outputs = self._node_attribute_predict(
-            decoding_outputs["rnn_outputs"][:,:-1,:],
-            inputs["node_attribute_truth"],
-            inputs["node_attribute_mask"]
-        )
+            just_syntax = True
 
         edge_prediction_outputs = self._parse(
             rnn_outputs=decoding_outputs["rnn_outputs"],
@@ -217,13 +226,19 @@ class DecompSyntaxParser(DecompParser):
             edge_heads=inputs["edge_heads"]
         )
 
-        edge_attribute_outputs = self._edge_attribute_predict(
-                edge_prediction_outputs["edge_type_query"],
-                edge_prediction_outputs["edge_type_key"],
-                edge_prediction_outputs["edge_heads"],
-                inputs["edge_attribute_truth"],
-                inputs["edge_attribute_mask"]
-                )
+        try:
+            edge_attribute_outputs = self._edge_attribute_predict(
+                    edge_prediction_outputs["edge_type_query"],
+                    edge_prediction_outputs["edge_type_key"],
+                    edge_prediction_outputs["edge_heads"],
+                    inputs["edge_attribute_truth"],
+                    inputs["edge_attribute_mask"]
+                    )
+        except ValueError:
+            # concat-just-syntax case
+            edge_attribute_outputs = {"loss": torch.tensor([0.0]),
+                                      "pred_dict": {"pred_attributes": []}}
+            just_syntax = True
 
         node_pred_loss = self._compute_node_prediction_loss(
             prob_dist=node_prediction_outputs["hybrid_prob_dist"],
@@ -247,10 +262,10 @@ class DecompSyntaxParser(DecompParser):
         loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
                node_attribute_outputs['loss'] + edge_attribute_outputs['loss'] + \
                biaffine_loss
-        #loss = biaffine_loss
 
-        # compute combined pearson 
-        self._decomp_metrics(None, None, None, None, "both")
+        if not just_syntax:
+            # compute combined pearson 
+            self._decomp_metrics(None, None, None, None, "both")
 
         return dict(loss=loss, 
                     node_attributes = node_attribute_outputs['pred_dict']['pred_attributes'],
@@ -344,6 +359,10 @@ class DecompSyntaxParser(DecompParser):
         )
 
         loss = -log_probs[:, 0].sum() / edge_pred_loss["num_nodes"] + edge_pred_loss["loss_per_node"]
+
+        if "syn_tokens_str" not in inputs:
+            inputs['syn_tokens_str'] = []
+            biaffine_outputs = {"edge_heads": [], "edge_types":[]}
 
         outputs = dict(
             loss=loss,

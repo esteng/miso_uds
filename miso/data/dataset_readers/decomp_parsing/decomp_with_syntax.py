@@ -615,13 +615,26 @@ class DecompGraphWithSyntax(DecompGraph):
             if len(tgt_tokens) > max_tgt_length:
                 return None
 
+        elif self.syntactic_method == "concat-just-syntax":
+            # add bos and eos 
+            syn_tokens = ["@start@"] + syn_tokens + ["@syntax-sep@"]
+            syn_node_name_list = ["BOS"] + syn_node_name_list + ["EOS"]
+            syn_mask = [0] + syn_mask + [0]
+
+            tgt_tokens = syn_tokens
+            head_indices = syn_head_indices
+            head_tags = syn_head_tags
+            mask = syn_mask
+            node_name_list = syn_node_name_list
+            tgt_attributes = [{} for i in range(len(syn_tokens))] 
+            edge_attributes = [{} for i in range(len(syn_head_indices)+2)] 
+
+            if len(tgt_tokens) > max_tgt_length:
+                return None
+
         elif self.syntactic_method == "encoder-side":
             # add bos, eos to semantics 
             # no bos or eos for syntax, but it needs to re-ordered 
-            #sem_tokens = ["@start@"] + sem_tokens + ["@end@"]
-            #sem_mask = [0] + sem_mask + [0] 
-            #sem_node_name_list = ["BOS"] + sem_node_name_list + ["EOS"]
-
             (syn_tokens, 
             syn_head_indices, 
             syn_head_tags, 
@@ -812,7 +825,11 @@ class DecompGraphWithSyntax(DecompGraph):
         node_mask = np.array([1] * len(node_indices), dtype='uint8')
 
         if self.syntactic_method.startswith("concat"): 
-            node_mask[tgt_tokens.index("@syntax-sep@")-1] = 0
+            try:
+                node_mask[tgt_tokens.index("@syntax-sep@")-1] = 0
+            except IndexError:
+                # concat-just-syntax case, syntax-sep already masked
+                pass 
 
 
         edge_mask = np.zeros((len(node_indices), len(node_indices)), dtype='uint8')
@@ -881,15 +898,7 @@ class DecompGraphWithSyntax(DecompGraph):
         build the syntactic graph from a predicted set of nodes, 
         edge heads, and edge labels
         """
-        #if "@end@" not in nodes:
-        #    return None
-
-        #end_point = nodes.index("@end@") 
         try:
-            #nodes = nodes[0:end_point]
-            #edge_heads = edge_heads[0:end_point]
-            #edge_labels = edge_labels[0:end_point]
-
             graph = nx.DiGraph()
             for i, n in enumerate(nodes):
                 attr = {"form": n}
@@ -1047,6 +1056,7 @@ class DecompGraphWithSyntax(DecompGraph):
                 end_point = len(nodes)
             else:
                 # can't make a prediction until model has learned this 
+                logger.info(f"Can't make a prediction because of lack of syntax-sep") 
                 return None, None
             try:
                 output = split_two(split_point, end_point, nodes, edge_heads,
@@ -1075,7 +1085,8 @@ class DecompGraphWithSyntax(DecompGraph):
             corefs, __, node_attr, __, edge_attr, __, node_mask, __, 
             edge_mask, __) = output 
              
-        elif syntactic_method == "concat-before":
+        elif (syntactic_method == "concat-before" or \
+              syntactic_method == "concat-just-syntax"): 
             # unpack output syntax first 
             (syn_nodes, sem_nodes, syn_heads, sem_heads, syn_tags, sem_tags,
              __, corefs, __, node_attr, __, edge_attr, __, node_mask, __,

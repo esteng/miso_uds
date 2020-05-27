@@ -68,16 +68,20 @@ class DecompSyntaxTrainer(DecompTrainer):
         for i in range(len(pred_instances)):
             # get rid of @start@ symbol 
             true_nodes = all_true_nodes[i]
-           
+            pred_nodes = pred_instances[i][pred_node_key]
+
             if self.syntactic_method.startswith("concat"): 
                 split_point = true_nodes.index("@syntax-sep@") - 1
-                end_point = min(true_nodes.index("@end@") - 1, len(pred_nodes)-1)
+                if self.syntactic_method == "concat-just-syntax":
+                    split_point = -1
+                    end_point = true_nodes.index("@syntax-sep@") - 1
+                else:
+                    end_point = min(true_nodes.index("@end@") - 1, len(pred_nodes)-1)
 
             else:
                 split_point = 0
                 end_point = len(true_nodes) 
 
-            pred_nodes = pred_instances[i][syn_nodes]
 
             try:
                 pred_edge_heads = pred_instances[i]['edge_heads'][split_point + 1:end_point]
@@ -124,11 +128,6 @@ class DecompSyntaxTrainer(DecompTrainer):
         true_graphs = [true_inst for batch in true_instances for true_inst in batch[0]['graph'] ]
         true_sents = [true_inst for batch in true_instances for true_inst in batch[0]['src_tokens_str']]
 
-        #if self.syntactic_method == "encoder-side":
-        #    pred_graphs = [DecompGraph.from_prediction(pred_inst) for pred_inst in pred_instances]
-        #    pred_sem_graphs = pred_graphs 
-        #    pred_syn_graphs = None
-        #else:
         pred_graphs = [DecompGraphWithSyntax.from_prediction(pred_inst, self.syntactic_method) for pred_inst in pred_instances]
 
         pred_sem_graphs, pred_syn_graphs = zip(*pred_graphs)
