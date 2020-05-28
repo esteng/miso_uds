@@ -1120,14 +1120,14 @@ class DecompGraphWithSyntax(DecompGraph):
             # encoder side 
             pass
 
-        print(f"syntax") 
-        print(syn_nodes)
-        print(syn_heads)
-        print(syn_tags)
-        print(f"semantics") 
-        print(sem_nodes)
-        print(sem_heads)
-        print(sem_tags)
+        #print(f"syntax") 
+        #print(syn_nodes)
+        #print(syn_heads)
+        #print(syn_tags)
+        #print(f"semantics") 
+        #print(sem_nodes)
+        #print(sem_heads)
+        #print(sem_tags)
         #print(corefs) 
         #print(node_attr)
         #print(edge_attr) 
