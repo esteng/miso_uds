@@ -241,17 +241,17 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 64,
+    batch_size: 1,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 32,
+    batch_size: 1,
   },
 
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 151,
-    warmup_epochs: 100,
+    warmup_epochs: 1,
     syntactic_method: "encoder-side",
     patience: 10000,
     grad_norm: 5.0,
