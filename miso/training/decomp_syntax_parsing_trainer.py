@@ -38,6 +38,7 @@ class DecompSyntaxTrainer(DecompTrainer):
                                                   warmup_epochs,
                                                   *args, **kwargs)
 
+
         self.attachment_scorer = AttachmentScores()
         self.syntactic_method = syntactic_method
 
