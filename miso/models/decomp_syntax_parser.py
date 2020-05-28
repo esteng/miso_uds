@@ -6,6 +6,7 @@ import subprocess
 import math
 from overrides import overrides
 import torch
+import torch.nn.functional as F
 
 from allennlp.data import Token, Instance, Vocabulary
 from allennlp.data.fields import TextField
@@ -95,6 +96,12 @@ class DecompSyntaxParser(DecompParser):
         self.syntax_las = 0.0 
         self.syntax_uas = 0.0 
 
+        # initial loss weighting: all syntactic, no semantic 
+        #self.loss_weight = torch.nn.Parameter(torch.tensor([[0.5],[0.5]], dtype=torch.float))
+        #self.loss_weight = torch.tensor([[0.5],[0.5]], dtype=torch.float)
+        self.sem_loss_weight = torch.nn.Parameter(torch.tensor([[0.5]], dtype=torch.float))
+        self.gamma = 0.01
+
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         node_pred_metrics = self._node_pred_metrics.get_metric(reset)
@@ -168,7 +175,7 @@ class DecompSyntaxParser(DecompParser):
         )
 
         just_syntax = False
-        
+        encoder_side = False
         # if we're doing encoder-side 
         if "syn_tokens_str" in inputs.keys():
             pass
@@ -184,7 +191,7 @@ class DecompSyntaxParser(DecompParser):
                                                         inputs)
 
             self._update_syntax_scores()
-
+            encoder_side=True
 
         else:
             biaffine_loss = 0.0
@@ -259,9 +266,17 @@ class DecompSyntaxParser(DecompParser):
             valid_node_mask=inputs["valid_node_mask"]
         )
 
-        loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
-               node_attribute_outputs['loss'] + edge_attribute_outputs['loss'] + \
-               biaffine_loss
+        if encoder_side: 
+            # learn a loss ratio
+            loss = self.compute_training_loss(node_pred_loss["loss_per_node"],
+                                              edge_pred_loss["loss_per_node"],
+                                              node_attribute_outputs["loss"],
+                                              edge_attribute_outputs["loss"],
+                                              biaffine_loss)
+        else:
+            # no biaffine loss 
+            loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"] + \
+                   node_attribute_outputs['loss'] + edge_attribute_outputs['loss']
 
         if not just_syntax:
             # compute combined pearson 
@@ -270,6 +285,62 @@ class DecompSyntaxParser(DecompParser):
         return dict(loss=loss, 
                     node_attributes = node_attribute_outputs['pred_dict']['pred_attributes'],
                     edge_attributes = edge_attribute_outputs['pred_dict']['pred_attributes'])
+
+    def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
+        sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
+        syn_loss = biaffine_loss
+        # 1 x 2
+        #total_loss = torch.tensor([sem_loss, syn_loss], dtype=torch.float)
+        total_loss = self.sem_loss_weight * sem_loss + (1-self.sem_loss_weight)*syn_loss
+
+        # c^T x where x is loss weight, c is total loss
+        #total_loss = total_loss @ self.loss_weight
+
+        negative_comp = F.relu(-self.sem_loss_weight) 
+        #power = 2 * torch.abs(1 - torch.sum(self.loss_weight, dim=0)) + torch.sum(negative_comp) 
+        power = 3 * torch.abs(1 - self.sem_loss_weight) + negative_comp
+        well_formed_loss = torch.abs(1-torch.exp(power))
+
+        logger.info(f"loss = {well_formed_loss}") 
+        logger.info(f"loss weights: {self.sem_loss_weight}, {1 - self.sem_loss_weight}") 
+
+        return total_loss + well_formed_loss
+
+    #def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
+    #    sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
+    #    syn_loss = biaffine_loss
+    #    # 1 x 2
+    #    total_loss = torch.tensor([sem_loss, syn_loss]) 
+    #    # 1x2 @ 2x1 => 1x1
+    #    # c^T x where x is loss weight, c is total loss
+    #    total_loss = total_loss @ self.loss_weight
+
+    #    # barrier method to ensure that loss is probability vector 
+    #    # 4x2
+    #    a = torch.cat([torch.ones_like(self.loss_weight.data).T, 
+    #                   -torch.ones_like(self.loss_weight.data).T, 
+    #                   -torch.eye(2)], dim=0) 
+    #    # 4x1
+    #    b = torch.cat([-torch.ones(1, 1), torch.ones(1, 1), torch.zeros(2, 1)], dim=0)
+    #    # 4x2 @ 2x1 + 4x1 => 4x1
+    #    g = a @ self.loss_weight + b
+    #    # 4x1 cat 4x1 = 4x2
+    #    print(f"g is {g}" )
+    #    g_tensor = torch.cat([-g, torch.ones_like(g)], dim=1)
+    #    print(g_tensor)
+    #    val, __ = torch.min(g_tensor, dim=1)
+    #    print(f"val {val}") 
+    #    logval = torch.log(val)
+
+    #    print(f"logval {logval}") 
+    #    barrier_loss = -torch.sum(logval) 
+    #    print(barrier_loss) 
+
+    #    total_loss += self.gamma * barrier_loss
+    #    print(f"loss weights: {self.loss_weight.data}") 
+
+    #    return total_loss
+
 
     @overrides
     def _test_forward(self, inputs: Dict) -> Dict:
