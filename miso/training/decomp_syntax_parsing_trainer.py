@@ -79,7 +79,6 @@ class DecompSyntaxTrainer(DecompTrainer):
                     end_point = min(true_nodes.index("@end@") - 1, len(pred_nodes)-1)
 
             else:
-                print(f"true nodes {true_nodes}" ) 
                 split_point = -1
                 end_point = len(true_nodes) 
 
