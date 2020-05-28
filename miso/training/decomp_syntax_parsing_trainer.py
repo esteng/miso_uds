@@ -56,7 +56,7 @@ class DecompSyntaxTrainer(DecompTrainer):
             token_key = "syn_tokens_str"
             head_key = "syn_edge_heads" 
             label_key = "syn_edge_types" 
-            mask_key = "syn_node_mask" 
+            mask_key = "syn_valid_node_mask" 
             pred_node_key = "syn_nodes" 
 
         all_true_nodes = [true_inst for batch in true_instances for true_inst in batch[0][token_key] ]
@@ -79,13 +79,13 @@ class DecompSyntaxTrainer(DecompTrainer):
                     end_point = min(true_nodes.index("@end@") - 1, len(pred_nodes)-1)
 
             else:
-                split_point = 0
+                print(f"true nodes {true_nodes}" ) 
+                split_point = -1
                 end_point = len(true_nodes) 
 
-
             try:
-                pred_edge_heads = pred_instances[i]['edge_heads'][split_point + 1:end_point]
-                pred_edge_types = pred_instances[i]['edge_types_inds'][split_point+1:end_point]
+                pred_edge_heads = pred_instances[i][head_key][split_point + 1:end_point]
+                pred_edge_types = pred_instances[i][label_key][split_point+1:end_point]
             except IndexError:
                 las.append(0)
                 uas.append(0)
@@ -139,4 +139,6 @@ class DecompSyntaxTrainer(DecompTrainer):
         self.model.val_s_f1 = float(ret[2]) * 100
 
         # TODO: add syntactic metrics 
+
+        self._update_attachment_scores(pred_instances, true_instances)
 

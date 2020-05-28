@@ -563,8 +563,8 @@ class DecompGraphWithSyntax(DecompGraph):
                 new_inds[i] = new_head_idx
 
             # set root to 0 and increment by 1 
-            #new_inds = [x + 1 for x in new_inds]
-            #new_inds[new_tags.index("root")] = 0
+            new_inds = [x + 1 for x in new_inds]
+            new_inds[new_tags.index("root")] = 0
 
             return new_tokens, new_inds, new_tags, new_mask, new_nodes
             
