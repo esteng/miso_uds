@@ -298,7 +298,7 @@ class DecompSyntaxParser(DecompParser):
 
         negative_comp = F.relu(-self.sem_loss_weight) 
         #power = 2 * torch.abs(1 - torch.sum(self.loss_weight, dim=0)) + torch.sum(negative_comp) 
-        power = 3 * torch.abs(1 - self.sem_loss_weight) + negative_comp
+        power = 3 * torch.abs(1 - self.sem_loss_weight) + 100 * negative_comp
         well_formed_loss = torch.abs(1-torch.exp(power))
 
         logger.info(f"loss = {well_formed_loss}") 
