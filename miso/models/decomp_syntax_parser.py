@@ -31,6 +31,7 @@ from miso.nn.beam_search import BeamSearch
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
 from miso.metrics.pearson_r import pearson_r
 from miso.models.decomp_parser import DecompParser 
+from miso.losses.mixing import LossMixer
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -63,6 +64,7 @@ class DecompSyntaxParser(DecompParser):
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
                  eps: float = 1e-20,
+                 loss_mixer: LossMixer = None
                  ) -> None:
 
         super(DecompSyntaxParser, self).__init__(
@@ -92,15 +94,10 @@ class DecompSyntaxParser(DecompParser):
                                  eps=eps)
         
         self.biaffine_parser = biaffine_parser
+        self.loss_mixer = loss_mixer
         self._syntax_metrics = AttachmentScores()
         self.syntax_las = 0.0 
         self.syntax_uas = 0.0 
-
-        # initial loss weighting: all syntactic, no semantic 
-        #self.loss_weight = torch.nn.Parameter(torch.tensor([[0.5],[0.5]], dtype=torch.float))
-        #self.loss_weight = torch.tensor([[0.5],[0.5]], dtype=torch.float)
-        self.sem_loss_weight = torch.nn.Parameter(torch.tensor([[0.5]], dtype=torch.float))
-        self.gamma = 0.01
 
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
@@ -289,22 +286,11 @@ class DecompSyntaxParser(DecompParser):
     def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
         sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
         syn_loss = biaffine_loss
-        # 1 x 2
-        #total_loss = torch.tensor([sem_loss, syn_loss], dtype=torch.float)
-        total_loss = self.sem_loss_weight * sem_loss + (1-self.sem_loss_weight)*syn_loss
+        if self.loss_mixer is not None:
+            return self.loss_mixer(sem_loss, syn_loss) 
 
-        # c^T x where x is loss weight, c is total loss
-        #total_loss = total_loss @ self.loss_weight
-
-        negative_comp = F.relu(-self.sem_loss_weight) 
-        #power = 2 * torch.abs(1 - torch.sum(self.loss_weight, dim=0)) + torch.sum(negative_comp) 
-        power = 3 * torch.abs(1 - self.sem_loss_weight) + negative_comp
-        well_formed_loss = torch.abs(1-torch.exp(power))
-
-        logger.info(f"loss = {well_formed_loss}") 
-        logger.info(f"loss weights: {self.sem_loss_weight}, {1 - self.sem_loss_weight}") 
-
-        return total_loss + well_formed_loss
+        # default to 1-to-1 weighting 
+        return sem_loss + syn_loss
 
     #def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
     #    sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
