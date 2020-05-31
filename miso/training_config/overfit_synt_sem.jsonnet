@@ -234,7 +234,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
-    loss_mixer: {type:"semantics->syntax"},
+    loss_mixer: {type:"learned"},
   },
 
   iterator: {

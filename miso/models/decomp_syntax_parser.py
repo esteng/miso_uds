@@ -286,6 +286,8 @@ class DecompSyntaxParser(DecompParser):
     def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
         sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
         syn_loss = biaffine_loss
+        logger.info(f"sem_loss {sem_loss} syn_loss {syn_loss}" )
+
         if self.loss_mixer is not None:
             return self.loss_mixer(sem_loss, syn_loss) 
 

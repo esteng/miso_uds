@@ -1,4 +1,7 @@
+from overrides import overrides
+
 import torch
+import torch.nn.functional as F
 from allennlp.common.registrable import Registrable
 
 class LossMixer(torch.nn.Module, Registrable):
@@ -78,3 +81,43 @@ class SemanticsOnlyLossMixer(LossMixer):
 
     def update_weights(self, curr_epoch, total_epochs): 
         pass
+
+@LossMixer.register("static-semantics-heavy") 
+class SemanticsHeavyLossMixer(LossMixer):
+    """
+    Downweight syntactic loss so that it's roughly the same magnitude as semantic loss 
+    based on observed ratio of losses 
+    """
+    def __init__(self):
+        super().__init__() 
+        self.loss_weights = [1, 0.003]
+
+    def update_weights(self, curr_epoch, total_epochs): 
+        pass
+
+@LossMixer.register("learned") 
+class LearnedLossMixer(LossMixer):
+    """
+    Downweight syntactic loss so that it's roughly the same magnitude as semantic loss 
+    based on observed ratio of losses 
+    """
+    def __init__(self):
+        super().__init__() 
+        # placeholder 
+        self.loss_weights = [0.5, 0.5]
+        # start at 50-50
+        self.semantics_raw_weight = torch.nn.Parameter(torch.zeros((1), dtype=torch.float))
+
+    @overrides
+    def forward(self, sem_loss, syn_loss): 
+        sem_weight = F.sigmoid(self.semantics_raw_weight)
+        syn_weight = 1 - sem_weight
+
+        # convention: semantics loss, syntax loss
+        return sem_weight * sem_loss +\
+               syn_weight * syn_loss
+
+    def update_weights(self, curr_epoch, total_epochs): 
+        pass
+
+
