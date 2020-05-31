@@ -234,7 +234,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
-    loss_mixer: {type:"semantics->syntax"},
   },
 
   iterator: {
@@ -242,23 +241,23 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 1,
+    batch_size: 64,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 1,
+    batch_size: 32,
   },
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 250,
-    warmup_epochs: 240 ,
+    num_epochs: 151,
+    warmup_epochs: 100,
     syntactic_method: "encoder-side",
     patience: 10000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
-    cuda_device: 0,
+    cuda_device: -1,
     num_serialized_models_to_keep: 5,
     validation_metric: "+syn_las",
     optimizer: {

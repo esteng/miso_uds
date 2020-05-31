@@ -1,9 +1,9 @@
-local data_dir = "dev";
+local data_dir = "train";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
 {
   dataset_reader: {
-    type: "decomp_syntax_semantics",
+    type: "decomp",
     source_token_indexers: {
       source_tokens: {
         type: "single_id",
@@ -32,22 +32,13 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    syntactic_method: "encoder-side",
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 2,
     order: "inorder",
-    tokenizer: {
-                type: "pretrained_transformer_for_amr",
-                model_name: "bert-base-cased",
-                args: null,
-                kwargs: {do_lowercase: 'false'},
-                #kwargs: null,
-               },
+    tokenizer: null, 
   },
-  train_data_path: "dev",
+  train_data_path: data_dir,
   validation_data_path: "dev",
-  #validation_data_path: null,
   test_data_path: null,
   datasets_for_vocab_creation: [
     "train"
@@ -61,19 +52,15 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       generation_tokens: 1,
     },
     max_vocab_size: {
-      source_tokens: 1000,
-      target_tokens: 1000,
-      generation_tokens: 1000,
+      source_tokens: 19700,
+      target_tokens: 12200,
+      generation_tokens: 12200,
     },
   },
 
   model: {
-    type: "decomp_syntax_parser",
-    bert_encoder: null,
-    #bert_encoder: {
-    #                type: "seq2seq_bert_encoder",
-    #                config: "bert-base-cased",
-    #              },
+    type: "decomp_transformer_parser",
+    bert_encoder: null, 
     encoder_token_embedder: {
       token_embedders: {
         source_tokens: {
@@ -95,7 +82,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.00,
         },
       },
     },
@@ -104,14 +90,14 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       embedding_dim: 100,
     },
     encoder: {
-      type: "miso_stacked_bilstm",
-      batch_first: true,
-      stateful: true,
-      input_size: 300 + 50,
-      hidden_size: 64,
-      num_layers: 2,
-      recurrent_dropout_probability: 0.00,
-      use_highway: false,
+      type: "stacked_self_attention",
+      input_dim: 300 + 50 ,
+      feedforward_hidden_dim: 2048,
+      num_attention_heads: 8, 
+      hidden_dim: 512,
+      projection_dim: 512, 
+      num_layers: 6,
+      dropout_prob: 0.33,
     },
     decoder_token_embedder: {
       token_embedders: {
@@ -134,7 +120,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.00,
         },
       },
     },
@@ -147,94 +132,81 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       vocab_namespace: "pos_tags",
       embedding_dim: 50,
     },
-    biaffine_parser: {
-      query_vector_dim: 128,
-      key_vector_dim: 128,
+    decoder: {
+        init_scale: 128,
+        input_size: 300 + 50 + 50,
+        hidden_size: 512,
+        ff_size: 1024,
+        dropout: 0.2,
+        num_layers: 12,
+        nhead: 4, 
+        norm: "true",
+        use_coverage: true,
+        use_postnorm: true,
+      source_attention_layer: {
+        type: "global",
+        query_vector_dim: 512,
+        key_vector_dim: 512,
+        output_vector_dim: 512,
+        attention: {
+          type: "mlp",
+          # TODO: try to use smaller dims.
+          query_vector_dim: 512,
+          key_vector_dim: 512,
+          hidden_vector_dim: 512, 
+          use_coverage: true,
+        },
+      },
+      target_attention_layer: {
+        type: "global",
+        query_vector_dim: 512,
+        key_vector_dim: 512,
+        output_vector_dim: 512,
+        attention: {
+          type: "mlp",
+          query_vector_dim: 512,
+          key_vector_dim: 512,
+          hidden_vector_dim: 512,
+        },
+      },
+    },
+    extended_pointer_generator: {
+      input_vector_dim: 512,
+      source_copy: true,
+      target_copy: true,
+    },
+    tree_parser: {
+      query_vector_dim: 512,
+      key_vector_dim: 512, 
       edge_head_vector_dim: 256,
       edge_type_vector_dim: 128,
-      num_labels: 16,
-      is_syntax: true,
       attention: {
         type: "biaffine",
         query_vector_dim: 256,
         key_vector_dim: 256,
       },
-    }, 
-    decoder: {
-      rnn_cell: {
-        input_size: 300 + 50 + 50 + 128,
-        hidden_size: 128,
-        num_layers: 2,
-        recurrent_dropout_probability: 0.00,
-        use_highway: false,
-      },
-      source_attention_layer: {
-        type: "global",
-        query_vector_dim: 128,
-        key_vector_dim: 128,
-        output_vector_dim: 128,
-        attention: {
-          type: "mlp",
-          # TODO: try to use smaller dims.
-          query_vector_dim: 128,
-          key_vector_dim: 128,
-          hidden_vector_dim: 64, 
-          use_coverage: false,
-        },
-      },
-      target_attention_layer: {
-        type: "global",
-        query_vector_dim: 128,
-        key_vector_dim: 128,
-        output_vector_dim: 128,
-        attention: {
-          type: "mlp",
-          query_vector_dim: 128,
-          key_vector_dim: 128,
-          hidden_vector_dim: 64,
-          use_coverage: false,
-        },
-      },
-      dropout: 0.00,
-    },
-    extended_pointer_generator: {
-      input_vector_dim: 128,
-      source_copy: true,
-      target_copy: true,
-    },
-    tree_parser: {
-      query_vector_dim: 128,
-      key_vector_dim: 128,
-      edge_head_vector_dim: 64,
-      edge_type_vector_dim: 32,
-      attention: {
-        type: "biaffine",
-        query_vector_dim: 64,
-        key_vector_dim: 64,
-      },
     },
     node_attribute_module: {
-        input_dim: 128,
-        hidden_dim: 256,
+        input_dim: 512,
+        hidden_dim: 2048,
         output_dim: 44,
-        n_layers: 2, 
+        n_layers: 4, 
     },
     edge_attribute_module: {
-        h_input_dim: 32,
-        hidden_dim: 100,
+        h_input_dim: 128,
+        hidden_dim: 200,
         output_dim: 14,
-        n_layers: 2, 
+        n_layers: 4, 
     },
     label_smoothing: {
         smoothing: 0.0,
     },
-    dropout: 0.0,
+    dropout: 0.33,
     beam_size: 2,
-    max_decoding_steps: 100,
+    max_decoding_steps: 50,
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
-    loss_mixer: {type:"semantics->syntax"},
   },
 
   iterator: {
@@ -242,38 +214,39 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 1,
+    batch_size: 32,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 1,
+    batch_size: 32,
   },
 
   trainer: {
-    type: "decomp_syntax_parsing",
-    num_epochs: 250,
-    warmup_epochs: 240 ,
-    syntactic_method: "encoder-side",
-    patience: 10000,
+    type: "decomp_parsing",
+    num_epochs: 60,
+    patience: 60,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
     cuda_device: 0,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+syn_las",
+    validation_metric: "+s_f1",
     optimizer: {
       type: "adam",
-      weight_decay: 3e-9,
+      betas: [0.9, 0.98],
+      eps: 1e-9,
+      lr: 0.0075,
+      weight_decay: 3e-9, 
       amsgrad: true,
     },
-    # learning_rate_scheduler: {
-    #   type: "reduce_on_plateau",
-    #   patience: 10,
-    # },
+     learning_rate_scheduler: {
+       type: "noam",
+       model_size: 512, 
+       warmup_steps: 8000,
+     },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
-    #validation_data_path: null,
     validation_prediction_path: "decomp_validation.txt",
     semantics_only: "false",
     drop_syntax: "true",

@@ -31,6 +31,7 @@ from miso.nn.beam_search import BeamSearch
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
 from miso.metrics.pearson_r import pearson_r
 from miso.models.decomp_parser import DecompParser 
+from miso.losses.mixing import LossMixer
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -63,6 +64,7 @@ class DecompSyntaxParser(DecompParser):
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
                  eps: float = 1e-20,
+                 loss_mixer: LossMixer = None
                  ) -> None:
 
         super(DecompSyntaxParser, self).__init__(
@@ -92,15 +94,10 @@ class DecompSyntaxParser(DecompParser):
                                  eps=eps)
         
         self.biaffine_parser = biaffine_parser
+        self.loss_mixer = loss_mixer
         self._syntax_metrics = AttachmentScores()
         self.syntax_las = 0.0 
         self.syntax_uas = 0.0 
-
-        # initial loss weighting: all syntactic, no semantic 
-        #self.loss_weight = torch.nn.Parameter(torch.tensor([[0.5],[0.5]], dtype=torch.float))
-        #self.loss_weight = torch.tensor([[0.5],[0.5]], dtype=torch.float)
-        self.sem_loss_weight = torch.nn.Parameter(torch.tensor([[0.5]], dtype=torch.float))
-        self.gamma = 0.01
 
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
@@ -289,58 +286,11 @@ class DecompSyntaxParser(DecompParser):
     def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
         sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
         syn_loss = biaffine_loss
-        # 1 x 2
-        #total_loss = torch.tensor([sem_loss, syn_loss], dtype=torch.float)
-        total_loss = self.sem_loss_weight * sem_loss + (1-self.sem_loss_weight)*syn_loss
+        if self.loss_mixer is not None:
+            return self.loss_mixer(sem_loss, syn_loss) 
 
-        # c^T x where x is loss weight, c is total loss
-        #total_loss = total_loss @ self.loss_weight
-
-        negative_comp = F.relu(-self.sem_loss_weight) 
-        #power = 2 * torch.abs(1 - torch.sum(self.loss_weight, dim=0)) + torch.sum(negative_comp) 
-        power = 3 * torch.abs(1 - self.sem_loss_weight) + 100 * negative_comp
-        well_formed_loss = torch.abs(1-torch.exp(power))
-
-        logger.info(f"loss = {well_formed_loss}") 
-        logger.info(f"loss weights: {self.sem_loss_weight}, {1 - self.sem_loss_weight}") 
-
-        return total_loss + well_formed_loss
-
-    #def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
-    #    sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
-    #    syn_loss = biaffine_loss
-    #    # 1 x 2
-    #    total_loss = torch.tensor([sem_loss, syn_loss]) 
-    #    # 1x2 @ 2x1 => 1x1
-    #    # c^T x where x is loss weight, c is total loss
-    #    total_loss = total_loss @ self.loss_weight
-
-    #    # barrier method to ensure that loss is probability vector 
-    #    # 4x2
-    #    a = torch.cat([torch.ones_like(self.loss_weight.data).T, 
-    #                   -torch.ones_like(self.loss_weight.data).T, 
-    #                   -torch.eye(2)], dim=0) 
-    #    # 4x1
-    #    b = torch.cat([-torch.ones(1, 1), torch.ones(1, 1), torch.zeros(2, 1)], dim=0)
-    #    # 4x2 @ 2x1 + 4x1 => 4x1
-    #    g = a @ self.loss_weight + b
-    #    # 4x1 cat 4x1 = 4x2
-    #    print(f"g is {g}" )
-    #    g_tensor = torch.cat([-g, torch.ones_like(g)], dim=1)
-    #    print(g_tensor)
-    #    val, __ = torch.min(g_tensor, dim=1)
-    #    print(f"val {val}") 
-    #    logval = torch.log(val)
-
-    #    print(f"logval {logval}") 
-    #    barrier_loss = -torch.sum(logval) 
-    #    print(barrier_loss) 
-
-    #    total_loss += self.gamma * barrier_loss
-    #    print(f"loss weights: {self.loss_weight.data}") 
-
-    #    return total_loss
-
+        # default to 1-to-1 weighting 
+        return sem_loss + syn_loss
 
     @overrides
     def _test_forward(self, inputs: Dict) -> Dict:
@@ -367,10 +317,6 @@ class DecompSyntaxParser(DecompParser):
                                                   None,
                                                   valid_node_mask = inputs["syn_valid_node_mask"],
                                                   do_mst=True)
-            
-
-        
-
 
         start_predictions, start_state, auxiliaries, misc = self._prepare_decoding_start_state(inputs, encoding_outputs)
 
@@ -378,7 +324,6 @@ class DecompSyntaxParser(DecompParser):
         # rnn_outputs: [batch_size, beam_size, max_steps, hidden_vector_dim]
         # log_probs: [batch_size, beam_size]
 
-    
         all_predictions, rnn_outputs, log_probs, target_dynamic_vocabs = self._beam_search.search(
             start_predictions=start_predictions,
             start_state=start_state,

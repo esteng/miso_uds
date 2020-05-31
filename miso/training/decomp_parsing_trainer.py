@@ -90,8 +90,18 @@ class DecompTrainer(Trainer):
 
     def _validation_loss(self) -> Tuple[float, int]:
         """
-        Computes the validation loss. Returns it and the number of batches.
+        Computes the validation loss and updates loss weight. 
+        Returns it and the number of batches.
         """
+        # update loss weight 
+        if self.model.loss_mixer is not None:
+            print(f"curr epoch {self._curr_epoch} num_epochs {self._num_epochs}") 
+            self.model.loss_mixer.update_weights(
+                                curr_epoch = self._curr_epoch, 
+                                total_epochs = self._num_epochs
+                                                )
+            print(f"updated loss mixer weights") 
+
         if self._curr_epoch < self._warmup_epochs:
             # skip the validation step for the warmup period 
             # this greatly reduces train time, since much of it is spent in validation 
@@ -205,7 +215,9 @@ def _from_params(cls,  # type: ignore
     patience = params.pop_int("patience", None)
     validation_metric = params.pop("validation_metric", "-loss")
     shuffle = params.pop_bool("shuffle", True)
+
     num_epochs = params.pop_int("num_epochs", 20)
+
     cuda_device = parse_cuda_device(params.pop("cuda_device", -1))
     grad_norm = params.pop_float("grad_norm", None)
     grad_clipping = params.pop_float("grad_clipping", None)

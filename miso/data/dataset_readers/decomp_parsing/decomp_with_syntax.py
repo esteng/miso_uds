@@ -1102,6 +1102,9 @@ class DecompGraphWithSyntax(DecompGraph):
             sem_tags = edge_tags 
             syn_tags = output['syn_edge_types'][0:N] 
 
+            sem_heads = [x-1 for x in sem_heads]
+            sem_heads[0] = 0
+
         else:
             raise NotImplementedError
 

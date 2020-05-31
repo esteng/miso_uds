@@ -42,6 +42,12 @@ class DecompSyntaxTrainer(DecompTrainer):
         self.attachment_scorer = AttachmentScores()
         self.syntactic_method = syntactic_method
 
+        if self.model.loss_mixer is not None:
+            self.model.loss_mixer.update_weights(
+                                            curr_epoch = 0, 
+                                            total_epochs = self._num_epochs
+                                                )
+
     def _update_attachment_scores(self, pred_instances, true_instances):
         las = []
         uas = []
@@ -117,8 +123,8 @@ class DecompSyntaxTrainer(DecompTrainer):
                                          true_instances):
         """Write the validation output in pkl format, and compute the S score."""
         # compute attachement scores here without having to override another function
-        if self.syntactic_method.startswith("concat"): 
-            self._update_attachment_scores(pred_instances, true_instances) 
+        #if self.syntactic_method.startswith("concat"): 
+        self._update_attachment_scores(pred_instances, true_instances) 
 
         logger.info("Computing S")
 
