@@ -140,7 +140,7 @@ class DecompSyntaxParser(DecompParser):
                                 inputs['syn_edge_types']['syn_edge_types'],
                                 inputs['syn_valid_node_mask'],
                                 syntax=True)
-        return edge_prediction_loss['loss']
+        return edge_prediction_loss['loss_per_node']
 
     def _parse_syntax(self,
                       encoder_outputs: torch.Tensor,
