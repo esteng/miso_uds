@@ -675,3 +675,12 @@ class DecompParser(Transduction):
 
         return outputs
 
+    def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
+        sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
+        syn_loss = biaffine_loss
+
+        if self.loss_mixer is not None:
+            return self.loss_mixer(sem_loss, syn_loss) 
+
+        # default to 1-to-1 weighting 
+        return sem_loss + syn_loss

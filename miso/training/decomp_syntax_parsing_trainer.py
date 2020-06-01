@@ -77,6 +77,7 @@ class DecompSyntaxTrainer(DecompTrainer):
         for i in range(len(pred_instances)):
             # get rid of @start@ symbol 
             true_nodes = all_true_nodes[i]
+            print(pred_instances[i].keys()) 
             pred_nodes = pred_instances[i][pred_node_key]
 
             if self.syntactic_method.startswith("concat"): 

@@ -283,51 +283,6 @@ class DecompSyntaxParser(DecompParser):
                     node_attributes = node_attribute_outputs['pred_dict']['pred_attributes'],
                     edge_attributes = edge_attribute_outputs['pred_dict']['pred_attributes'])
 
-    def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
-        sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
-        syn_loss = biaffine_loss
-        logger.info(f"sem_loss {sem_loss} syn_loss {syn_loss}" )
-
-        if self.loss_mixer is not None:
-            return self.loss_mixer(sem_loss, syn_loss) 
-
-        # default to 1-to-1 weighting 
-        return sem_loss + syn_loss
-
-    #def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
-    #    sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
-    #    syn_loss = biaffine_loss
-    #    # 1 x 2
-    #    total_loss = torch.tensor([sem_loss, syn_loss]) 
-    #    # 1x2 @ 2x1 => 1x1
-    #    # c^T x where x is loss weight, c is total loss
-    #    total_loss = total_loss @ self.loss_weight
-
-    #    # barrier method to ensure that loss is probability vector 
-    #    # 4x2
-    #    a = torch.cat([torch.ones_like(self.loss_weight.data).T, 
-    #                   -torch.ones_like(self.loss_weight.data).T, 
-    #                   -torch.eye(2)], dim=0) 
-    #    # 4x1
-    #    b = torch.cat([-torch.ones(1, 1), torch.ones(1, 1), torch.zeros(2, 1)], dim=0)
-    #    # 4x2 @ 2x1 + 4x1 => 4x1
-    #    g = a @ self.loss_weight + b
-    #    # 4x1 cat 4x1 = 4x2
-    #    print(f"g is {g}" )
-    #    g_tensor = torch.cat([-g, torch.ones_like(g)], dim=1)
-    #    print(g_tensor)
-    #    val, __ = torch.min(g_tensor, dim=1)
-    #    print(f"val {val}") 
-    #    logval = torch.log(val)
-
-    #    print(f"logval {logval}") 
-    #    barrier_loss = -torch.sum(logval) 
-    #    print(barrier_loss) 
-
-    #    total_loss += self.gamma * barrier_loss
-    #    print(f"loss weights: {self.loss_weight.data}") 
-
-    #    return total_loss
 
 
     @overrides
@@ -342,31 +297,16 @@ class DecompSyntaxParser(DecompParser):
 
         # if we're doing encoder-side 
         if self.biaffine_parser is not None:
-            #print(f"true heads: {inputs['syn_edge_heads']}") 
-            #print(f"true labels: {inputs['syn_edge_types']['syn_edge_types']}") 
-            # add sentinel root token 
-            #memory_bank = encoding_outputs['encoder_outputs']
-            #batch_size, _, hidden_size = memory_bank.size()
-            #sentinel_tok = self.biaffine_parser.head_sentinel.expand([batch_size, 1, hidden_size]) 
-            #memory_bank = torch.cat([sentinel_tok, memory_bank], dim = 1)
-
             biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
                                                   inputs["syn_edge_head_mask"],
                                                   None,
                                                   valid_node_mask = inputs["syn_valid_node_mask"],
                                                   do_mst=True)
             
-
-        
-
-
         start_predictions, start_state, auxiliaries, misc = self._prepare_decoding_start_state(inputs, encoding_outputs)
 
         # all_predictions: [batch_size, beam_size, max_steps]
-        # rnn_outputs: [batch_size, beam_size, max_steps, hidden_vector_dim]
         # log_probs: [batch_size, beam_size]
-
-    
         all_predictions, rnn_outputs, log_probs, target_dynamic_vocabs = self._beam_search.search(
             start_predictions=start_predictions,
             start_state=start_state,

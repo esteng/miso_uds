@@ -32,7 +32,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    syntactic_method: "concat-before",
+    syntactic_method: "encoder-side",
     drop_syntax: "true",
     semantics_only: "false",
     line_limit: 2,
@@ -112,6 +112,19 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       projection_dim: 64, 
       num_layers: 4,
     },
+    biaffine_parser: {
+      query_vector_dim: 64,
+      key_vector_dim: 64,
+      edge_head_vector_dim: 256,
+      edge_type_vector_dim: 64,
+      num_labels: 16,
+      is_syntax: true,
+      attention: {
+        type: "biaffine",
+        query_vector_dim: 256,
+        key_vector_dim: 256,
+      },
+    }, 
     decoder_token_embedder: {
       token_embedders: {
         target_tokens: {
@@ -227,6 +240,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
+    loss_mixer: {type:"fixed"},
   },
 
   iterator: {
@@ -243,9 +257,9 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 500,
-    warmup_epochs: 490,
-    syntactic_method: "concat-before",
+    num_epochs: 200,
+    warmup_epochs: 190,
+    syntactic_method: "encoder-side",
     patience: 600,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
