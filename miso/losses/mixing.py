@@ -1,8 +1,11 @@
 from overrides import overrides
+import logging 
 
 import torch
 import torch.nn.functional as F
 from allennlp.common.registrable import Registrable
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 class LossMixer(torch.nn.Module, Registrable):
     def __init__(self):
@@ -118,6 +121,9 @@ class LearnedLossMixer(LossMixer):
                syn_weight * syn_loss
 
     def update_weights(self, curr_epoch, total_epochs): 
-        pass
+        # log the weights 
+        sem_weight = F.sigmoid(self.semantics_raw_weight)
+        syn_weight = 1 - sem_weight
+        logger.info(f"learned weights are: semantics: {sem_weight}, syntax: {syn_weight}") 
 
 

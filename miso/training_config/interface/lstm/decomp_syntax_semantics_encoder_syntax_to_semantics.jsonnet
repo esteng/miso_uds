@@ -34,7 +34,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    syntactic_method: "concat-just-syntax",
+    syntactic_method: "encoder-side",
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -144,6 +144,19 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       vocab_namespace: "pos_tags",
       embedding_dim: 50,
     },
+    biaffine_parser: {
+      query_vector_dim: 1024,
+      key_vector_dim: 1024,
+      edge_head_vector_dim: 512,
+      edge_type_vector_dim: 1024,
+      num_labels: 60,
+      is_syntax: true,
+      attention: {
+        type: "biaffine",
+        query_vector_dim: 512,
+        key_vector_dim: 512,
+      },
+    }, 
     decoder: {
       rnn_cell: {
         input_size: 300 + 50 + 50 + 1024,
@@ -184,7 +197,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     extended_pointer_generator: {
       input_vector_dim: 1024,
       source_copy: true,
-      target_copy: false,
+      target_copy: true,
     },
     tree_parser: {
       query_vector_dim: 1024,
@@ -221,6 +234,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
+    loss_mixer: {type:"syntax->semantics"},
   },
 
   iterator: {
@@ -228,25 +242,24 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 16,
+    batch_size: 10,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 16,
+    batch_size: 10,
   },
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 250,
-    warmup_epochs: 10,
-    syntactic_method: "concat-just-syntax",
+    num_epochs: 100,
+    #warmup_epochs: 3,
     patience: 40,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
     cuda_device: 0,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+syn_las",
+    validation_metric: "+s_f1",
     optimizer: {
       type: "adam",
       weight_decay: 3e-9,
@@ -261,6 +274,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     validation_data_path: "dev",
     validation_prediction_path: "decomp_validation.txt",
     semantics_only: "false",
+    syntactic_method: "encoder-side",
     drop_syntax: "true",
   },
   random_seed: 12,

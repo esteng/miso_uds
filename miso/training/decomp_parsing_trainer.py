@@ -95,12 +95,10 @@ class DecompTrainer(Trainer):
         """
         # update loss weight 
         if self.model.loss_mixer is not None:
-            print(f"curr epoch {self._curr_epoch} num_epochs {self._num_epochs}") 
             self.model.loss_mixer.update_weights(
                                 curr_epoch = self._curr_epoch, 
                                 total_epochs = self._num_epochs
                                                 )
-            print(f"updated loss mixer weights") 
 
         if self._curr_epoch < self._warmup_epochs:
             # skip the validation step for the warmup period 
