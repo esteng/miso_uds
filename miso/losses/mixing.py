@@ -76,11 +76,23 @@ class SemanticsSyntaxLossMixer(LossMixer):
 @LossMixer.register("semantics-only") 
 class SemanticsOnlyLossMixer(LossMixer):
     """
-    Start with all semantics loss, move to all syntax loss 
+    Start with all semantics loss
     """
     def __init__(self):
         super().__init__() 
         self.loss_weights = [1,0]
+
+    def update_weights(self, curr_epoch, total_epochs): 
+        pass
+
+@LossMixer.register("syntax-only") 
+class SyntaxOnlyLossMixer(LossMixer):
+    """
+    Start with all syntax loss
+    """
+    def __init__(self):
+        super().__init__() 
+        self.loss_weights = [0,1]
 
     def update_weights(self, curr_epoch, total_epochs): 
         pass
