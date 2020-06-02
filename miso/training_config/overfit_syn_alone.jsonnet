@@ -35,7 +35,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     syntactic_method: "encoder-side",
     drop_syntax: "true",
     semantics_only: "false",
-    line_limit: 8,
+    line_limit: 2,
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -252,7 +252,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 250,
-    warmup_epochs: 240 ,
+    warmup_epochs: 1,
     syntactic_method: "encoder-side",
     patience: 10000,
     grad_norm: 5.0,

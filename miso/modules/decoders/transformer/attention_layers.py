@@ -194,7 +194,6 @@ class MisoPostNormTransformerDecoderLayer(MisoTransformerDecoderLayer):
             tgt_key_padding_mask: the mask for the tgt keys per batch (optional).
             memory_key_padding_mask: the mask for the memory keys per batch (optional).
         """
-        # norm before residual as in https://arxiv.org/pdf/1910.05895.pdf
         tgt2 = tgt.clone()
         tgt2, tgt_attn = self.self_attn(tgt2, tgt2, tgt2, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)
