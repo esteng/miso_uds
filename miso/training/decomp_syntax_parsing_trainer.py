@@ -16,6 +16,7 @@ from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 from miso.training.decomp_parsing_trainer import DecompTrainer 
 #from miso.data.iterators.data_iterator import DecompDataIterator, DecompBasicDataIterator 
 from miso.metrics.s_metric.s_metric import S, compute_s_metric
+from miso.models.decomp_syntax_only_parser import DecompSyntaxOnlyParser
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -72,12 +73,16 @@ class DecompSyntaxTrainer(DecompTrainer):
         all_true_edge_heads = [true_inst for batch in true_instances for true_inst in batch[0][head_key] ]
         all_true_edge_types = [true_inst for batch in true_instances for true_inst in batch[0][true_label_key][true_label_key]]
         all_true_masks = [true_inst for batch in true_instances for true_inst in batch[0][mask_key]]
+        print(all_true_nodes) 
+        print(all_true_edge_heads) 
+        print(all_true_edge_types) 
+        print(all_true_masks)  
+        print(pred_instances)
         assert(len(all_true_nodes) == len(all_true_edge_heads) == len(all_true_edge_types) == len(all_true_masks)  == len(pred_instances)) 
 
         for i in range(len(pred_instances)):
             # get rid of @start@ symbol 
             true_nodes = all_true_nodes[i]
-            print(pred_instances[i].keys()) 
             pred_nodes = pred_instances[i][pred_node_key]
 
             if self.syntactic_method.startswith("concat"): 
@@ -126,8 +131,10 @@ class DecompSyntaxTrainer(DecompTrainer):
                                          true_instances):
         """Write the validation output in pkl format, and compute the S score."""
         # compute attachement scores here without having to override another function
-        #if self.syntactic_method.startswith("concat"): 
         self._update_attachment_scores(pred_instances, true_instances) 
+        
+        if isinstance(self.model, DecompSyntaxOnlyParser):
+            return 
 
         logger.info("Computing S")
 
@@ -149,8 +156,4 @@ class DecompSyntaxTrainer(DecompTrainer):
         self.model.val_s_precision = float(ret[0]) * 100
         self.model.val_s_recall = float(ret[1]) * 100
         self.model.val_s_f1 = float(ret[2]) * 100
-
-        # TODO: add syntactic metrics 
-
-        self._update_attachment_scores(pred_instances, true_instances)
 

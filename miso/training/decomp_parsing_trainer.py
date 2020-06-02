@@ -152,6 +152,7 @@ class DecompTrainer(Trainer):
 
             # Update the description with the latest metrics
             val_metrics = training_util.get_metrics(self.model, val_loss, batches_this_epoch)
+            print(f"val_metrics {val_metrics}") 
             description = training_util.description_from_metrics(val_metrics)
             val_generator_tqdm.set_description(description, refresh=False)
 
@@ -169,13 +170,11 @@ class DecompTrainer(Trainer):
                     value = value.detach().cpu().numpy()
                 for instance_output, batch_element in zip(instance_separated_output, value):
                     instance_output[name] = batch_element
-
             val_outputs += instance_separated_output
 
         # Now restore the original parameter values.
         if self._moving_average is not None:
             self._moving_average.restore()
-
         self._update_validation_s_score(val_outputs, val_true_instances)
 
         return val_loss, batches_this_epoch
