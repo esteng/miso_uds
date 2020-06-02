@@ -39,6 +39,18 @@ class AlternatingLossMixer(LossMixer):
         else:
             self.loss_weights = self.sem_loss_weights
 
+@LossMixer.register("fixed") 
+class FixedLossMixer(LossMixer):
+    """
+    fixed 50-50 loss 
+    """
+    def __init__(self):
+        super().__init__() 
+        self.loss_weights = [0.5, 0.5]
+
+    def update_weights(self, curr_epoch, total_epochs): 
+        pass 
+
 @LossMixer.register("syntax->semantics") 
 class SyntaxSemanticsLossMixer(LossMixer):
     """

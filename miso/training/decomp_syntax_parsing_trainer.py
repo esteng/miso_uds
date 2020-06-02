@@ -104,9 +104,6 @@ class DecompSyntaxTrainer(DecompTrainer):
             valid_node_mask = all_true_masks[i][split_point+1:end_point]
 
             pred_edge_heads = torch.tensor(pred_edge_heads) 
-
-            print(pred_edge_heads) 
-            print(pred_edge_types)
             pred_edge_types = torch.tensor(pred_edge_types) 
             
             try:

@@ -305,14 +305,6 @@ class DecompSyntaxParser(DecompParser):
 
         # if we're doing encoder-side 
         if self.biaffine_parser is not None:
-            #print(f"true heads: {inputs['syn_edge_heads']}") 
-            #print(f"true labels: {inputs['syn_edge_types']['syn_edge_types']}") 
-            # add sentinel root token 
-            #memory_bank = encoding_outputs['encoder_outputs']
-            #batch_size, _, hidden_size = memory_bank.size()
-            #sentinel_tok = self.biaffine_parser.head_sentinel.expand([batch_size, 1, hidden_size]) 
-            #memory_bank = torch.cat([sentinel_tok, memory_bank], dim = 1)
-
             biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
                                                   inputs["syn_edge_head_mask"],
                                                   None,
@@ -322,9 +314,7 @@ class DecompSyntaxParser(DecompParser):
         start_predictions, start_state, auxiliaries, misc = self._prepare_decoding_start_state(inputs, encoding_outputs)
 
         # all_predictions: [batch_size, beam_size, max_steps]
-        # rnn_outputs: [batch_size, beam_size, max_steps, hidden_vector_dim]
         # log_probs: [batch_size, beam_size]
-
         all_predictions, rnn_outputs, log_probs, target_dynamic_vocabs = self._beam_search.search(
             start_predictions=start_predictions,
             start_state=start_state,
