@@ -92,7 +92,9 @@ class DecompSyntaxParser(DecompParser):
                                  beam_size=beam_size,
                                  max_decoding_steps=max_decoding_steps,
                                  eps=eps)
-        
+
+
+        self.syntactic_method = None        
         self.biaffine_parser = biaffine_parser
         self.loss_mixer = loss_mixer
         self._syntax_metrics = AttachmentScores()

@@ -13,6 +13,9 @@ from allennlp.predictors.predictor import Predictor
 from allennlp.data import Instance
 from allennlp.common.util import JsonDict
 
+from miso.models.decomp_parser import DecompParser
+from miso.models.decomp_syntax_parser import DecompSyntaxParser
+from miso.models.decomp_syntax_only_parser import DecompSyntaxOnlyParser
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
@@ -71,6 +74,7 @@ class DecompParsingPredictor(Predictor):
     def dump_line(self, outputs: JsonDict) -> str:
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
         pred_graph = DecompGraph.from_prediction(outputs)
+
         return pred_graph
 
     @contextmanager
@@ -205,13 +209,18 @@ class DecompParsingPredictor(Predictor):
 
 @Predictor.register("decomp_syntax_parsing")
 class DecompSyntaxParsingPredictor(DecompParsingPredictor):
-    def __init__(self, syntactic_method):
-        super(DecompSyntaxParsingPredictor, self).__init__() 
-        self.syntactic_method = syntactic_method
 
     @overrides
     def dump_line(self, outputs: JsonDict) -> str:
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
-        pred_sem_graph, pred_syn_graph = DecompGraphWithSyntax.from_prediction(outputs, syntactic_method) 
-        return pred_sem_graph, pred_syn_graph 
+        pred_sem_graph, pred_syn_graph, conllu_graph = DecompGraphWithSyntax.from_prediction(outputs, self._model.syntactic_method) 
+
+        conllu_str = ""
+        colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
+        for row in conllu_graph:
+            vals = [row[cn] for cn in colnames]
+            conllu_str += "\t".join(vals) + "\n"
+        conllu_str += '\n' 
+        return conllu_str
+        #return pred_sem_graph, pred_syn_graph, conllu_graph  
 
