@@ -93,7 +93,7 @@ class DecompSyntaxOnlyParser(DecompParser):
                                  max_decoding_steps=max_decoding_steps,
                                  eps=eps)
 
-        
+        self.syntactic_method = "encoder-side" 
         self.biaffine_parser = biaffine_parser
         self.loss_mixer = None
         self._syntax_metrics = AttachmentScores()
@@ -186,12 +186,13 @@ class DecompSyntaxOnlyParser(DecompParser):
                                                 None,
                                                 valid_node_mask = inputs["syn_valid_node_mask"],
                                                 do_mst=True)
-            
+
+        edge_head_predictions, edge_type_predictions, edge_type_inds = self._read_edge_predictions(biaffine_outputs) 
 
         outputs = dict(
             syn_nodes=inputs['syn_tokens_str'], 
-            syn_edge_heads=biaffine_outputs['edge_heads'],
-            syn_edge_types=biaffine_outputs['edge_types'],  
+            syn_edge_heads=edge_head_predictions, 
+            syn_edge_types=edge_type_predictions,
             loss=torch.tensor([0.0]),
             nodes=[[]],
             node_indices=[[]],
@@ -204,5 +205,4 @@ class DecompSyntaxOnlyParser(DecompParser):
             edge_attributes_mask=[[]]
         )
 
-        print(f"RETURNING OUTPUTS {outputs}") 
         return outputs

@@ -146,7 +146,7 @@ class DecompSyntaxTrainer(DecompTrainer):
 
         pred_graphs = [DecompGraphWithSyntax.from_prediction(pred_inst, self.syntactic_method) for pred_inst in pred_instances]
 
-        pred_sem_graphs, pred_syn_graphs = zip(*pred_graphs)
+        pred_sem_graphs, pred_syn_graphs, __  = zip(*pred_graphs)
 
         ret = compute_s_metric(true_graphs, pred_sem_graphs, true_sents, 
                                self.semantics_only, 

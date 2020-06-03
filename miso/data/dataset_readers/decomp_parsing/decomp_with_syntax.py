@@ -554,7 +554,7 @@ class DecompGraphWithSyntax(DecompGraph):
             """
             # nodes has corrected ordering 
             everything_zipped = zip(tokens, inds, tags, mask, nodes)
-            correct_order_zipped = sorted(everything_zipped, key = lambda x: x[-1])
+            correct_order_zipped = sorted(everything_zipped, key = lambda x: int(x[-1].split("-")[-1]))
             new_tokens, new_inds, new_tags, new_mask, new_nodes = [list(x) for x in zip(*correct_order_zipped)]
             # get mapping from old inds to new inds 
             for i, (head_idx) in enumerate(new_inds):
@@ -925,6 +925,22 @@ class DecompGraphWithSyntax(DecompGraph):
         except IndexError:
             return None
 
+    @staticmethod
+    def build_conllu_dict(nodes, edge_heads, edge_labels):
+        """
+        turn the syntactic graph into conllu format
+        """
+        assert(len(nodes) == len(edge_heads) == len(edge_labels))
+        colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
+
+        rows = []
+        for i, (node, head, deprel) in enumerate(zip(nodes, edge_heads, edge_labels)):
+            row = {"ID": str(i+1), "form": node, "lemma": "_", "upos": "_", "xpos": "_", 
+                    "feats": "_", "head": str(head), "deprel": deprel,
+                    "deps": "_", "misc": "_"}
+            rows.append(row) 
+        return rows 
+
     @staticmethod 
     def build_sem_graph(syntactic_method, nodes, node_attr, corefs,
                         edge_heads, edge_labels, edge_attr):
@@ -1103,7 +1119,10 @@ class DecompGraphWithSyntax(DecompGraph):
             syn_tags = output['syn_edge_types'][0:N] 
 
             sem_heads = [x-1 for x in sem_heads]
-            sem_heads[0] = 0
+            try:
+                sem_heads[0] = 0
+            except IndexError:
+                pass 
 
         else:
             raise NotImplementedError
@@ -1136,18 +1155,27 @@ class DecompGraphWithSyntax(DecompGraph):
         #print(edge_attr) 
 
         # off by 1 fixed here 
-        node_attr = [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))][1:] + [{}]
-        edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
+        try:
+            node_attr = [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))][1:] + [{}]
+            edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
 
-        
-        sem_graph = cls.build_sem_graph(syntactic_method, sem_nodes, 
-                                        node_attr, corefs,
-                                        sem_heads, sem_tags, edge_attr)
-        cls.arbor_graph = sem_graph
+            
+            sem_graph = cls.build_sem_graph(syntactic_method, sem_nodes, 
+                                            node_attr, corefs,
+                                            sem_heads, sem_tags, edge_attr)
+            cls.arbor_graph = sem_graph
+        except IndexError:
+            sem_graph = None
+            cls.arbor_graph = sem_graph
 
         syn_graph = cls.build_syn_graph(syn_nodes, syn_heads, syn_tags)
 
-        return sem_graph, syn_graph 
+        if syntactic_method == "encoder-side": 
+            conllu_dict = cls.build_conllu_dict(syn_nodes, syn_heads, syn_tags) 
+        else:
+            conllu_dict = None
+
+        return sem_graph, syn_graph, conllu_dict
 
     @staticmethod
     def get_triples(arbor_graph, 
