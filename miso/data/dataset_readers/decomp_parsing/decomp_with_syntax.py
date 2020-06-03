@@ -573,6 +573,8 @@ class DecompGraphWithSyntax(DecompGraph):
         sem_head_tags = head_tags
         sem_mask = mask 
         sem_node_name_list = node_name_list
+    
+        true_conllu_dict = None 
 
         if self.syntactic_method == "concat-after":
             (tgt_tokens, 
@@ -634,6 +636,8 @@ class DecompGraphWithSyntax(DecompGraph):
                                                     syn_head_tags,
                                                     syn_mask,
                                                     syn_node_name_list)
+
+            true_conllu_dict = self.build_conllu_dict(syn_tokens, syn_head_indices, syn_head_tags)
 
         syn_node_mask = np.array([1] * len(syn_tokens), dtype='uint8')
         syn_node_indices = [i+1 for i in range(len(syn_tokens))]
@@ -889,7 +893,8 @@ class DecompGraphWithSyntax(DecompGraph):
             "pos_tag_lut": pos_tag_lut,
             "src_copy_invalid_ids" : src_copy_invalid_ids,
             "arbor_graph": arbor_graph,
-            "node_name_list": node_name_list
+            "node_name_list": node_name_list,
+            "true_conllu_dict": true_conllu_dict
         }
 
     @staticmethod

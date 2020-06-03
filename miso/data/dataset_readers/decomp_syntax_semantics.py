@@ -308,6 +308,9 @@ class DecompDatasetReader(DatasetReader):
         fields["graph"] = MetadataField(
             list_data['arbor_graph'])
 
+        fields["true_conllu_dict"] = MetadataField(
+            list_data['true_conllu_dict'])
+
         # Metadata fields, good for debugging
         fields["src_tokens_str"] = MetadataField(
             list_data["src_tokens"]

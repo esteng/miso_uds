@@ -4,6 +4,7 @@ from typing import List, Iterator, Dict
 from collections import namedtuple
 import os
 import overrides
+import tempfile
 
 import numpy as np
 import torch
@@ -23,23 +24,13 @@ from allennlp.data import Instance
 from allennlp.common.util import import_submodules
 
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
-from miso.metrics.s_metric.s_metric import S, TEST1, NORMAL, compute_s_metric
-from miso.metrics.s_metric.repr import Triple, FloatTriple
-from miso.metrics.s_metric import utils
+from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax
+from miso.metrics.conllu import evaluate_wrapper, UDError
 from miso.commands.predict import _ReturningPredictManager 
-from miso.commands.conllu_score import ConlluScore
 
 logger = logging.getLogger(__name__) 
 
-compute_args = {"seed": 0,
-                "iter_num": 1, 
-                "compute_instance": True,
-                "compute_attribute": True,
-                "compute_relation": True,
-                "log_level": None,
-                "sanity_check": False,
-                "mode": NORMAL
-                }
+compute_args = {"gold_file":None, "system_file": None}  
 
 ComputeTup = namedtuple("compute_args", sorted(compute_args))
 
@@ -57,7 +48,7 @@ class ArgNamespace:
         self.save_pred_path = save_pred_path
 
 
-class SScore(Subcommand): 
+class ConlluScore(Subcommand): 
     def add_subparser(self, name: str, parser: argparse._SubParsersAction) -> argparse.ArgumentParser:
         self.name = name 
         description = """Run the specified model against a JSON-lines input file."""
@@ -150,16 +141,15 @@ class SScore(Subcommand):
 def _construct_and_predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)
     args.predictor = predictor
-    scorer = Scorer.from_params(args)
-    if args.oracle:
-        scorer.predict_and_save_oracle()
-    else:
-        p, r, f1 = scorer.predict_and_compute()
-        print(f"Precision: {p}, Recall: {r}, F1: {f1}") 
+    scorer = ConlluScorer.from_params(args)
 
-class Scorer:
+    las, mlas, blex = scorer.predict_and_compute()
+    print(f"averaged scores") 
+    print(f"LAS: {las}, MLAS: {mlas}, BLEX: {blex}") 
+
+class ConlluScorer:
     """
-    Reads, predicts, and scores graph structure using the S metric 
+    Reads, predicts, and scores syntactic conllu score 
     """
     def __init__(self,
                 predictor = None,
@@ -206,42 +196,14 @@ class Scorer:
                                     json_output_file = self.json_output_file)
 
     @staticmethod
-    def flatten_instance_batches(batch_iterator: Iterator[List[Instance]], 
-                                total: int):
-        flat = []
-        for batch in tqdm(batch_iterator, total = total):
-            for inst in batch:
-                flat.append(inst.fields['graph'].metadata)
-        return flat
-
-    @staticmethod
-    def flatten_prediction_batches(batch_iterator: Iterator[List[DecompGraph]], 
-                                    total: int):
-        flat = []
-        for batch in tqdm(batch_iterator, total = total):
-            for output in batch:
-                flat.append(output)
-        return flat
-    
-    @staticmethod
-    def flatten_prediction_batch(batch):
-        flat = []
-        for result in batch:
-            flat.append(result)
-        return flat
-
-    def load_graphs(self, path: str):
-        with open(path, 'rb') as f1: 
-            true_graphs, pred_graphs = zip(*pkl.load(f1))
-        # deserialize
-        return [nx.adjacency_graph(x) for x in true_graphs], [nx.adjacency_graph(x) for x in pred_graphs]
-
-    def save_graphs(self, 
-                         true_graphs: List[DecompGraph],
-                         pred_graphs: List[DecompGraph],
-                         path: str):
-        with open(path, "wb") as f1:
-            pkl.dump(list(zip(true_graphs, pred_graphs)), f1)
+    def conllu_dict_to_str(conllu_dict):
+        conllu_str = ""
+        colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
+        for row in conllu_dict:
+            vals = [row[cn] for cn in colnames]
+            conllu_str += "\t".join(vals) + "\n"
+        conllu_str += '\n' 
+        return conllu_str
 
     def predict_and_compute(self):
         assert(self.predictor is not None)
@@ -249,24 +211,47 @@ class Scorer:
         input_graphs = [inst.fields['graph'].metadata for inst in input_instances] 
         input_sents = [inst.fields['src_tokens_str'].metadata for inst in input_instances]
 
-        if self.pred_args.save_pred_path is not None:
-            # save serialized graphs to pkl file  
-            self.save_graphs([nx.adjacency_data(x) for x in input_graphs],
-                             [nx.adjacency_data(x) for x in output_graphs], 
-                            self.pred_args.save_pred_path)
+        las_scores = []
+        mlas_scores = []
+        blex_scores = []
 
-        args = ComputeTup(**compute_args)
-        return compute_s_metric(input_graphs, 
-                                output_graphs, 
-                                input_sents, 
-                                args, 
-                                self.include_attribute_scores)
-   
-    def predict_and_save_oracle(self):
-        assert(self.predictor is not None)
-        input_instances, output_graphs = self.manager.run()
+        for i in range(len(input_instances)):
+            true_conllu_str = ConlluScorer.conllu_dict_to_str(input_instances[i]['true_conllu_dict'].metadata)
+            pred_conllu_str = output_graphs[i]
+        
 
-        return 
+        # make temp files
+            with tempfile.NamedTemporaryFile("w") as true_file, \
+                tempfile.NamedTemporaryFile("w") as pred_file:
+
+            #with open("/Users/Elias/scratch/true.conllu", "w") as true_file,\
+            #    open("/Users/Elias/scratch/pred.conllu", "w") as pred_file:
+                true_file.write(true_conllu_str)
+                pred_file.write(pred_conllu_str) 
+                true_file.seek(0) 
+                pred_file.seek(0) 
+                compute_args["gold_file"] = true_file.name
+                compute_args["system_file"] = pred_file.name
+
+            #compute_args["gold_file"] = "/Users/Elias/scratch/true.conllu"
+            ##true_file.name
+            #compute_args["system_file"] = "/Users/Elias/scratch/pred.conllu"
+     
+            #pred_file.name
+
+                args = ComputeTup(**compute_args)
+                print(args) 
+                try:
+                    score = evaluate_wrapper(args)
+                    las_scores.append(100 * score["LAS"].f1)
+                    mlas_scores.append(100 * score["MLAS"].f1)
+                    blex_scores.append(100 * score["BLEX"].f1)
+                except UDError:
+                    las_scores.append(0)
+                    mlas_scores.append(0)
+                    blex_scores.append(0)
+
+        return np.mean(las_scores), np.mean(mlas_scores), np.mean(blex_scores)  
  
     @classmethod
     def from_params(cls, args):
@@ -284,33 +269,4 @@ class Scorer:
                    oracle = args.oracle,
                    json_output_file = args.json_output_file
                    )
-
-if __name__ == "__main__":
-    parser = ArgumentParserWithDefaults(description="Run AllenNLP")
-    subparsers = parser.add_subparsers(title='Commands', metavar='')
-
-    subcommands = {
-            # Default commands
-            "eval": SScore(),
-            "spr_eval": SScore(),
-            "conllu_eval": ConlluScore()
-    }
-
-    for name, subcommand in subcommands.items():
-        subparser = subcommand.add_subparser(name, subparsers)
-        # configure doesn't need include-package because it imports
-        # whatever classes it needs.
-        if name != "configure":
-            subparser.add_argument('--include-package',
-                                   type=str,
-                                   action='append',
-                                   default=[],
-                                   help='additional packages to include')
-
-    args = parser.parse_args()
-    if 'func' in dir(args):
-        # Import any additional modules needed (to register custom classes).
-        for package_name in getattr(args, 'include_package', ()):
-            import_submodules(package_name)
-        args.func(args)
 
