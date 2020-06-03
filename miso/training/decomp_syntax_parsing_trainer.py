@@ -64,7 +64,7 @@ class DecompSyntaxTrainer(DecompTrainer):
         else:
             token_key = "syn_tokens_str"
             head_key = "syn_edge_heads" 
-            pred_label_key = "syn_edge_types" 
+            pred_label_key = "syn_edge_type_inds" 
             true_label_key = "syn_edge_types" 
             mask_key = "syn_valid_node_mask" 
             pred_node_key = "syn_nodes" 
@@ -73,11 +73,6 @@ class DecompSyntaxTrainer(DecompTrainer):
         all_true_edge_heads = [true_inst for batch in true_instances for true_inst in batch[0][head_key] ]
         all_true_edge_types = [true_inst for batch in true_instances for true_inst in batch[0][true_label_key][true_label_key]]
         all_true_masks = [true_inst for batch in true_instances for true_inst in batch[0][mask_key]]
-        print(all_true_nodes) 
-        print(all_true_edge_heads) 
-        print(all_true_edge_types) 
-        print(all_true_masks)  
-        print(pred_instances)
         assert(len(all_true_nodes) == len(all_true_edge_heads) == len(all_true_edge_types) == len(all_true_masks)  == len(pred_instances)) 
 
         for i in range(len(pred_instances)):
@@ -110,9 +105,6 @@ class DecompSyntaxTrainer(DecompTrainer):
             valid_node_mask = all_true_masks[i][split_point+1:end_point]
 
             pred_edge_heads = torch.tensor(pred_edge_heads) 
-
-            print(pred_edge_heads) 
-            print(pred_edge_types)
             pred_edge_types = torch.tensor(pred_edge_types) 
 
             self.attachment_scorer(predicted_indices=pred_edge_heads,

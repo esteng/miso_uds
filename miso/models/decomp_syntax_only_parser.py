@@ -193,6 +193,7 @@ class DecompSyntaxOnlyParser(DecompParser):
             syn_nodes=inputs['syn_tokens_str'], 
             syn_edge_heads=edge_head_predictions, 
             syn_edge_types=edge_type_predictions,
+            syn_edge_type_inds=edge_type_inds,
             loss=torch.tensor([0.0]),
             nodes=[[]],
             node_indices=[[]],

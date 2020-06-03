@@ -95,12 +95,10 @@ class DecompTrainer(Trainer):
         """
         # update loss weight 
         if self.model.loss_mixer is not None:
-            print(f"curr epoch {self._curr_epoch} num_epochs {self._num_epochs}") 
             self.model.loss_mixer.update_weights(
                                 curr_epoch = self._curr_epoch, 
                                 total_epochs = self._num_epochs
                                                 )
-            print(f"updated loss mixer weights") 
 
         if self._curr_epoch < self._warmup_epochs:
             # skip the validation step for the warmup period 
@@ -152,7 +150,6 @@ class DecompTrainer(Trainer):
 
             # Update the description with the latest metrics
             val_metrics = training_util.get_metrics(self.model, val_loss, batches_this_epoch)
-            print(f"val_metrics {val_metrics}") 
             description = training_util.description_from_metrics(val_metrics)
             val_generator_tqdm.set_description(description, refresh=False)
 
