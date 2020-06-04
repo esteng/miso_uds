@@ -188,6 +188,7 @@ class DecompSyntaxOnlyParser(DecompParser):
                                                 do_mst=True)
 
         edge_head_predictions, edge_type_predictions, edge_type_inds = self._read_edge_predictions(biaffine_outputs) 
+    
 
         outputs = dict(
             syn_nodes=inputs['syn_tokens_str'], 
@@ -205,5 +206,7 @@ class DecompSyntaxOnlyParser(DecompParser):
             edge_attributes=[[]],
             edge_attributes_mask=[[]]
         )
+
+        print(f"returning outputs {outputs}") 
 
         return outputs

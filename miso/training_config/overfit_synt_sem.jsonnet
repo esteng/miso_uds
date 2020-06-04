@@ -177,7 +177,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           type: "mlp",
           # TODO: try to use smaller dims.
           query_vector_dim: 128,
-          key_vector_dim: 128,
+          key_vector_dim: 127,
           hidden_vector_dim: 64, 
           use_coverage: false,
         },
@@ -235,6 +235,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
     loss_mixer: {type:"learned"},
+    intermediate_graph: true,
   },
 
   iterator: {

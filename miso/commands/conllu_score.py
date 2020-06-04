@@ -240,7 +240,6 @@ class ConlluScorer:
             #pred_file.name
 
                 args = ComputeTup(**compute_args)
-                print(args) 
                 try:
                     score = evaluate_wrapper(args)
                     las_scores.append(100 * score["LAS"].f1)

@@ -1071,8 +1071,7 @@ class DecompGraphWithSyntax(DecompGraph):
                     edge_attr1, edge_attr2, 
                     node_mask1, node_mask2,
                     edge_mask1, edge_mask2)  
-        
-        print(output)  
+
         nodes = output['nodes']
 
         corefs = output['node_indices']

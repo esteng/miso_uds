@@ -170,10 +170,13 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         # [batch_size, query_length, num_labels]
         edge_type_score = self._get_edge_type_score(edge_type_query, edge_type_key, gold_edge_heads)
 
+        edge_reps = self._get_representations(edge_head_score, edge_head_key, edge_type_key) 
+
         return dict(
             # Note: head indices start from 1.
             edge_heads=edge_heads,
             edge_types=edge_types,
+            edge_reps=edge_reps, 
             # Log-Likelihood.
             edge_head_ll=masked_log_softmax(edge_head_score, edge_head_mask, dim=2),
             edge_type_ll=masked_log_softmax(edge_type_score, None, dim=2)
@@ -273,6 +276,32 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         edge_type_score = self.edge_type_bilinear(query, selected_key)
 
         return edge_type_score
+
+    def _get_representations(self,
+                             edge_head_scores: torch.FloatTensor,
+                             edge_head_key: torch.FloatTensor,
+                             edge_type_key: torch.FloatTensor):
+        """
+        Compute the weighted representations of the head and type keys 
+        :param edge_head_scores:  [batch_size, query_length, key_length]
+        :param edge_head_key: [batch_size, key_length, key_head_dim]
+        :param edge_type_key: [batch_size, key_length, key_type_dim]
+        :return:
+            reps: [batch_size, query_length, key_head_dim + key_type_dim]
+        """
+        edge_head_scores = torch.exp(F.log_softmax(edge_head_scores, dim=2))
+
+        # [batch_size, query_length, key_length] x [batch_size, key_length, key_head_dim] 
+        # -> [batch_size, query_length, key_length]
+        weighted_head_key = edge_head_scores @ edge_head_key
+        # [batch_size, query_length, key_length] x [batch_size, key_length, key_type_dim] 
+        # -> [batch_size, query_length, key_length]
+        weighted_type_key = edge_head_scores @ edge_type_key
+
+        keys_and_types = torch.cat([weighted_head_key, weighted_type_key], dim = 2)
+        print(keys_and_types.shape ) 
+
+        return keys_and_types
 
     def _greedy_search(self,
                        query: torch.FloatTensor,
