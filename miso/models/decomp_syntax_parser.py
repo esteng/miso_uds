@@ -64,7 +64,8 @@ class DecompSyntaxParser(DecompParser):
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
                  eps: float = 1e-20,
-                 loss_mixer: LossMixer = None
+                 loss_mixer: LossMixer = None,
+                 intermediate_graph: bool = False,
                  ) -> None:
 
         super(DecompSyntaxParser, self).__init__(
@@ -97,6 +98,7 @@ class DecompSyntaxParser(DecompParser):
         self.syntactic_method = None        
         self.biaffine_parser = biaffine_parser
         self.loss_mixer = loss_mixer
+        self.intermediate_graph = intermediate_graph
         self._syntax_metrics = AttachmentScores()
         self.syntax_las = 0.0 
         self.syntax_uas = 0.0 
@@ -184,13 +186,18 @@ class DecompSyntaxParser(DecompParser):
                                             inputs["syn_edge_heads"],
                                             do_mst = False) 
 
-
-
             biaffine_loss = self._compute_biaffine_loss(biaffine_outputs,
                                                         inputs)
 
             self._update_syntax_scores()
             encoder_side=True
+
+
+        if self.intermediate_graph: 
+            enc_outputs = encoding_outputs["encoder_outputs"]
+            # concatenate in biaffine reps 
+            enc_outputs = torch.cat([enc_outputs, biaffine_outputs["edge_reps"]], dim=2)
+            encoding_outputs["encoder_outputs"] = enc_outputs
 
         else:
             biaffine_loss = 0.0
