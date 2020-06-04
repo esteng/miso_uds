@@ -150,7 +150,6 @@ class DecompTrainer(Trainer):
 
             # Update the description with the latest metrics
             val_metrics = training_util.get_metrics(self.model, val_loss, batches_this_epoch)
-            print(f"val_metrics {val_metrics}") 
             description = training_util.description_from_metrics(val_metrics)
             val_generator_tqdm.set_description(description, refresh=False)
 

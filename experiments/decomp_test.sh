@@ -9,7 +9,7 @@ EXP_DIR=experiments
 # Import utility functions.
 source ${EXP_DIR}/utils.sh
 
-#CHECKPOINT_DIR=decomp-synt-sem-ckpt
+CHECKPOINT_DIR=decomp-synt-sem-ckpt
 #TRAINING_CONFIG=miso/training_config/overfit_synt_sem.jsonnet
 TEST_DATA=dev
 
@@ -45,7 +45,7 @@ function test() {
     output_file=${CHECKPOINT_DIR}/test.pred.txt
     python -m allennlp.run predict \
     ${model_file} ${TEST_DATA} \
-    --predictor "decomp_parsing" \
+    --predictor "decomp_syntax_parsing" \
     --batch-size 1 \
     --use-dataset-reader \
     --include-package miso.data.dataset_readers \
@@ -66,7 +66,27 @@ function eval() {
     --batch-size 1 \
     --beam-size 1 \
     --use-dataset-reader \
-    --line-limit 1 \
+    --line-limit 2 \
+    --cuda-device -1 \
+    --include-package miso.data.dataset_readers \
+    --include-package miso.models \
+    --include-package miso.predictors \
+    --include-package miso.metrics
+}
+
+function conllu_eval() {
+    log_info "Evaluating a transductive model for decomp parsing..."
+    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    output_file=${CHECKPOINT_DIR}/test.pred.txt
+    export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
+    echo ${PYTHONPATH}
+    python -m miso.commands.s_score conllu_eval \
+    ${model_file} ${TEST_DATA} \
+    --predictor "decomp_syntax_parsing" \
+    --batch-size 1 \
+    --beam-size 1 \
+    --use-dataset-reader \
+    --line-limit 2 \
     --cuda-device -1 \
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
@@ -138,6 +158,8 @@ function main() {
         test
     elif [[ "${action}" == "eval" ]]; then
         eval
+    elif [[ "${action}" == "conllu_eval" ]]; then
+        conllu_eval
     fi
 }
 
