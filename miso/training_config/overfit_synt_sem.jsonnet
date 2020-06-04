@@ -170,14 +170,14 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       },
       source_attention_layer: {
         type: "global",
-        query_vector_dim: 128,
-        key_vector_dim: 128,
+        query_vector_dim: 320,
+        key_vector_dim: 320,
         output_vector_dim: 128,
         attention: {
           type: "mlp",
           # TODO: try to use smaller dims.
           query_vector_dim: 128,
-          key_vector_dim: 127,
+          key_vector_dim: 512,
           hidden_vector_dim: 64, 
           use_coverage: false,
         },

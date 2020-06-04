@@ -164,6 +164,12 @@ class DecompSyntaxParser(DecompParser):
 
         return parser_outputs
 
+    def _add_biaffine_to_encoder(self, encoding_outputs, biaffine_outputs):
+        enc_outputs = encoding_outputs["encoder_outputs"]
+        # concatenate in biaffine reps 
+        enc_outputs = torch.cat([enc_outputs, biaffine_outputs["edge_reps"]], dim=2)
+        encoding_outputs["encoder_outputs"] = enc_outputs
+        return encoding_outputs
 
     @overrides
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
@@ -194,10 +200,7 @@ class DecompSyntaxParser(DecompParser):
 
 
         if self.intermediate_graph: 
-            enc_outputs = encoding_outputs["encoder_outputs"]
-            # concatenate in biaffine reps 
-            enc_outputs = torch.cat([enc_outputs, biaffine_outputs["edge_reps"]], dim=2)
-            encoding_outputs["encoder_outputs"] = enc_outputs
+            encoding_outputs = self._add_biaffine_to_encoder(encoding_outputs, biaffine_outputs)
 
         else:
             biaffine_loss = 0.0
@@ -311,6 +314,9 @@ class DecompSyntaxParser(DecompParser):
                                                   None,
                                                   valid_node_mask = inputs["syn_valid_node_mask"],
                                                   do_mst=True)
+
+            if self.intermediate_graph: 
+                encoding_outputs = self._add_biaffine_to_encoder(encoding_outputs, biaffine_outputs)
             
         start_predictions, start_state, auxiliaries, misc = self._prepare_decoding_start_state(inputs, encoding_outputs)
 
