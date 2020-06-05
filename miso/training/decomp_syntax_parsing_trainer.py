@@ -106,13 +106,16 @@ class DecompSyntaxTrainer(DecompTrainer):
 
             pred_edge_heads = torch.tensor(pred_edge_heads) 
             pred_edge_types = torch.tensor(pred_edge_types) 
-
-            self.attachment_scorer(predicted_indices=pred_edge_heads,
-                                            predicted_labels=pred_edge_types,
-                                            gold_indices=gold_edge_heads,
-                                            gold_labels=gold_edge_types,
-                                            mask=valid_node_mask
-                                            )
+            
+            try:
+                self.attachment_scorer(predicted_indices=pred_edge_heads,
+                                                predicted_labels=pred_edge_types,
+                                                gold_indices=gold_edge_heads,
+                                                gold_labels=gold_edge_types,
+                                                mask=valid_node_mask
+                                                )
+            except RuntimeError:
+                continue
 
         scores = self.attachment_scorer.get_metric(reset = True) 
         self.model.syntax_las = scores["LAS"] * 100

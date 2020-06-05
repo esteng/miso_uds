@@ -38,12 +38,12 @@ class BiaffineAttn(torch.nn.Module):
         bsz, seq_len, __ = dep_h.shape
         if self.add_dep_bias:
             # b x n x 1
-            bias1 = torch.ones((bsz, seq_len, 1)) 
+            bias1 = torch.ones((bsz, seq_len, 1)).to(dep_h.device) 
             # b x n x (d1 + 1) 
             dep_h = torch.cat([dep_h, bias1], dim = 2) 
         if self.add_head_bias:
             # b x n x 1
-            bias2 = torch.ones((bsz, seq_len, 1))
+            bias2 = torch.ones((bsz, seq_len, 1)).to(head_h.device) 
             # b x n x (d2 + 1) 
             head_h = torch.cat([head_h, bias2], dim = 2)
 

@@ -591,6 +591,10 @@ class DecompGraphWithSyntax(DecompGraph):
             tgt_attributes += [{} for i in range(len(syn_tokens)+2)]
             edge_attributes += [{} for i in range(len(syn_head_indices)+2)]
 
+            # need to skip since truncating might mess up the graphs big time
+            if len(tgt_tokens) > max_tgt_length:
+                return None
+
         elif self.syntactic_method == "concat-before":
             (tgt_tokens, 
              head_indices, 
@@ -610,6 +614,9 @@ class DecompGraphWithSyntax(DecompGraph):
             tgt_attributes = [{} for i in range(len(syn_tokens)+1)] + tgt_attributes + [{}]
             edge_attributes = [{} for i in range(len(syn_head_indices)+1)] + edge_attributes + [{}]
 
+            if len(tgt_tokens) > max_tgt_length:
+                return None
+
         elif self.syntactic_method == "concat-just-syntax":
             # add bos and eos 
             #syn_tokens = ["@start@"] + syn_tokens + ["@syntax-sep@"]
@@ -623,6 +630,9 @@ class DecompGraphWithSyntax(DecompGraph):
             node_name_list = syn_node_name_list
             tgt_attributes = [{} for i in range(len(syn_tokens))] 
             edge_attributes = [{} for i in range(len(syn_head_indices))] 
+
+            if len(tgt_tokens) > max_tgt_length:
+                return None
 
         elif self.syntactic_method == "encoder-side":
             # add bos, eos to semantics 
@@ -638,6 +648,9 @@ class DecompGraphWithSyntax(DecompGraph):
                                                     syn_node_name_list)
 
             true_conllu_dict = self.build_conllu_dict(syn_tokens, syn_head_indices, syn_head_tags)
+
+        else:
+            raise NotImplementedError
 
         syn_node_mask = np.array([1] * len(syn_tokens), dtype='uint8')
         syn_node_indices = [i+1 for i in range(len(syn_tokens))]
@@ -1058,7 +1071,7 @@ class DecompGraphWithSyntax(DecompGraph):
                     edge_attr1, edge_attr2, 
                     node_mask1, node_mask2,
                     edge_mask1, edge_mask2)  
-       
+
         nodes = output['nodes']
 
         corefs = output['node_indices']
@@ -1134,14 +1147,14 @@ class DecompGraphWithSyntax(DecompGraph):
             # encoder side 
             pass
 
-        print(f"syntax") 
-        print(syn_nodes)
-        print(syn_heads)
-        print(syn_tags)
-        print(f"semantics") 
-        print(sem_nodes)
-        print(sem_heads)
-        print(sem_tags)
+        #print(f"syntax") 
+        #print(syn_nodes)
+        #print(syn_heads)
+        #print(syn_tags)
+        #print(f"semantics") 
+        #print(sem_nodes)
+        #print(sem_heads)
+        #print(sem_tags)
         #print(corefs) 
         #print(node_attr)
         #print(edge_attr) 

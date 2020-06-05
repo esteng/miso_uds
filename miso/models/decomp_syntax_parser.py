@@ -295,7 +295,15 @@ class DecompSyntaxParser(DecompParser):
                     node_attributes = node_attribute_outputs['pred_dict']['pred_attributes'],
                     edge_attributes = edge_attribute_outputs['pred_dict']['pred_attributes'])
 
+    def compute_training_loss(self, node_loss, edge_loss, node_attr_loss, edge_attr_loss, biaffine_loss):
+        sem_loss = node_loss + edge_loss + node_attr_loss + edge_attr_loss
+        syn_loss = biaffine_loss
 
+        if self.loss_mixer is not None:
+            return self.loss_mixer(sem_loss, syn_loss) 
+
+        # default to 1-to-1 weighting 
+        return sem_loss + syn_loss
 
     @overrides
     def _test_forward(self, inputs: Dict) -> Dict:
@@ -378,13 +386,16 @@ class DecompSyntaxParser(DecompParser):
             inputs['syn_tokens_str'] = []
             biaffine_outputs = {"edge_heads": [], "edge_types":[]}
 
+        syn_edge_head_predictions, syn_edge_type_predictions, syn_edge_type_inds = self._read_edge_predictions(biaffine_outputs) 
+
         outputs = dict(
             loss=loss,
             nodes=node_predictions,
             node_indices=node_index_predictions,
             syn_nodes=inputs['syn_tokens_str'], 
-            syn_edge_heads=biaffine_outputs['edge_heads'],
-            syn_edge_types=biaffine_outputs['edge_types'],  
+            syn_edge_heads=syn_edge_head_predictions,
+            syn_edge_types=syn_edge_type_predictions,
+            syn_edge_type_inds=syn_edge_type_inds,
             edge_heads=edge_head_predictions,
             edge_types=edge_type_predictions,
             edge_types_inds=edge_type_ind_predictions,
