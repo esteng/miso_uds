@@ -299,7 +299,6 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         weighted_type_key = edge_head_scores @ edge_type_key
 
         keys_and_types = torch.cat([weighted_head_key, weighted_type_key], dim = 2)
-        print(keys_and_types.shape ) 
 
         return keys_and_types
 
