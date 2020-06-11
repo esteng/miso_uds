@@ -25,12 +25,8 @@ from miso.metrics.conllu import evaluate_wrapper, UDError
 # Desired functionality: compute UD Parses from text in parallel, concatenatate them, create predpatt corpus, convert to arbor_graph
 
 global_cmd = "./execute_java.sh {input_path} {output_path}"
-#input_dir = "/exp/estengel/miso/baselines/inputs"
-#output_dir = "/exp/estengel/miso/baselines/output"
-
-input_dir = "/Users/Elias/miso_research/baseline/inputs"
-output_dir = "/Users/Elias/miso_research/baseline/output"
-
+input_dir = "/exp/estengel/miso_res/interface/baseline/inputs"
+output_dir = "/exp/estengel/miso_res/interface/baseline/outputs"
 
 def uds_worker(tup):
     os.chdir(baseline_path) 
@@ -120,10 +116,13 @@ def compute_conllu_score(true_graphs, pred_graphs):
     for true_graph, pred_graph in zip(true_graphs, pred_graphs):
         true_graph.syntactic_method = "encoder-side"
         pred_graph.syntactic_method = "encoder-side"
-        true_conllu_dict = true_graph.get_list_data()['true_conllu_dict']
-        pred_conllu_dict = pred_graph.get_list_data()['true_conllu_dict']
-        true_conllu_str = ConlluScorer.conllu_dict_to_str(true_conllu_dict) 
-        pred_conllu_str = ConlluScorer.conllu_dict_to_str(pred_conllu_dict)  
+        try:
+            true_conllu_dict = true_graph.get_list_data()['true_conllu_dict']
+            pred_conllu_dict = pred_graph.get_list_data()['true_conllu_dict']
+            true_conllu_str = ConlluScorer.conllu_dict_to_str(true_conllu_dict) 
+            pred_conllu_str = ConlluScorer.conllu_dict_to_str(pred_conllu_dict)  
+        except TypeError:
+            continue
     
     # make temp files
         with tempfile.NamedTemporaryFile("w") as true_file, \
@@ -160,8 +159,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.precomputed:
-        n_cpus = cpu_count() - 2
-        #n_cpus = 8
+        n_cpus = 8
+
         lines, true_graphs = get_lines_and_graphs(args.input_split)
         if args.line_limit > 0:  
             lines = lines[0:args.line_limit]
