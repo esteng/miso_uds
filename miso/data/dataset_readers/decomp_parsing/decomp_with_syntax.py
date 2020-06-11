@@ -617,6 +617,11 @@ class DecompGraphWithSyntax(DecompGraph):
             if len(tgt_tokens) > max_tgt_length:
                 return None
 
+            print(tgt_tokens, len(tgt_tokens))
+            print(head_indices, len(head_indices))
+            print(head_tags, len(head_tags)) 
+            sys.exit() 
+
         elif self.syntactic_method == "concat-just-syntax":
             # add bos and eos 
             #syn_tokens = ["@start@"] + syn_tokens + ["@syntax-sep@"]
@@ -633,6 +638,11 @@ class DecompGraphWithSyntax(DecompGraph):
 
             if len(tgt_tokens) > max_tgt_length:
                 return None
+
+            print(tgt_tokens, len(tgt_tokens))
+            print(head_indices, len(head_indices))
+            print(head_tags, len(head_tags)) 
+            sys.exit() 
 
         elif self.syntactic_method == "encoder-side":
             # add bos, eos to semantics 
@@ -935,6 +945,9 @@ class DecompGraphWithSyntax(DecompGraph):
         """
         turn the syntactic graph into conllu format
         """
+        print(f"nodes {nodes}") 
+        print(f"edge_heads {edge_heads}") 
+        print(f"edge_labels {edge_labels}") 
         assert(len(nodes) == len(edge_heads) == len(edge_labels))
         colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
 
@@ -1173,12 +1186,13 @@ class DecompGraphWithSyntax(DecompGraph):
             sem_graph = None
             cls.arbor_graph = sem_graph
 
-        syn_graph = cls.build_syn_graph(syn_nodes, syn_heads, syn_tags)
+        # trim 
+        syn_n = len(syn_nodes) 
+        syn_heads = syn_heads[0:syn_n]
+        syn_tags = syn_tags[0:syn_n]
 
-        if syntactic_method == "encoder-side": 
-            conllu_dict = cls.build_conllu_dict(syn_nodes, syn_heads, syn_tags) 
-        else:
-            conllu_dict = None
+        syn_graph = cls.build_syn_graph(syn_nodes, syn_heads, syn_tags)
+        conllu_dict = cls.build_conllu_dict(syn_nodes, syn_heads, syn_tags) 
 
         return sem_graph, syn_graph, conllu_dict
 

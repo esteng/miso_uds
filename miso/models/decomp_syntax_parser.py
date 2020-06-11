@@ -265,6 +265,17 @@ class DecompSyntaxParser(DecompParser):
             source_attention_weights=decoding_outputs["source_attention_weights"],
             coverage_history=decoding_outputs["coverage_history"]
         )
+
+        print(f"going into edge loss ") 
+        print(f"edge_prediction_outputs['edge_head_ll'].shape {edge_prediction_outputs['edge_head_ll'].shape}") 
+        print(f"edge_prediction_outputs['edge_type_ll'].shape {edge_prediction_outputs['edge_type_ll'].shape}") 
+        print(f"edge_prediction_outputs['edge_heads'] {edge_prediction_outputs['edge_heads']}") 
+        print(f"edge_prediction_outputs['edge_types'] {edge_prediction_outputs['edge_types']}") 
+        print(f"inputs['edge_heads'] {inputs['edge_heads'].shape}") 
+        print(f"inputs['edge_types'] {inputs['edge_types'].shape}") 
+        print(f"inputs['valid_node_mask'] {inputs['valid_node_mask'].shape}") 
+
+
         edge_pred_loss = self._compute_edge_prediction_loss(
             edge_head_ll=edge_prediction_outputs["edge_head_ll"],
             edge_type_ll=edge_prediction_outputs["edge_type_ll"],
@@ -384,9 +395,10 @@ class DecompSyntaxParser(DecompParser):
 
         if "syn_tokens_str" not in inputs:
             inputs['syn_tokens_str'] = []
-            biaffine_outputs = {"edge_heads": [], "edge_types":[]}
-
-        syn_edge_head_predictions, syn_edge_type_predictions, syn_edge_type_inds = self._read_edge_predictions(biaffine_outputs) 
+            #biaffine_outputs = {"edge_heads": [], "edge_types":[]}
+            syn_edge_head_predictions, syn_edge_type_predictions, syn_edge_type_inds = [], [], []
+        else:
+            syn_edge_head_predictions, syn_edge_type_predictions, syn_edge_type_inds = self._read_edge_predictions(biaffine_outputs) 
 
         outputs = dict(
             loss=loss,
