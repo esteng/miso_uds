@@ -441,6 +441,44 @@ class DecompGraphWithSyntax(DecompGraph):
         After converting the graph, traverses the new graph (called an arbor_graph) and returns a list of nodes and relations.
         Using this list, builds all the data to be put into fields by ~/data/datset_readers/decomp_reader
         """
+
+        def concat_two(tokens1, tokens2, 
+                       heads1, heads2,
+                       labels1, labels2,
+                       mask1, mask2,
+                       names1, names2, 
+                       add_bos=True,
+                       add_eos=True,
+                       add_sep=True):
+
+            offset = len(tokens1) 
+            if add_bos:
+                tokens1 = ["@start@"] + tokens1
+                names1 = ["BOS"] + names1 
+                mask1 = [0] + mask1
+            if add_eos:
+                tokens2 = tokens2 + ["@end@"]
+                names2 = names2 + ["EOS"]
+                mask2 = mask2 + [0]
+            if add_sep: 
+                tokens1 = tokens1 + ["@syntax-sep@"]
+                heads1 = heads1 + [-2]
+                labels1 = labels1 + ["SEP"]
+                names1 = names1 + ["SEP"]
+                mask1 = mask1 + [0]
+                offset += 1
+            tokens = tokens1 + tokens2
+            # increment heads by offset of first seq 
+            heads2 = [x + offset for x in heads2]
+            # root is sentinel 
+            heads2[0] = -1
+            heads = heads1 + heads2
+            labels = labels1 + labels2 
+            mask = mask1 + mask2
+            names = names1 + names2
+
+            return tokens, heads, labels, mask, names 
+
         node_list, sem_roots, arbor_graph = self.get_list_node(semantics_only)
 
         if node_list is None:
@@ -511,42 +549,6 @@ class DecompGraphWithSyntax(DecompGraph):
          syn_head_indices, syn_head_tags, 
          syn_mask)  = self.linearize_syntactic_graph()
 
-        def concat_two(tokens1, tokens2, 
-                       heads1, heads2,
-                       labels1, labels2,
-                       mask1, mask2,
-                       names1, names2, 
-                       add_bos=True,
-                       add_eos=True,
-                       add_sep=True):
-            offset = len(tokens1) 
-            if add_bos:
-                tokens1 = ["@start@"] + tokens1
-                names1 = ["BOS"] + names1 
-                mask1 = [0] + mask1
-            if add_eos:
-                tokens2 = tokens2 + ["@end@"]
-                names2 = names2 + ["EOS"]
-                mask2 = mask2 + [0]
-            if add_sep: 
-                tokens1 = tokens1 + ["@syntax-sep@"]
-                heads1 = heads1 + [-2]
-                labels1 = labels1 + ["SEP"]
-                names1 = names1 + ["SEP"]
-                mask1 = mask1 + [0]
-                offset += 1
-
-            tokens = tokens1 + tokens2
-            # increment heads by offset of first seq 
-            heads2 = [x + offset for x in heads2]
-            # root is sentinel 
-            heads2[0] = -1
-            heads = heads1 + heads2
-            labels = labels1 + labels2 
-            mask = mask1 + mask2
-            names = names1 + names2
-
-            return tokens, heads, labels, mask, names 
 
         def reorder_syntax_for_encoder(tokens, inds, tags, mask, nodes):
             """
@@ -567,8 +569,13 @@ class DecompGraphWithSyntax(DecompGraph):
             new_inds[new_tags.index("root")] = 0
 
             return new_tokens, new_inds, new_tags, new_mask, new_nodes
-            
-        sem_tokens = tgt_tokens[1:]
+        
+        if not self.syntactic_method.startswith("concat"): 
+            # get rid of bos token
+            sem_tokens = tgt_tokens[1:]
+        else:
+            sem_tokens = tgt_tokens
+
         sem_head_indices = head_indices
         sem_head_tags = head_tags
         sem_mask = mask 
@@ -577,6 +584,7 @@ class DecompGraphWithSyntax(DecompGraph):
         true_conllu_dict = None 
 
         if self.syntactic_method == "concat-after":
+
             (tgt_tokens, 
              head_indices, 
              head_tags, 
@@ -596,6 +604,7 @@ class DecompGraphWithSyntax(DecompGraph):
                 return None
 
         elif self.syntactic_method == "concat-before":
+
             (tgt_tokens, 
              head_indices, 
              head_tags, 
@@ -611,16 +620,11 @@ class DecompGraphWithSyntax(DecompGraph):
                 node_to_idx[node] = idx_list 
 
             # pad attributes 
-            tgt_attributes = [{} for i in range(len(syn_tokens)+1)] + tgt_attributes + [{}]
-            edge_attributes = [{} for i in range(len(syn_head_indices)+1)] + edge_attributes + [{}]
+            tgt_attributes = [{} for i in range(len(syn_tokens)+2)] + tgt_attributes + [{}]
+            edge_attributes = [{} for i in range(len(syn_head_indices)+2)] + edge_attributes + [{}]
 
             if len(tgt_tokens) > max_tgt_length:
                 return None
-
-            print(tgt_tokens, len(tgt_tokens))
-            print(head_indices, len(head_indices))
-            print(head_tags, len(head_tags)) 
-            sys.exit() 
 
         elif self.syntactic_method == "concat-just-syntax":
             # add bos and eos 
@@ -638,11 +642,6 @@ class DecompGraphWithSyntax(DecompGraph):
 
             if len(tgt_tokens) > max_tgt_length:
                 return None
-
-            print(tgt_tokens, len(tgt_tokens))
-            print(head_indices, len(head_indices))
-            print(head_tags, len(head_tags)) 
-            sys.exit() 
 
         elif self.syntactic_method == "encoder-side":
             # add bos, eos to semantics 
@@ -670,14 +669,19 @@ class DecompGraphWithSyntax(DecompGraph):
         syn_head_indices = [x for x in syn_head_indices]
         #syn_head_indices = [x+1 for x in syn_head_indices]
 
-        #print("TRUE") 
-        #print(tgt_tokens)
-        #print(head_indices)
-        #print(head_tags)
-        #inds = [i for i in range(len(head_tags))]
-        #print(list(zip(inds, tgt_tokens[1:-1], head_indices, head_tags)))
-        #print(tgt_attributes)
-        #print(edge_attributes)
+        print("TRUE") 
+        print(tgt_tokens)
+        print(head_indices)
+        print(head_tags)
+        inds = [i for i in range(len(head_tags))]
+        print(list(zip(inds, tgt_tokens[1:-1], head_indices, head_tags)))
+
+        attrs = [True if len(tgt_attr) > 0 else False for tgt_attr in tgt_attributes]
+        print(list(zip(tgt_tokens[:-1], attrs)))
+
+        print(tgt_attributes)
+        print(edge_attributes)
+        sys.exit() 
         
         # TODO: modified to add back in the syntax EOS if trimmed 
         def trim_very_long_tgt_tokens(tgt_tokens, 

@@ -271,10 +271,9 @@ class DecompSyntaxParser(DecompParser):
         print(f"edge_prediction_outputs['edge_type_ll'].shape {edge_prediction_outputs['edge_type_ll'].shape}") 
         print(f"edge_prediction_outputs['edge_heads'] {edge_prediction_outputs['edge_heads']}") 
         print(f"edge_prediction_outputs['edge_types'] {edge_prediction_outputs['edge_types']}") 
-        print(f"inputs['edge_heads'] {inputs['edge_heads'].shape}") 
-        print(f"inputs['edge_types'] {inputs['edge_types'].shape}") 
+        print(f"inputs['edge_heads'] {inputs['edge_heads']}") 
+        print(f"inputs['edge_types'] {inputs['edge_types']}") 
         print(f"inputs['valid_node_mask'] {inputs['valid_node_mask'].shape}") 
-
 
         edge_pred_loss = self._compute_edge_prediction_loss(
             edge_head_ll=edge_prediction_outputs["edge_head_ll"],
