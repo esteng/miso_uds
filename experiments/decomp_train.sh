@@ -7,19 +7,20 @@ set -o pipefail
 
 EXP_DIR=experiments
 # Import utility functions.
-source ${EXP_DIR}/utils.sh
+#source ${EXP_DIR}/utils.sh
 
-CHECKPOINT_DIR=decomp-synt-sem-ckpt
-#TRAINING_CONFIG=miso/training_config/overfit_synt_sem.jsonnet
+#CHECKPOINT_DIR=/exp/estengel/miso_res/models/decomp-parsing-ckpt
+#TRAINING_CONFIG=miso/training_config/decomp_with_syntax.jsonnet
 TEST_DATA=dev
 
 
 function train() {
     rm -fr ${CHECKPOINT_DIR}
-    log_info "Training a new transductive model for decomp parsing..."
-    python -m allennlp.run train \
+    echo "Training a new transductive model for decomp parsing..."
+    python -um allennlp.run train \
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
+    --include-package miso.modules.seq2seq_encoders \
     --include-package miso.training \
     --include-package miso.metrics \
     -s ${CHECKPOINT_DIR} \
@@ -45,7 +46,7 @@ function test() {
     output_file=${CHECKPOINT_DIR}/test.pred.txt
     python -m allennlp.run predict \
     ${model_file} ${TEST_DATA} \
-    --predictor "decomp_syntax_parsing" \
+    --predictor "decomp_parsing" \
     --batch-size 1 \
     --use-dataset-reader \
     --include-package miso.data.dataset_readers \
@@ -55,29 +56,94 @@ function test() {
 }
 
 function eval() {
-    log_info "Evaluating a transductive model for decomp parsing..."
+    echo "Evaluating a transductive model for decomp parsing..."
     model_file=${CHECKPOINT_DIR}/model.tar.gz
-    output_file=${CHECKPOINT_DIR}/test.pred.txt
+    output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
     export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
     echo ${PYTHONPATH}
     python -m miso.commands.s_score eval \
     ${model_file} ${TEST_DATA} \
-    --predictor "decomp_syntax_parsing" \
-    --batch-size 1 \
+    --predictor "decomp_parsing" \
+    --batch-size 32 \
     --beam-size 1 \
     --use-dataset-reader \
-    --line-limit 2 \
+    --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
     --cuda-device -1 \
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
+    --include-package miso.modules.seq2seq_encoders \
     --include-package miso.predictors \
-    --include-package miso.metrics
+    --include-package miso.metrics &> ${CHECKPOINT_DIR}/${TEST_DATA}.synt_struct.out
+}
+
+function eval_sem() {
+    echo "Evaluating a transductive model for decomp parsing..."
+    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
+    export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
+    echo ${PYTHONPATH}
+    python -m miso.commands.s_score eval \
+    ${model_file} ${TEST_DATA} \
+    --predictor "decomp_parsing" \
+    --batch-size 1 \
+    --use-dataset-reader \
+    --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
+    --semantics-only \
+    --cuda-device -1 \
+    --include-package miso.data.dataset_readers \
+    --include-package miso.models \
+    --include-package miso.modules.seq2seq_encoders \
+    --include-package miso.predictors \
+    --include-package miso.metrics  &> ${CHECKPOINT_DIR}/${TEST_DATA}.sem_struct.out
+
+}
+
+function eval_attr() {
+    echo "Evaluating a transductive model for decomp parsing..."
+    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
+    export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
+    echo ${PYTHONPATH}
+    python -m miso.commands.s_score eval \
+    ${model_file} ${TEST_DATA} \
+    --predictor "decomp_parsing" \
+    --include-attribute-scores \
+    --batch-size 32 \
+    --beam-size 1 \
+    --use-dataset-reader \
+    --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
+    --cuda-device -1 \
+    --include-package miso.data.dataset_readers \
+    --include-package miso.models \
+    --include-package miso.modules.seq2seq_encoders \
+    --include-package miso.predictors \
+    --include-package miso.metrics &> ${CHECKPOINT_DIR}/${TEST_DATA}.attr_struct.out
+}
+
+function spr_eval() {
+    echo "Evaluating a transductive model for decomp parsing..."
+    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
+    export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
+    echo ${PYTHONPATH}
+    python -m miso.commands.s_score spr_eval \
+    ${model_file} ${TEST_DATA} \
+    --predictor "decomp_parsing" \
+    --use-dataset-reader \
+    --batch-size 32 \
+    --oracle \
+    --json-output-file ${CHECKPOINT_DIR}/data.json\
+    --include-package miso.data.dataset_readers \
+    --include-package miso.models \
+    --include-package miso.modules.seq2seq_encoders \
+    --include-package miso.predictors \
+    --include-package miso.metrics \
+    --cuda-device 0 &> ${CHECKPOINT_DIR}/${TEST_DATA}.pearson.out
 }
 
 function conllu_eval() {
-    log_info "Evaluating a transductive model for decomp parsing..."
     model_file=${CHECKPOINT_DIR}/model.tar.gz
-    output_file=${CHECKPOINT_DIR}/test.pred.txt
+    output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
     export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
     echo ${PYTHONPATH}
     python -m miso.commands.s_score conllu_eval \
@@ -86,7 +152,7 @@ function conllu_eval() {
     --batch-size 1 \
     --beam-size 1 \
     --use-dataset-reader \
-    --line-limit 2 \
+    --line-limit 128 \
     --cuda-device -1 \
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
@@ -125,7 +191,7 @@ function parse_arguments() {
                 CHECKPOINT_DIR=${OPTARG:=${CHECKPOINT_DIR}}
                 ;;
             c)
-                TRAINING_CONFIG =${OPTARG:=${TRAINING_CONFIG}}
+                TRAINING_CONFIG=${OPTARG:=${TRAINING_CONFIG}}
                 ;;
             i)
                 TEST_DATA=${OPTARG:=${TEST_DATA}}
@@ -158,6 +224,12 @@ function main() {
         test
     elif [[ "${action}" == "eval" ]]; then
         eval
+    elif [[ "${action}" == "spr_eval" ]]; then
+        spr_eval
+    elif [[ "${action}" == "eval_sem" ]]; then
+        eval_sem 
+    elif [[ "${action}" == "eval_attr" ]]; then
+        eval_attr 
     elif [[ "${action}" == "conllu_eval" ]]; then
         conllu_eval
     fi
