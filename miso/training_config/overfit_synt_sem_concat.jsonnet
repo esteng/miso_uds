@@ -32,7 +32,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    syntactic_method: "concat-before",
+    syntactic_method: "concat-after",
     drop_syntax: "true",
     semantics_only: "false",
     line_limit: 2,
@@ -239,7 +239,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     type: "decomp_syntax_parsing",
     num_epochs: 400,
     warmup_epochs: 390,
-    syntactic_method: "concat-before",
+    syntactic_method: "concat-after",
     patience: 1000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.

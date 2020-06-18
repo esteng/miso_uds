@@ -843,10 +843,10 @@ class DecompGraphWithSyntax(DecompGraph):
         src_copy_invalid_ids = set(src_copy_vocab.index_sequence(
             [t for t in src_tokens if is_english_punct(t)]))
 
-        print(tgt_tokens) 
+        #print(tgt_tokens) 
         node_indices = tgt_indices[:]
-        print(node_indices)
-        print(f"before {list(zip(tgt_tokens, node_indices))}") 
+        #print(node_indices)
+        #print(f"before {list(zip(tgt_tokens, node_indices))}") 
 
         if bos:
             node_indices = node_indices[1:]
@@ -861,7 +861,6 @@ class DecompGraphWithSyntax(DecompGraph):
         #        # concat-just-syntax case, syntax-sep already masked
         #        pass 
 
-        print(f"after {list(zip(tgt_tokens, node_indices))}") 
 
         edge_mask = np.zeros((len(node_indices), len(node_indices)), dtype='uint8')
         for i in range(1, len(node_indices)):
@@ -888,11 +887,11 @@ class DecompGraphWithSyntax(DecompGraph):
         #print(f"syn_head_indices {syn_head_indices}") 
         #print(f"syn_head_tags {syn_head_tags}") 
         
-        print(src_copy_vocab)
-        print(src_copy_indices)
-        print(src_copy_map) 
-        print(list(zip(node_mask, tgt_tokens))) 
-        print(list(zip(node_mask, tgt_tokens_to_generate))) 
+        #print(src_copy_vocab)
+        #print(src_copy_indices)
+        #print(src_copy_map) 
+        #print(list(zip(node_mask, tgt_tokens))) 
+        #print(list(zip(node_mask, tgt_tokens_to_generate))) 
 
         return {
             "tgt_tokens" : tgt_tokens,
@@ -954,9 +953,9 @@ class DecompGraphWithSyntax(DecompGraph):
         """
         turn the syntactic graph into conllu format
         """
-        print(f"nodes {nodes}") 
-        print(f"edge_heads {edge_heads}") 
-        print(f"edge_labels {edge_labels}") 
+        #print(f"nodes {nodes}") 
+        #print(f"edge_heads {edge_heads}") 
+        #print(f"edge_labels {edge_labels}") 
         assert(len(nodes) == len(edge_heads) == len(edge_labels))
         colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
 
@@ -1175,15 +1174,15 @@ class DecompGraphWithSyntax(DecompGraph):
             # encoder side 
             pass
 
-        print(f"syntax") 
-        print(syn_nodes)
-        print(syn_heads)
-        print(syn_tags)
-        print(f"semantics") 
-        print(sem_nodes)
-        print(sem_heads)
-        print(sem_tags)
-        print(corefs) 
+        #print(f"syntax") 
+        #print(syn_nodes)
+        #print(syn_heads)
+        #print(syn_tags)
+        #print(f"semantics") 
+        #print(sem_nodes)
+        #print(sem_heads)
+        #print(sem_tags)
+        #print(corefs) 
         #print(node_attr)
         #print(edge_attr) 
 
