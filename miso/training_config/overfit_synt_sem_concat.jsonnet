@@ -216,8 +216,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         smoothing: 0.0,
     },
     dropout: 0.0,
-    beam_size: 2,
-    max_decoding_steps: 100,
+    beam_size: 1,
+    max_decoding_steps: 180,
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
@@ -237,10 +237,10 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 300,
-    warmup_epochs: 290,
+    num_epochs: 400,
+    warmup_epochs: 390,
     syntactic_method: "concat-before",
-    patience: 500,
+    patience: 1000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,

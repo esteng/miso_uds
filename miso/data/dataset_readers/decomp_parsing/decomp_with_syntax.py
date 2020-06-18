@@ -596,6 +596,8 @@ class DecompGraphWithSyntax(DecompGraph):
                                           sem_node_name_list, syn_node_name_list)
 
             # pad attributes 
+            tgt_attributes = [{}] + tgt_attributes
+            edge_attributes = [{}] + edge_attributes
             tgt_attributes += [{} for i in range(len(syn_tokens)+2)]
             edge_attributes += [{} for i in range(len(syn_head_indices)+2)]
 
@@ -604,7 +606,6 @@ class DecompGraphWithSyntax(DecompGraph):
                 return None
 
         elif self.syntactic_method == "concat-before":
-
             (tgt_tokens, 
              head_indices, 
              head_tags, 
@@ -676,12 +677,12 @@ class DecompGraphWithSyntax(DecompGraph):
         inds = [i for i in range(len(head_tags))]
         print(list(zip(inds, tgt_tokens[1:-1], head_indices, head_tags)))
 
-        attrs = [True if len(tgt_attr) > 0 else False for tgt_attr in tgt_attributes]
-        print(list(zip(tgt_tokens[:-1], attrs)))
+        #attrs = [True if len(tgt_attr) > 0 else False for tgt_attr in tgt_attributes]
+        #print(list(zip(tgt_tokens[:-1], attrs)))
 
-        print(tgt_attributes)
-        print(edge_attributes)
-        sys.exit() 
+        #print(tgt_attributes)
+        #print(edge_attributes)
+        #sys.exit() 
         
         # TODO: modified to add back in the syntax EOS if trimmed 
         def trim_very_long_tgt_tokens(tgt_tokens, 
@@ -761,6 +762,9 @@ class DecompGraphWithSyntax(DecompGraph):
             except IndexError:
                 return None
 
+        if self.syntactic_method in ['concat-before', 'concat-after']:
+            copy_offset += 1
+
         # Target side Coreference
 
         tgt_token_counter = Counter(tgt_tokens)
@@ -771,11 +775,6 @@ class DecompGraphWithSyntax(DecompGraph):
 
         tgt_indices = [i for i in range(len(tgt_tokens))]
       
-        #print(tgt_tokens) 
-        #print(tgt_indices)
-        #print(list(zip(tgt_indices, tgt_tokens)))
-        #print(node_to_idx) 
-
         for node, indices in node_to_idx.items():
             if len(indices) > 1:
                 copy_idx = indices[0] + copy_offset
@@ -844,10 +843,10 @@ class DecompGraphWithSyntax(DecompGraph):
         src_copy_invalid_ids = set(src_copy_vocab.index_sequence(
             [t for t in src_tokens if is_english_punct(t)]))
 
-        #print(tgt_tokens) 
+        print(tgt_tokens) 
         node_indices = tgt_indices[:]
-        #print(node_indices)
-        #print(f"before {list(zip(tgt_tokens, node_indices))}") 
+        print(node_indices)
+        print(f"before {list(zip(tgt_tokens, node_indices))}") 
 
         if bos:
             node_indices = node_indices[1:]
@@ -855,13 +854,14 @@ class DecompGraphWithSyntax(DecompGraph):
             node_indices = node_indices[:-1]
         node_mask = np.array([1] * len(node_indices), dtype='uint8')
 
-        if self.syntactic_method.startswith("concat"): 
-            try:
-                node_mask[tgt_tokens.index("@syntax-sep@")-1] = 0
-            except (IndexError, ValueError) as e:
-                # concat-just-syntax case, syntax-sep already masked
-                pass 
+        #if self.syntactic_method.startswith("concat"): 
+        #    try:
+        #        node_mask[tgt_tokens.index("@syntax-sep@")] = 0
+        #    except (IndexError, ValueError) as e:
+        #        # concat-just-syntax case, syntax-sep already masked
+        #        pass 
 
+        print(f"after {list(zip(tgt_tokens, node_indices))}") 
 
         edge_mask = np.zeros((len(node_indices), len(node_indices)), dtype='uint8')
         for i in range(1, len(node_indices)):
@@ -884,10 +884,15 @@ class DecompGraphWithSyntax(DecompGraph):
         # transduction fix 1: increase by 1 everything, set first to sentinel 0 tok 
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
-
         #print(f"syn_tokens {syn_tokens}") 
         #print(f"syn_head_indices {syn_head_indices}") 
         #print(f"syn_head_tags {syn_head_tags}") 
+        
+        print(src_copy_vocab)
+        print(src_copy_indices)
+        print(src_copy_map) 
+        print(list(zip(node_mask, tgt_tokens))) 
+        print(list(zip(node_mask, tgt_tokens_to_generate))) 
 
         return {
             "tgt_tokens" : tgt_tokens,
@@ -971,9 +976,9 @@ class DecompGraphWithSyntax(DecompGraph):
         """
         graph = nx.DiGraph()
         
-        if syntactic_method == "concat-after": 
-            for i in range(1, len(edge_heads)):
-                edge_heads[i] -= 1
+        #if syntactic_method == "concat-after": 
+        #    for i in range(1, len(edge_heads)):
+        #        edge_heads[i] -= 1
 
         real_node_mapping = {}
 
@@ -1154,25 +1159,31 @@ class DecompGraphWithSyntax(DecompGraph):
             (sem_nodes, syn_nodes, sem_heads, syn_heads, sem_tags, syn_tags,
             corefs, __, node_attr, __, edge_attr, __, node_mask, __, 
             edge_mask, __) = output 
+
+            sem_heads = [x-1 for x in sem_heads]
+            sem_heads[0] = 0
              
         elif syntactic_method == "concat-before": 
             # unpack output syntax first 
             (syn_nodes, sem_nodes, syn_heads, sem_heads, syn_tags, sem_tags,
              __, corefs, __, node_attr, __, edge_attr, __, node_mask, __,
              edge_mask) = output 
+
+            #sem_heads = [x-1 for x in sem_heads]
+            #sem_heads[0] = 0
         else:
             # encoder side 
             pass
 
-        #print(f"syntax") 
-        #print(syn_nodes)
-        #print(syn_heads)
-        #print(syn_tags)
-        #print(f"semantics") 
-        #print(sem_nodes)
-        #print(sem_heads)
-        #print(sem_tags)
-        #print(corefs) 
+        print(f"syntax") 
+        print(syn_nodes)
+        print(syn_heads)
+        print(syn_tags)
+        print(f"semantics") 
+        print(sem_nodes)
+        print(sem_heads)
+        print(sem_tags)
+        print(corefs) 
         #print(node_attr)
         #print(edge_attr) 
 

@@ -265,15 +265,10 @@ class DecompSyntaxParser(DecompParser):
             source_attention_weights=decoding_outputs["source_attention_weights"],
             coverage_history=decoding_outputs["coverage_history"]
         )
-
-        print(f"going into edge loss ") 
-        print(f"edge_prediction_outputs['edge_head_ll'].shape {edge_prediction_outputs['edge_head_ll'].shape}") 
-        print(f"edge_prediction_outputs['edge_type_ll'].shape {edge_prediction_outputs['edge_type_ll'].shape}") 
-        print(f"edge_prediction_outputs['edge_heads'] {edge_prediction_outputs['edge_heads']}") 
-        print(f"edge_prediction_outputs['edge_types'] {edge_prediction_outputs['edge_types']}") 
-        print(f"inputs['edge_heads'] {inputs['edge_heads']}") 
-        print(f"inputs['edge_types'] {inputs['edge_types']}") 
-        print(f"inputs['valid_node_mask'] {inputs['valid_node_mask'].shape}") 
+        #print(f"prob_dist {torch.argmax(node_prediction_outputs['hybrid_prob_dist'], dim = -1)}") 
+        #print(f"generation_outputs {inputs['generation_outputs']}") 
+        #print(f"source_copy_indices {inputs['source_copy_indices']}") 
+        #print(f"target_copy_indices {inputs['target_copy_indices']}") 
 
         edge_pred_loss = self._compute_edge_prediction_loss(
             edge_head_ll=edge_prediction_outputs["edge_head_ll"],
