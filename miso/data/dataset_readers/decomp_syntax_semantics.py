@@ -348,6 +348,7 @@ class DecompDatasetReader(DatasetReader):
         ))
 
         if self.syntactic_method == "encoder-side": 
+
             fields["syn_edge_types"] = TextField(
                 tokens=[Token(x) for x in list_data["syn_head_tags"]],
                 token_indexers=self._edge_type_indexers

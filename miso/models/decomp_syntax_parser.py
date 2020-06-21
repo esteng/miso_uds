@@ -185,7 +185,6 @@ class DecompSyntaxParser(DecompParser):
         encoder_side = False
         # if we're doing encoder-side 
         if "syn_tokens_str" in inputs.keys():
-            pass
 
             biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
                                             inputs["syn_edge_head_mask"],
@@ -199,8 +198,8 @@ class DecompSyntaxParser(DecompParser):
             encoder_side=True
 
 
-        if self.intermediate_graph: 
-            encoding_outputs = self._add_biaffine_to_encoder(encoding_outputs, biaffine_outputs)
+            if self.intermediate_graph: 
+                encoding_outputs = self._add_biaffine_to_encoder(encoding_outputs, biaffine_outputs)
 
         else:
             biaffine_loss = 0.0
