@@ -670,12 +670,12 @@ class DecompGraphWithSyntax(DecompGraph):
         syn_head_indices = [x for x in syn_head_indices]
         #syn_head_indices = [x+1 for x in syn_head_indices]
 
-        print("TRUE") 
-        print(tgt_tokens)
-        print(head_indices)
-        print(head_tags)
-        inds = [i for i in range(len(head_tags))]
-        print(list(zip(inds, tgt_tokens[1:-1], head_indices, head_tags)))
+        #print("TRUE") 
+        #print(tgt_tokens)
+        #print(head_indices)
+        #print(head_tags)
+        #inds = [i for i in range(len(head_tags))]
+        #print(list(zip(inds, tgt_tokens[1:-1], head_indices, head_tags)))
 
         #attrs = [True if len(tgt_attr) > 0 else False for tgt_attr in tgt_attributes]
         #print(list(zip(tgt_tokens[:-1], attrs)))
