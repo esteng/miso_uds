@@ -35,7 +35,11 @@ class MisoTransformerDecoder(MisoDecoder):
                     use_coverage=True):
         super(MisoTransformerDecoder, self).__init__()
 
-        self.input_proj_layer = torch.nn.Linear(input_size, hidden_size)
+        if input_size != hidden_size: 
+            self.input_proj_layer = torch.nn.Linear(input_size, hidden_size)
+        else:
+            self.input_proj_layer = None
+
         self.layers = _get_clones(decoder_layer, num_layers)
         self.num_layers = num_layers
         self.norm = norm
@@ -43,6 +47,17 @@ class MisoTransformerDecoder(MisoDecoder):
         self.source_attn_layer = source_attention_layer
         self.target_attn_layer = target_attention_layer
         self.use_coverage = use_coverage
+
+        self.source_dedicated_head = torch.nn.MultiheadAttention(hidden_size, 1, dropout=dropout, add_bias_kv = False)
+        self.target_dedicated_head = torch.nn.MultiheadAttention(hidden_size, 1, dropout=dropout, add_bias_kv = False)
+
+
+        for m in [self.source_dedicated_head, self.target_dedicated_head]:
+            torch.nn.init.normal_(m.in_proj_bias, mean = 0, std = MisoTransformerDecoderLayer._get_std_from_tensor(decoder_layer.init_scale, m.in_proj_weight))
+            torch.nn.init.normal_(m.out_proj.weight, mean = 0, std = MisoTransformerDecoderLayer._get_std_from_tensor(decoder_layer.init_scale, m.out_proj.weight))
+
+            torch.nn.init.constant_(m.in_proj_bias, 0.)
+            torch.nn.init.constant_(m.out_proj.bias, 0.)
 
     @overrides
     def forward(self,
@@ -63,13 +78,18 @@ class MisoTransformerDecoder(MisoDecoder):
             target_padding_mask = ~target_mask.bool() 
 
         # project to correct dimensionality 
-        outputs = self.input_proj_layer(inputs)
+        if self.input_proj_layer is not None:
+            outputs = self.input_proj_layer(inputs)
+        else:
+            outputs = inputs 
+
         # add pos encoding feats 
         outputs = add_positional_features(outputs) 
 
         # swap to pytorch's batch-second convention 
         outputs = outputs.permute(1, 0, 2)
         source_memory_bank = source_memory_bank.permute(1, 0, 2)
+
 
         # get a mask 
         ar_mask = self.make_autoregressive_mask(outputs.shape[0]).to(source_memory_bank.device)
@@ -79,54 +99,96 @@ class MisoTransformerDecoder(MisoDecoder):
             outputs , __, __ = self.layers[i](outputs, 
                                     source_memory_bank, 
                                     tgt_mask=ar_mask,
-                                    #memory_mask=None,
+                                    memory_mask=None,
                                     tgt_key_padding_mask=target_padding_mask,
                                     memory_key_padding_mask=source_padding_mask
                                     )
 
         # switch back from pytorch's absolutely moronic batch-second convention
-        outputs = outputs.permute(1, 0, 2)
-        source_memory_bank = source_memory_bank.permute(1, 0, 2) 
-
+        #outputs = outputs.permute(1, 0, 2)
+        #source_memory_bank = source_memory_bank.permute(1, 0, 2) 
+        
+        # source-side attention
         if not self.use_coverage:
+            outputs = outputs.permute(1, 0, 2)
+            source_memory_bank = source_memory_bank.permute(1, 0, 2) 
+
             source_attention_output = self.source_attn_layer(outputs, 
                                                              source_memory_bank,
                                                              source_mask,
                                                              None)
-            attentional_tensors = source_attention_output['attentional']
+            attentional_tensors = self.dropout(source_attention_output['attentional'])
             source_attention_weights = source_attention_output['attention_weights']
             coverage_history = None
+
+            attentional_tensors = attentional_tensors.permute(1,0,2)
+            outputs = outputs.permute(1, 0, 2)
+            source_memory_bank = source_memory_bank.permute(1, 0, 2) 
+
+        # try Pytorch implementation DEBUGGING 
+        #if not self.use_coverage:
+        #    attentional_tensors, source_attention_weights = self.source_dedicated_head(outputs, source_memory_bank, source_memory_bank, key_padding_mask = source_padding_mask) 
+
+        #    coverage_history = None
+        #    attentional_tensors = self.dropout(attentional_tensors) 
+        #    #attentional_tensors = attentional_tensors.permute(1,0,2) 
+
         else:
             # need to do step by step because running sum of coverage
+            outputs = outputs.permute(1, 0, 2)
+            source_memory_bank = source_memory_bank.permute(1, 0, 2) 
             source_attention_weights = []
             attentional_tensors = []
 
-            # init to zeros 
+            ## init to zeros 
             coverage = inputs.new_zeros(size=(batch_size, 1, source_seq_length))
             coverage_history = []
 
             for timestep in range(outputs.shape[1]):
+            #for timestep in range(outputs.shape[0]):
+                #output = outputs[timestep,:,:].unsqueeze(0) 
                 output = outputs[:,timestep,:].unsqueeze(1)
+                #attentional_tensor, source_attention_weight = self.source_dedicated_head(output, source_memory_bank, source_memory_bank, key_padding_mask = source_padding_mask)
                 source_attention_output = self.source_attn_layer(output,
                                                                  source_memory_bank,
                                                                  source_mask,
                                                                  coverage)
+                attentional_tensor = self.dropout(source_attention_output['attentional'])
+                #attentional_tensor = self.dropout(attentional_tensor)
+                attentional_tensors.append(attentional_tensor)
 
-                attentional_tensors.append(source_attention_output['attentional'])
                 source_attention_weights.append(source_attention_output['attention_weights'])
+                #source_attention_weights.append(source_attention_weight) 
                 coverage = source_attention_output['coverage'] 
+                #coverage = torch.sum(torch.cat(source_attention_weights, dim=1),dim=1).unsqueeze(1) 
                 coverage_history.append(coverage) 
 
-            # [batch_size, tgt_seq_len, hidden_dim]
+            ## [batch_size, tgt_seq_len, hidden_dim]
             attentional_tensors = torch.cat(attentional_tensors, dim=1) 
-            # [batch_size, tgt_seq_len, src_seq_len]
+            ## [batch_size, tgt_seq_len, src_seq_len]
             source_attention_weights = torch.cat(source_attention_weights, dim=1) 
             coverage_history = torch.cat(coverage_history, dim=1)
-                
-        target_attention_output = self.target_attn_layer(attentional_tensors,
-                                                         outputs) 
 
-        target_attention_weights = target_attention_output['attention_weights']
+            outputs = outputs.permute(1, 0, 2)
+            source_memory_bank = source_memory_bank.permute(1, 0, 2) 
+            attentional_tensors = attentional_tensors.permute(1, 0, 2) 
+
+        __, target_attention_weights = self.target_dedicated_head(attentional_tensors, 
+                                                                  outputs, 
+                                                                  outputs, 
+                                                                  attn_mask = ar_mask,
+                                                                  key_padding_mask = target_padding_mask)
+
+        attentional_tensors = attentional_tensors.permute(1, 0, 2)
+
+        # switch back from pytorch's absolutely moronic batch-second convention
+        outputs = outputs.permute(1, 0, 2)
+        source_memory_bank = source_memory_bank.permute(1, 0, 2) 
+
+        #target_attention_output = self.target_attn_layer(attentional_tensors,
+        #                                                 outputs) 
+
+        #target_attention_weights = target_attention_output['attention_weights']
 
         return dict(
                 outputs=outputs,
@@ -138,7 +200,6 @@ class MisoTransformerDecoder(MisoDecoder):
                 coverage_history = coverage_history,
                 ) 
                 
-
     def one_step_forward(self,
                          inputs: torch.Tensor,
                          source_memory_bank: torch.Tensor,

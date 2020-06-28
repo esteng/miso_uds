@@ -20,7 +20,9 @@ class DotProductAttention(Attention):
     @overrides
     def forward(self,
                 decoder_input: torch.Tensor,
-                encoder_input: torch.Tensor) -> torch.Tensor:
+                encoder_input: torch.Tensor,
+                encoder_mask: torch.Tensor = None,
+                coverage: bool = None) -> torch.Tensor:
         """
         :param decoder_input:  [batch, decoder_seq_length, decoder_hidden_size]
         :param encoder_input:  [batch, encoder_seq_length, encoder_hidden_size]
