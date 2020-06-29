@@ -94,7 +94,7 @@ class DecompTrainer(Trainer):
         Returns it and the number of batches.
         """
         # update loss weight 
-        if self.model.loss_mixer is not None:
+        if hasattr(self.model, "loss_mixer") and self.model.loss_mixer is not None:
             self.model.loss_mixer.update_weights(
                                 curr_epoch = self._curr_epoch, 
                                 total_epochs = self._num_epochs

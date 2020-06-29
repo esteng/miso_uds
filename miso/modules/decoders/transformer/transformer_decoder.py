@@ -55,12 +55,12 @@ class MisoTransformerDecoder(MisoDecoder):
         __, target_seq_length, __ = inputs.size()
 
 
-        source_mask_trf = None
-        target_mask_trf = None
+        source_padding_mask = None
+        target_padding_mask  = None
         if source_mask is not None:
-            source_mask_trf = ~source_mask.bool()
+            source_padding_mask = ~source_mask.bool()
         if target_mask is not None:
-            target_mask_trf = ~target_mask.bool() 
+            target_padding_mask = ~target_mask.bool() 
 
         # project to correct dimensionality 
         outputs = self.input_proj_layer(inputs)
@@ -80,12 +80,9 @@ class MisoTransformerDecoder(MisoDecoder):
                                     source_memory_bank, 
                                     tgt_mask=ar_mask,
                                     #memory_mask=None,
-                                    tgt_key_padding_mask=target_mask_trf,
-                                    memory_key_padding_mask=source_mask_trf
+                                    tgt_key_padding_mask=target_padding_mask,
+                                    memory_key_padding_mask=source_padding_mask
                                     )
-
-        #if self.norm:
-        #    outputs = self.norm(outputs)
 
         # switch back from pytorch's absolutely moronic batch-second convention
         outputs = outputs.permute(1, 0, 2)
@@ -131,7 +128,6 @@ class MisoTransformerDecoder(MisoDecoder):
 
         target_attention_weights = target_attention_output['attention_weights']
 
-
         return dict(
                 outputs=outputs,
                 output=outputs[:,-1,:].unsqueeze(1),
@@ -161,8 +157,6 @@ class MisoTransformerDecoder(MisoDecoder):
         :return:
         """
         bsz, og_seq_len, input_dim = inputs.size() 
-        # new_input = torch.zeros((bsz, 1, input_dim))
-        # inputs = torch.cat((inputs, new_input), dim = 1)
         # don't look at last position
         #target_mask = torch.ones((bsz, og_seq_len + 1))
         #target_mask[:, -1] = 0
@@ -196,39 +190,4 @@ class MisoTransformerDecoder(MisoDecoder):
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
 
         return mask
-
-   # @classmethod
-   # def from_params(cls,
-   #                 params): 
-   #     input_size = params['input_size']
-   #     hidden_size = params['hidden_size']
-   #     num_layers = params.get('num_layers', 6) 
-   #     dropout = params.get('dropout', 0.1)
-
-   #     use_coverage = params.get("use_coverage", False)
-   #     if use_coverage == "true":
-   #         use_coverage = True
-
-   #     init_scale = params.get("init_scale", 256) 
-
-   #     # TODO: fix this 
-   #     norm = None
-   #     
-   #     input_dropout = params.get('input_dropout', 0.1)
-
-   #     input_projection_layer = torch.nn.Linear(input_size, hidden_size)
-
-   #     #transformer_layer = MisoTransformerDecoderLayer.from_params(params['decoder_attention_layer']) 
-
-   #     source_attention_layer = AttentionLayer.from_params(params['source_attention_layer'])
-   #     target_attention_layer = AttentionLayer.from_params(params['target_attention_layer'])
-   #     return cls(transformer_layer, 
-   #                  num_layers, 
-   #                  input_projection_layer, 
-   #                  source_attention_layer,
-   #                  target_attention_layer,
-   #                  norm, 
-   #                  dropout, 
-   #                  use_coverage) 
-
 

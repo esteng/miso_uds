@@ -66,22 +66,17 @@ class MisoTransformerDecoderLayer(torch.nn.Module, Registrable):
         # initialize attention heads 
         for m in self.modules():
             if isinstance(m, torch.nn.MultiheadAttention):
+                torch.nn.init.normal_(m.bias_v, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.bias_v))
+                torch.nn.init.normal_(m.bias_k, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.bias_k))
+                torch.nn.init.normal_(m.in_proj_bias, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.in_proj_weight))
+                torch.nn.init.normal_(m.out_proj.weight, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.out_proj.weight))
 
-                torch.nn.init.xavier_normal_(m.bias_v, 
-                             gain = self._get_gain_from_tensor(self.init_scale, 
-                                                              m.bias_v) )
-                torch.nn.init.xavier_normal_(m.bias_k,
-                             gain = self._get_gain_from_tensor(self.init_scale, 
-                                                                m.bias_k))
-                torch.nn.init.xavier_normal_(m.in_proj_weight,
-                            gain = self._get_gain_from_tensor(self.init_scale, 
-                                                            m.in_proj_weight))
-                torch.nn.init.uniform_(m.in_proj_bias)
+                torch.nn.init.constant_(m.in_proj_bias, 0.)
+                torch.nn.init.constant_(m.out_proj.bias, 0.)
 
-                torch.nn.init.xavier_normal_(m.out_proj.weight, 
-                            gain = self._get_gain_from_tensor(self.init_scale, 
-                                                            m.out_proj.weight))
-                torch.nn.init.uniform_(m.out_proj.bias)
+            elif isinstance(m, torch.nn.Linear):
+                torch.nn.init.normal_(m.weight, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.weight))
+                torch.nn.init.constant_(m.bias, 0.)
 
     @staticmethod
     def _get_gain_from_tensor(init_scale, tensor):
@@ -93,6 +88,17 @@ class MisoTransformerDecoderLayer(torch.nn.Module, Registrable):
 
         # use gain to scale as in SmallInit of https://arxiv.org/pdf/1910.05895.pdf
         return ((in_d + out_d)/(in_d + init_scale * out_d))**(1/2) 
+
+    @staticmethod
+    def _get_std_from_tensor(init_scale, tensor):
+        if len(tensor.shape) > 2:
+            in_d1, in_d2, out_d = tensor.shape
+            in_d = in_d1 * in_d2
+        else:
+            in_d, out_d = tensor.shape
+
+        # use gain to scale as in SmallInit of https://arxiv.org/pdf/1910.05895.pdf
+        return (2 / (in_d + init_scale * out_d)) ** 0.5
             
     def forward(self, tgt, memory):
         pass 
@@ -194,6 +200,7 @@ class MisoPostNormTransformerDecoderLayer(MisoTransformerDecoderLayer):
             tgt_key_padding_mask: the mask for the tgt keys per batch (optional).
             memory_key_padding_mask: the mask for the memory keys per batch (optional).
         """
+        # norm before residual as in https://arxiv.org/pdf/1910.05895.pdf
         tgt2 = tgt.clone()
         tgt2, tgt_attn = self.self_attn(tgt2, tgt2, tgt2, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)
