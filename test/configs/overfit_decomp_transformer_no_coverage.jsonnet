@@ -153,7 +153,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       input_size: 300 + 50 + 50,
       hidden_size: 64,
       num_layers: 7,
-      use_coverage: true,
+      use_coverage: false,
       decoder_layer: {
         type: "pre_norm",
         d_model: 64, 
@@ -175,7 +175,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 64,
           key_vector_dim: 64,
           hidden_vector_dim: 64, 
-          use_coverage: true,
+          use_coverage: false,
         },
       },
       target_attention_layer: {
@@ -246,8 +246,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_parsing",
-    num_epochs: 200,
-    warmup_epochs: 190,
+    num_epochs: 250,
+    warmup_epochs: 240,
     patience: 1000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
