@@ -102,19 +102,16 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       embedding_dim: 100,
     },
     encoder: {
-        type: "prenorm_transformer_encoder",
-        input_dim: 300 + 50,
-        hidden_dim: 64,
-        projection_dim: 64,
-        feedforward_hidden_dim: 512,
-        num_layers: 7,
-        num_attention_heads: 16,
-        init_scale: 128,
-        dropout_prob: 0.0,
-        residual_dropout_prob:  0.0,
-        attention_dropout_prob: 0.0,
-    }, 
-
+      type: "stacked_self_attention",
+      input_dim: 300 + 50,
+      feedforward_hidden_dim: 512,
+      num_attention_heads: 2,
+      hidden_dim: 64,
+      projection_dim: 64, 
+      num_layers: 4,
+      #recurrent_dropout_probability: 0.33,
+      #use_highway: false,
+    },
     decoder_token_embedder: {
       token_embedders: {
         target_tokens: {
@@ -152,16 +149,16 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     decoder: {
       input_size: 300 + 50 + 50,
       hidden_size: 64,
-      num_layers: 7,
-      use_coverage: true,
+      num_layers: 4,
+      use_coverage: false,
       decoder_layer: {
         type: "pre_norm",
         d_model: 64, 
-        n_head: 16, 
+        n_head: 4, 
         norm: {type: "scale_norm",
                dim: 64},
         dim_feedforward: 128,
-        dropout: 0.0, 
+        dropout: 0.2, 
         init_scale: 4,
       },
       source_attention_layer: {
@@ -170,12 +167,10 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         key_vector_dim: 64,
         output_vector_dim: 64,
         attention: {
-          type: "mlp",
+          type: "dot_product",
           # TODO: try to use smaller dims.
-          query_vector_dim: 64,
-          key_vector_dim: 64,
-          hidden_vector_dim: 64, 
-          use_coverage: true,
+          decoder_hidden_size: 64,
+          encoder_hidden_size: 64,
         },
       },
       target_attention_layer: {
@@ -184,10 +179,10 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         key_vector_dim: 64,
         output_vector_dim: 64,
         attention: {
-          type: "mlp",
-          query_vector_dim: 64,
-          key_vector_dim: 64,
-          hidden_vector_dim: 64,
+          type: "dot_product",
+          # TODO: try to use smaller dims.
+          decoder_hidden_size: 64,
+          encoder_hidden_size: 64,
         },
       },
     },
@@ -246,8 +241,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_parsing",
-    num_epochs: 200,
-    warmup_epochs: 190,
+    num_epochs: 500,
+    warmup_epochs: 480,
     patience: 1000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
@@ -259,13 +254,13 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       type: "adam",
       betas: [0.9, 0.98],
       eps: 1e-9,
-      lr: 1e-5, 
+      lr: 1e-3, 
       amsgrad: true,
     },
      learning_rate_scheduler: {
        type: "noam",
        model_size: 64, 
-       warmup_steps: 500,
+       warmup_steps: 1000,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
