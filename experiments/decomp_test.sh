@@ -22,6 +22,7 @@ function train() {
     --include-package miso.models \
     --include-package miso.training \
     --include-package miso.metrics \
+    --include-package miso.modules.seq2seq_encoders \
     -s ${CHECKPOINT_DIR} \
     ${TRAINING_CONFIG}
 }
