@@ -103,16 +103,19 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     encoder: {
         type: "prenorm_transformer_encoder",
-        input_dim: 300 + 50,
-        hidden_dim: 64,
-        projection_dim: 64,
-        feedforward_hidden_dim: 512,
+        input_size: 300 + 50,
+        hidden_size: 64,
         num_layers: 7,
-        num_attention_heads: 16,
-        init_scale: 128,
-        dropout_prob: 0.0,
-        residual_dropout_prob:  0.0,
-        attention_dropout_prob: 0.0,
+        encoder_layer: {
+            type: "pre_norm",
+            d_model: 64,
+            n_head: 16,
+            norm: {type: "scale_norm",
+                  dim: 64},
+            dim_feedforward: 128,
+            init_scale: 128
+            },
+        dropout: 0.0,
     }, 
 
     decoder_token_embedder: {
