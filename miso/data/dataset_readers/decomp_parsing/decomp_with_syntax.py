@@ -1112,7 +1112,7 @@ class DecompGraphWithSyntax(DecompGraph):
             else:
                 # can't make a prediction until model has learned this 
                 logger.info(f"Can't make a prediction because of lack of syntax-sep") 
-                return None, None
+                return None, None, None
             try:
                 output = split_two(split_point, end_point, nodes, edge_heads,
                                    edge_tags, corefs, node_attr,
@@ -1120,7 +1120,7 @@ class DecompGraphWithSyntax(DecompGraph):
 
             except IndexError:
                 # any index error means not enough training 
-                return None, None
+                return None, None, None
 
         elif syntactic_method == "concat-just-syntax": 
             syn_nodes = nodes
@@ -1145,6 +1145,13 @@ class DecompGraphWithSyntax(DecompGraph):
             syn_tags = output['syn_edge_types'][0:N] 
 
             sem_heads = [x-1 for x in sem_heads]
+
+            print(f"sem_nodes {sem_nodes}") 
+            print(f"sem_heads {sem_heads}") 
+            print(f"sem_tags {sem_tags}") 
+            print(f"syn_nodes {syn_nodes}") 
+            print(f"syn_heads {syn_heads}") 
+            print(f"syn_tags {syn_tags}") 
             try:
                 sem_heads[0] = 0
             except IndexError:

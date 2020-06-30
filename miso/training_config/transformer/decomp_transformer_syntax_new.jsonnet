@@ -3,7 +3,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
 {
   dataset_reader: {
-    type: "decomp_syntax_semantics",
+    type: "decomp",
     source_token_indexers: {
       source_tokens: {
         type: "single_id",
@@ -34,7 +34,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     drop_syntax: "true",
     semantics_only: "false",
-    syntactic_method: "concat-before",
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -66,7 +65,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   },
 
   model: {
-    type: "decomp_transformer_syntax_parser",
+    type: "decomp_transformer_parser",
     bert_encoder: {
                     type: "seq2seq_bert_encoder",
                     config: "bert-base-cased",
@@ -239,10 +238,10 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   },
 
   trainer: {
-    type: "decomp_syntax_parsing",
+    type: "decomp_parsing",
     num_epochs: 400,
     patience: 400,
-    #warmup_epochs: 1,
+    warmup_epochs: 50,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -260,7 +259,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
-       warmup_steps: 1000,
+       warmup_steps: 8000,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
@@ -268,7 +267,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     validation_prediction_path: "decomp_validation.txt",
     semantics_only: "false",
     drop_syntax: "true",
-    syntactic_method: "concat-before",
   },
   random_seed: 12,
   numpy_seed: 12,
