@@ -144,7 +144,6 @@ class MisoPreNormTransformerDecoderLayer(MisoTransformerDecoderLayer):
         tgt2, tgt_attn = self.self_attn(tgt2, tgt2, tgt2, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)
 
-        # residual
         tgt = tgt + self.dropout1(tgt2)
         #tgt = self.norm1(tgt)
 

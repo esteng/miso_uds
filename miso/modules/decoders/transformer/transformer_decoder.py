@@ -52,6 +52,8 @@ class MisoTransformerDecoder(MisoDecoder):
                 target_mask: torch.Tensor) -> Dict: 
 
         batch_size, source_seq_length, _ = source_memory_bank.size()
+        __, target_seq_length, __ = inputs.size()
+
 
         source_padding_mask = None
         target_padding_mask  = None
@@ -59,7 +61,7 @@ class MisoTransformerDecoder(MisoDecoder):
             source_padding_mask = ~source_mask.bool()
         if target_mask is not None:
             target_padding_mask = ~target_mask.bool() 
-        
+
         # project to correct dimensionality 
         outputs = self.input_proj_layer(inputs)
         # add pos encoding feats 
@@ -125,7 +127,7 @@ class MisoTransformerDecoder(MisoDecoder):
                                                          outputs) 
 
         target_attention_weights = target_attention_output['attention_weights']
-        
+
         return dict(
                 outputs=outputs,
                 output=outputs[:,-1,:].unsqueeze(1),
@@ -155,6 +157,10 @@ class MisoTransformerDecoder(MisoDecoder):
         :return:
         """
         bsz, og_seq_len, input_dim = inputs.size() 
+        # don't look at last position
+        #target_mask = torch.ones((bsz, og_seq_len + 1))
+        #target_mask[:, -1] = 0
+        #target_mask = ~target_mask.bool()
 
         target_mask = None  
         to_ret = self(inputs, source_memory_bank, source_mask, target_mask)
@@ -184,5 +190,4 @@ class MisoTransformerDecoder(MisoDecoder):
         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
 
         return mask
-
 
