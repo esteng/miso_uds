@@ -75,8 +75,8 @@ class PreNormTransformerEncoder(MisoTransformerEncoder):
         for i in range(len(self.layers)):
             output, __ = self.layers[i](output, src_key_padding_mask=mask)
 
-
         output = output.permute(1, 0, 2)
+
         output = self.dropout(output) 
 
         return output

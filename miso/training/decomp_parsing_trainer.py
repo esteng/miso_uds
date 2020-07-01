@@ -64,6 +64,7 @@ class DecompTrainer(Trainer):
 
         true_graphs = [true_inst for batch in true_instances for true_inst in batch[0]['graph'] ]
         true_sents = [true_inst for batch in true_instances for true_inst in batch[0]['src_tokens_str']]
+
         pred_graphs = [DecompGraph.from_prediction(pred_inst) for pred_inst in pred_instances]
 
         ret = compute_s_metric(true_graphs, pred_graphs, true_sents, 

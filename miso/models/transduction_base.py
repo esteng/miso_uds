@@ -185,6 +185,7 @@ class Transduction(Model):
             [batch_size, target_length, source_length].
         """
         _, prediction = prob_dist.max(2)
+
         batch_size, target_length = prediction.size()
         not_pad_mask = generation_outputs.ne(self._vocab_pad_index)
         num_nodes = not_pad_mask.sum()

@@ -32,8 +32,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    drop_syntax: "true",
-    semantics_only: "false",
+    drop_syntax: true,
+    semantics_only: false,
     line_limit: 2,
     order: "inorder",
     #tokenizer: {
@@ -101,23 +101,32 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       vocab_namespace: "pos_tags",
       embedding_dim: 100,
     },
+    #encoder: {
+    #    type: "prenorm_transformer_encoder",
+    #    input_size: 300 + 50,
+    #    hidden_size: 64,
+    #    num_layers: 7,
+    #    encoder_layer: {
+    #        type: "pre_norm",
+    #        d_model: 64,
+    #        n_head: 16,
+    #        norm: {type: "scale_norm",
+    #              dim: 64},
+    #        dim_feedforward: 128,
+    #        init_scale: 128
+    #        },
+    #    dropout: 0.0,
+    #}, 
     encoder: {
-        type: "prenorm_transformer_encoder",
-        input_size: 300 + 50,
-        hidden_size: 64,
-        num_layers: 7,
-        encoder_layer: {
-            type: "pre_norm",
-            d_model: 64,
-            n_head: 16,
-            norm: {type: "scale_norm",
-                  dim: 64},
-            dim_feedforward: 128,
-            init_scale: 128
-            },
-        dropout: 0.0,
-    }, 
-
+      type: "stacked_self_attention",
+      input_dim: 300 + 50,
+      feedforward_hidden_dim: 512,
+      num_attention_heads: 2,
+      hidden_dim: 64,
+      projection_dim: 64, 
+      num_layers: 4,
+      dropout_prob: 0.0,
+    },
     decoder_token_embedder: {
       token_embedders: {
         target_tokens: {
@@ -155,12 +164,12 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     decoder: {
       input_size: 300 + 50 + 50,
       hidden_size: 64,
-      num_layers: 7,
-      use_coverage: true,
+      num_layers: 4,
+      use_coverage: false,
       decoder_layer: {
         type: "pre_norm",
         d_model: 64, 
-        n_head: 16, 
+        n_head: 2, 
         norm: {type: "scale_norm",
                dim: 64},
         dim_feedforward: 128,
@@ -178,7 +187,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 64,
           key_vector_dim: 64,
           hidden_vector_dim: 64, 
-          use_coverage: true,
+          use_coverage: false,
         },
       },
       target_attention_layer: {
@@ -274,8 +283,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
     #validation_prediction_path: "decomp_validation.txt",
-    semantics_only: "false",
-    drop_syntax: "true",
+    semantics_only: false,
+    drop_syntax: true,
   },
   random_seed: 1,
   numpy_seed: 1,

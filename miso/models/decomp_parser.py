@@ -247,6 +247,7 @@ class DecompParser(Transduction):
         edge_head_mask = predictions.new_ones((batch_size, max_steps, max_steps))
         edge_head_mask = torch.tril(edge_head_mask, diagonal=-1).long()
         valid_node_mask = predictions.new_zeros((batch_size, max_steps))
+
         for i in range(batch_size):
             nodes = []
             node_indices = []
@@ -278,6 +279,7 @@ class DecompParser(Transduction):
                 node_indices.append(node_index)
             node_predictions.append(nodes)
             node_index_predictions.append(node_indices)
+
         return node_predictions, node_index_predictions, edge_head_mask, valid_node_mask
     
 
