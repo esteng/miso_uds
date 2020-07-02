@@ -33,6 +33,7 @@ function resume() {
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
     --include-package miso.training \
+    --include-package miso.modules.seq2seq_encoders \
     --include-package miso.metrics \
     -s ${CHECKPOINT_DIR} \
     --recover \
