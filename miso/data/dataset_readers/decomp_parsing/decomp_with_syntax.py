@@ -657,10 +657,11 @@ class DecompGraphWithSyntax(DecompGraph):
                                                     syn_mask,
                                                     syn_node_name_list)
 
-            true_conllu_dict = self.build_conllu_dict(syn_tokens, syn_head_indices, syn_head_tags)
 
         else:
             raise NotImplementedError
+
+        true_conllu_dict = self.build_conllu_dict(syn_tokens, syn_head_indices, syn_head_tags)
 
         syn_node_mask = np.array([1] * len(syn_tokens), dtype='uint8')
         syn_node_indices = [i+1 for i in range(len(syn_tokens))]
