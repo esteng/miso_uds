@@ -91,7 +91,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.01,
+          dropout: 0.33,
         },
       },
     },
@@ -113,7 +113,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             dim_feedforward: 1024,
             init_scale: 4
             },
-        dropout: 0.2,
+        dropout: 0.33,
     }, 
     decoder_token_embedder: {
       token_embedders: {
@@ -136,7 +136,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.01,
+          dropout: 0.33,
         },
       },
     },
@@ -161,7 +161,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         norm: {type: "scale_norm",
                dim: 512},
         dim_feedforward: 1024,
-        dropout: 0.2, 
+        dropout: 0.33, 
         init_scale: 4,
       },
       source_attention_layer: {
@@ -223,7 +223,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     label_smoothing: {
         smoothing: 0.0,
     },
-    dropout: 0.0,
+    dropout: 0.33,
     beam_size: 2,
     max_decoding_steps: 50,
     target_output_namespace: "generation_tokens",
@@ -246,7 +246,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   trainer: {
     type: "decomp_parsing",
     num_epochs: 250,
-    warmup_epochs: 50,
+    warmup_epochs: 10,
     patience: 250,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
@@ -259,7 +259,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       type: "adam",
       betas: [0.9, 0.98],
       eps: 1e-9,
-      lr: 1e-3, 
+      lr: 1e-5, 
       amsgrad: true,
     },
      learning_rate_scheduler: {
