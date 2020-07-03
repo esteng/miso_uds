@@ -50,7 +50,6 @@ class MisoTransformerEncoderLayer(torch.nn.Module, Registrable):
 
         self.dropout1 = torch.nn.Dropout(dropout)
         self.dropout2 = torch.nn.Dropout(dropout)
-        self.dropout3 = torch.nn.Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
 

@@ -173,11 +173,13 @@ class DecompTransformerParser(DecompParser):
             self._decoder_node_index_embedding(inputs["node_indices"]),
         ], dim=2)
 
-
+        # if previously decoded steps, concat them in before current input 
         if state['input_history'] is not None:
             decoder_inputs = torch.cat([state['input_history'], decoder_inputs], dim = 1)
 
+        # set previously decoded to current step  
         state['input_history'] = decoder_inputs
+
 
         decoding_outputs = self._decoder.one_step_forward(
             inputs=decoder_inputs,
