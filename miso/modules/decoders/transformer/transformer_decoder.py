@@ -93,7 +93,8 @@ class MisoTransformerDecoder(MisoDecoder):
                                                              source_memory_bank,
                                                              source_mask,
                                                              None)
-            attentional_tensors = source_attention_output['attentional']
+            attentional_tensors = self.dropout(source_attention_output['attentional']) 
+
             source_attention_weights = source_attention_output['attention_weights']
             coverage_history = None
         else:
@@ -118,7 +119,7 @@ class MisoTransformerDecoder(MisoDecoder):
                 coverage_history.append(coverage) 
 
             # [batch_size, tgt_seq_len, hidden_dim]
-            attentional_tensors = torch.cat(attentional_tensors, dim=1) 
+            attentional_tensors = self.dropout(torch.cat(attentional_tensors, dim=1))
             # [batch_size, tgt_seq_len, src_seq_len]
             source_attention_weights = torch.cat(source_attention_weights, dim=1) 
             coverage_history = torch.cat(coverage_history, dim=1)

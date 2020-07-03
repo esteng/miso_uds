@@ -200,7 +200,6 @@ class DecompParser(Transduction):
                 [state["target_memory_bank"], decoding_outputs["attentional_tensor"]], 1
             )
 
-        to_print = decoding_outputs["attentional_tensor"][0,0:10,0:10]
         node_prediction_outputs = self._extended_pointer_generator(
             inputs=decoding_outputs["attentional_tensor"],
             source_attention_weights=decoding_outputs["source_attention_weights"],
