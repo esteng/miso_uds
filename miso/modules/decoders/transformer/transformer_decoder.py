@@ -14,7 +14,7 @@ from allennlp.nn.util import add_positional_features
 
 from miso.modules.attention_layers import AttentionLayer
 from miso.modules.decoders.decoder import MisoDecoder
-from miso.modules.decoders.transformer.attention_layers import MisoTransformerDecoderLayer
+from miso.modules.decoders.transformer.attention_layers import MisoTransformerDecoderLayer, MisoPreNormTransformerDecoderLayer
 
 logger = logging.getLogger(__name__) 
 
@@ -36,6 +36,7 @@ class MisoTransformerDecoder(MisoDecoder):
         super(MisoTransformerDecoder, self).__init__()
 
         self.input_proj_layer = torch.nn.Linear(input_size, hidden_size)
+
         self.layers = _get_clones(decoder_layer, num_layers)
         self.num_layers = num_layers
         self.norm = norm
@@ -43,6 +44,11 @@ class MisoTransformerDecoder(MisoDecoder):
         self.source_attn_layer = source_attention_layer
         self.target_attn_layer = target_attention_layer
         self.use_coverage = use_coverage
+
+        self.prenorm = isinstance(decoder_layer, MisoPreNormTransformerDecoderLayer)
+
+        if self.prenorm:
+            self.final_norm = copy.deepcopy(decoder_layer.norm4)
 
     @overrides
     def forward(self,
@@ -83,6 +89,10 @@ class MisoTransformerDecoder(MisoDecoder):
                                     tgt_key_padding_mask=target_padding_mask,
                                     memory_key_padding_mask=source_padding_mask
                                     )
+
+        # do final norm here
+        if self.prenorm:
+            outputs = self.final_norm(outputs) 
 
         # switch back from pytorch's absolutely moronic batch-second convention
         outputs = outputs.permute(1, 0, 2)

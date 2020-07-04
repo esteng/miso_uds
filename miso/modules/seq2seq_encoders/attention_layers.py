@@ -118,8 +118,8 @@ class MisoPreNormTransformerEncoderLayer(MisoTransformerEncoderLayer):
         # residual 
         src = src + self.dropout2(src2)
 
-        # additional norm 
-        src = self.norm3(src)
+        # additional norm, do only once 
+        # src = self.norm3(src)
 
         return src, src_attn
 
