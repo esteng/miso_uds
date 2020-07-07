@@ -1176,21 +1176,21 @@ class DecompGraphWithSyntax(DecompGraph):
              __, corefs, __, node_attr, __, edge_attr, __, node_mask, __,
              edge_mask) = output 
 
-            #sem_heads = [x-1 for x in sem_heads]
-            #sem_heads[0] = 0
+            sem_heads = [x-1 for x in sem_heads]
+            sem_heads[0] = 0
         else:
             # encoder side 
             pass
 
-        #print(f"syntax") 
-        #print(syn_nodes)
-        #print(syn_heads)
-        #print(syn_tags)
-        #print(f"semantics") 
-        #print(sem_nodes)
-        #print(sem_heads)
-        #print(sem_tags)
-        #print(corefs) 
+        print(f"syntax") 
+        print(syn_nodes)
+        print(syn_heads)
+        print(syn_tags)
+        print(f"semantics") 
+        print(sem_nodes)
+        print(sem_heads)
+        print(sem_tags)
+        print(corefs) 
         #print(node_attr)
         #print(edge_attr) 
 
@@ -1215,7 +1215,7 @@ class DecompGraphWithSyntax(DecompGraph):
 
         syn_graph = cls.build_syn_graph(syn_nodes, syn_heads, syn_tags)
         conllu_dict = cls.build_conllu_dict(syn_nodes, syn_heads, syn_tags) 
-
+        
         return sem_graph, syn_graph, conllu_dict
 
     @staticmethod

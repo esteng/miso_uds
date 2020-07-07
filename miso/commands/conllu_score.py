@@ -224,8 +224,6 @@ class ConlluScorer:
             with tempfile.NamedTemporaryFile("w") as true_file, \
                 tempfile.NamedTemporaryFile("w") as pred_file:
 
-            #with open("/Users/Elias/scratch/true.conllu", "w") as true_file,\
-            #    open("/Users/Elias/scratch/pred.conllu", "w") as pred_file:
                 true_file.write(true_conllu_str)
                 pred_file.write(pred_conllu_str) 
                 true_file.seek(0) 
@@ -233,15 +231,11 @@ class ConlluScorer:
                 compute_args["gold_file"] = true_file.name
                 compute_args["system_file"] = pred_file.name
 
-            #compute_args["gold_file"] = "/Users/Elias/scratch/true.conllu"
-            ##true_file.name
-            #compute_args["system_file"] = "/Users/Elias/scratch/pred.conllu"
-     
-            #pred_file.name
-
                 args = ComputeTup(**compute_args)
                 try:
+                    print(f"score between \n{true_conllu_str} \n{pred_conllu_str}") 
                     score = evaluate_wrapper(args)
+                    print(f"score between \n{true_conllu_str} \n{pred_conllu_str}\n{score}") 
                     las_scores.append(100 * score["LAS"].f1)
                     mlas_scores.append(100 * score["MLAS"].f1)
                     blex_scores.append(100 * score["BLEX"].f1)

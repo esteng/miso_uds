@@ -113,7 +113,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             dim_feedforward: 2048,
             init_scale: 128,
             },
-        dropout: 0.33,
+        dropout: 0.20,
     }, 
     decoder_token_embedder: {
       token_embedders: {
@@ -161,7 +161,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         norm: {type: "scale_norm",
                dim: 512},
         dim_feedforward: 1024,
-        dropout: 0.33, 
+        dropout: 0.20, 
         init_scale: 128,
       },
       source_attention_layer: {
@@ -223,7 +223,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     label_smoothing: {
         smoothing: 0.0,
     },
-    dropout: 0.33,
+    dropout: 0.20,
     beam_size: 2,
     max_decoding_steps: 50,
     target_output_namespace: "generation_tokens",
@@ -257,17 +257,17 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     no_grad: [],
     optimizer: {
       type: "adam",
-      betas: [0.9, 0.98],
+      betas: [0.9, 0.999],
       eps: 1e-9,
-      lr: 0.0075,
+      lr: 0.0000,
       weight_decay: 3e-9, 
       amsgrad: true,
     },
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
-       factor: 1.5,
-       warmup_steps: 8000,
+       factor: 1,
+       warmup_steps: 2000,
      },
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",

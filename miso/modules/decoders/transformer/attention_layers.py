@@ -145,23 +145,21 @@ class MisoPreNormTransformerDecoderLayer(MisoTransformerDecoderLayer):
                               key_padding_mask=tgt_key_padding_mask)
 
         tgt = tgt + self.dropout1(tgt2)
-        #tgt = self.norm1(tgt)
 
         tgt = self.norm2(tgt)
         tgt2, src_attn = self.multihead_attn(tgt, memory, memory, attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)
 
         tgt = tgt + self.dropout2(tgt2)
-        #tgt = self.norm2(tgt)
 
         tgt = self.norm3(tgt)
         tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
 
         tgt = tgt + self.dropout3(tgt2)
-        #tgt = self.norm3(tgt)
 
         # additional norm 
-        tgt = self.norm4(tgt)
+        # should only be done once at very end 
+        # tgt = self.norm4(tgt)
 
         return tgt, tgt_attn, src_attn
 
