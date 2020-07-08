@@ -32,8 +32,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    drop_syntax: "true",
-    semantics_only: "true",
+    drop_syntax: true,
+    semantics_only: true,
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -227,11 +227,11 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 16,
+    batch_size: 32,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 16,
+    batch_size: 64,
   },
 
   trainer: {
@@ -257,8 +257,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
     validation_prediction_path: "decomp_validation.txt",
-    semantics_only: "true",
-    drop_syntax: "true",
+    semantics_only: true,
+    drop_syntax: true,
   },
   random_seed: 12,
   numpy_seed: 12,

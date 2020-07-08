@@ -236,18 +236,18 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 8,
+    batch_size: 64,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 16,
+    batch_size: 128,
   },
 
   trainer: {
     type: "decomp_parsing",
-    num_epochs: 250,
-    warmup_epochs: 10,
-    patience: 250,
+    num_epochs: 450,
+    warmup_epochs: 40,
+    patience: 50,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -267,7 +267,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
        type: "noam",
        model_size: 512, 
        factor: 1,
-       warmup_steps: 2000,
+       warmup_steps: 4000,
      },
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
