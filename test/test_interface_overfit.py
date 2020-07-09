@@ -68,3 +68,15 @@ def test_interface_encoder_side():
 def test_intermediate_encoder_side():
     pass 
     
+def test_interface_encoder_side_transformer():
+    config_path = os.path.join(test_path, "configs", "overfit_synt_sem_transformer_encoder.jsonnet") 
+    output_dir = os.path.join(test_path, "checkpoints", "overfit_interface_encoder_side_transformer.ckpt") 
+
+    test_args = setup_checkpointing_and_args(config_path, output_dir) 
+    train_model_from_file(test_args.param_path,
+                          test_args.serialization_dir)
+
+    metrics = read_metrics(output_dir) 
+    assert_successful_overfit(metrics, {"validation_s_f1": 100.0, 
+                                        "validation_syn_uas": 100.0,
+                                        "validation_syn_las": 100.0}) 

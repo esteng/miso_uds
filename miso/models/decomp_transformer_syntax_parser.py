@@ -359,15 +359,18 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
 
         if "syn_tokens_str" not in inputs:
             inputs['syn_tokens_str'] = []
-            biaffine_outputs = {"edge_heads": [], "edge_types":[]}
+            syn_edge_head_predictions, syn_edge_type_predictions, syn_edge_type_inds = [], [], []
+        else:
+            syn_edge_head_predictions, syn_edge_type_predictions, syn_edge_type_inds = self._read_edge_predictions(biaffine_outputs) 
 
         outputs = dict(
             loss=loss,
             nodes=node_predictions,
             node_indices=node_index_predictions,
             syn_nodes=inputs['syn_tokens_str'], 
-            syn_edge_heads=biaffine_outputs['edge_heads'],
-            syn_edge_types=biaffine_outputs['edge_types'],  
+            syn_edge_heads=syn_edge_head_predictions,
+            syn_edge_types=syn_edge_type_predictions,
+            syn_edge_type_inds=syn_edge_type_inds,
             edge_heads=edge_head_predictions,
             edge_types=edge_type_predictions,
             edge_types_inds=edge_type_ind_predictions,
