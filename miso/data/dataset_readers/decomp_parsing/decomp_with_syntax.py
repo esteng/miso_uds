@@ -1147,12 +1147,12 @@ class DecompGraphWithSyntax(DecompGraph):
 
             sem_heads = [x-1 for x in sem_heads]
 
-            print(f"sem_nodes {sem_nodes}") 
-            print(f"sem_heads {sem_heads}") 
-            print(f"sem_tags {sem_tags}") 
-            print(f"syn_nodes {syn_nodes}") 
-            print(f"syn_heads {syn_heads}") 
-            print(f"syn_tags {syn_tags}") 
+            #print(f"sem_nodes {sem_nodes}") 
+            #print(f"sem_heads {sem_heads}") 
+            #print(f"sem_tags {sem_tags}") 
+            #print(f"syn_nodes {syn_nodes}") 
+            #print(f"syn_heads {syn_heads}") 
+            #print(f"syn_tags {syn_tags}") 
             try:
                 sem_heads[0] = 0
             except IndexError:
@@ -1182,15 +1182,15 @@ class DecompGraphWithSyntax(DecompGraph):
             # encoder side 
             pass
 
-        print(f"syntax") 
-        print(syn_nodes)
-        print(syn_heads)
-        print(syn_tags)
-        print(f"semantics") 
-        print(sem_nodes)
-        print(sem_heads)
-        print(sem_tags)
-        print(corefs) 
+        #print(f"syntax") 
+        #print(syn_nodes)
+        #print(syn_heads)
+        #print(syn_tags)
+        #print(f"semantics") 
+        #print(sem_nodes)
+        #print(sem_heads)
+        #print(sem_tags)
+        #print(corefs) 
         #print(node_attr)
         #print(edge_attr) 
 
