@@ -247,6 +247,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
+    syntax_edge_type_namespace: "syn_edge_types",
     loss_mixer: null,
   },
 
@@ -265,7 +266,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 450,
-    warmup_epochs: 40,
+    warmup_epochs: 400,
     syntactic_method: "encoder-side",
     patience: 10000,
     grad_norm: 5.0,
