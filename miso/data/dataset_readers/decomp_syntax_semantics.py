@@ -60,8 +60,10 @@ class DecompDatasetReader(DatasetReader):
         self._source_token_indexers = source_token_indexers
         self._target_token_indexers = target_token_indexers
         self._generation_token_indexers = generation_token_indexers
-        self._edge_type_indexers = {"edge_types": SingleIdTokenIndexer(namespace="edge_types"), 
-                                    "syn_edge_types": SingleIdTokenIndexer(namespace="syn_edge_types")}
+
+        self._edge_type_indexers = {"edge_types": SingleIdTokenIndexer(namespace="edge_types")}
+        self._syntax_edge_type_indexers = {"syn_edge_types": SingleIdTokenIndexer(namespace="syn_edge_types")}
+
         self._tokenizer = tokenizer
         self._num_subtokens = 0
         self._num_subtoken_oovs = 0
@@ -351,7 +353,7 @@ class DecompDatasetReader(DatasetReader):
 
             fields["syn_edge_types"] = TextField(
                 tokens=[Token(x) for x in list_data["syn_head_tags"]],
-                token_indexers=self._edge_type_indexers
+                token_indexers=self._syntax_edge_type_indexers,
             )
 
             fields["syn_edge_heads"] = SequenceLabelField(
@@ -371,7 +373,11 @@ class DecompDatasetReader(DatasetReader):
 
         to_print_keys = ["target_attributes", "target_tokens"]
         to_print = {k:v for k, v in fields.items() if k in to_print_keys}
-        
+       
+
+        #print_fields = fields["syn_edge_types"]
+        #print(Instance(print_fields)) 
+        #sys.exit() 
 
         return Instance(fields)
 

@@ -59,6 +59,7 @@ class DecompSyntaxParser(DecompParser):
                  target_output_namespace: str,
                  pos_tag_namespace: str,
                  edge_type_namespace: str,
+                 syntax_edge_type_namespace: str = None,
                  biaffine_parser: DeepTreeParser = None,
                  dropout: float = 0.0,
                  beam_size: int = 5,
@@ -89,6 +90,7 @@ class DecompSyntaxParser(DecompParser):
                                  target_output_namespace=target_output_namespace,
                                  pos_tag_namespace=pos_tag_namespace,
                                  edge_type_namespace=edge_type_namespace,
+                                 syntax_edge_type_namespace=syntax_edge_type_namespace,
                                  dropout=dropout,
                                  beam_size=beam_size,
                                  max_decoding_steps=max_decoding_steps,
@@ -385,7 +387,7 @@ class DecompSyntaxParser(DecompParser):
             #biaffine_outputs = {"edge_heads": [], "edge_types":[]}
             syn_edge_head_predictions, syn_edge_type_predictions, syn_edge_type_inds = [], [], []
         else:
-            syn_edge_head_predictions, syn_edge_type_predictions, syn_edge_type_inds = self._read_edge_predictions(biaffine_outputs) 
+            syn_edge_head_predictions, syn_edge_type_predictions, syn_edge_type_inds = self._read_edge_predictions(biaffine_outputs, is_syntax = True) 
 
         outputs = dict(
             loss=loss,

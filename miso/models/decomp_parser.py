@@ -60,6 +60,7 @@ class DecompParser(Transduction):
                  target_output_namespace: str,
                  pos_tag_namespace: str,
                  edge_type_namespace: str,
+                 syntax_edge_type_namespace: str = None,
                  dropout: float = 0.0,
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
@@ -103,6 +104,7 @@ class DecompParser(Transduction):
         self._target_output_namespace = target_output_namespace
         self._pos_tag_namespace = pos_tag_namespace
         self._edge_type_namespace = edge_type_namespace
+        self._syntax_edge_type_namespace = syntax_edge_type_namespace
         self._vocab_size = self.vocab.get_vocab_size(target_output_namespace)
         self._vocab_pad_index = self.vocab.get_token_index(DEFAULT_PADDING_TOKEN, target_output_namespace)
         self._vocab_bos_index = self.vocab.get_token_index(START_SYMBOL, target_output_namespace)
@@ -215,14 +217,21 @@ class DecompParser(Transduction):
         return log_probs, state, auxiliaries
 
     def _read_edge_predictions(self,
-                               edge_predictions: Dict[str, torch.Tensor]) -> Tuple[List[List[int]], List[List[str]]]:
-        edge_head_predictions = edge_predictions["edge_heads"].tolist()
+                               edge_predictions: Dict[str, torch.Tensor],
+                               is_syntax = False) -> Tuple[List[List[int]], List[List[str]]]:
         edge_type_predictions = []
-        edge_type_ind_predictions = edge_predictions["edge_types"]
+        edge_head_predictions = edge_predictions["edge_heads"].tolist()
+        edge_type_ind_predictions = edge_predictions["edge_types"].tolist()
 
-        for edge_types in edge_predictions["edge_types"].tolist():
+        if is_syntax:
+            namespace = self._syntax_edge_type_namespace
+        else:
+            namespace = self._edge_type_namespace
+
+
+        for edge_types in edge_type_ind_predictions:
             edge_type_predictions.append([
-                self.vocab.get_token_from_index(edge_type, self._edge_type_namespace) for edge_type in edge_types]
+                self.vocab.get_token_from_index(edge_type, namespace) for edge_type in edge_types]
             )
         return edge_head_predictions, edge_type_predictions, edge_type_ind_predictions
 
