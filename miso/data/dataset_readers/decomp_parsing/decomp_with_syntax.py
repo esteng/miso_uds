@@ -1176,7 +1176,7 @@ class DecompGraphWithSyntax(DecompGraph):
              __, corefs, __, node_attr, __, edge_attr, __, node_mask, __,
              edge_mask) = output 
 
-            sem_heads = [x-1 for x in sem_heads]
+            #sem_heads = [x-1 for x in sem_heads]
             sem_heads[0] = 0
         else:
             # encoder side 
