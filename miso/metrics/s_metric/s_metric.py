@@ -16,6 +16,7 @@ from miso.metrics.s_metric import utils
 from miso.metrics.s_metric import constants
 from miso.metrics.s_metric.repr import Triple, FloatTriple
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
+from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax
 
 logger = logging.getLogger(__name__) 
 
@@ -570,10 +571,26 @@ def compute_s_metric(true_graphs: List[DecompGraph],
     
     assert(len(true_graphs) == len(pred_graphs))
 
+    # select DecompGraph or DecompGraphWithSyntax
+    GraphType = None 
+    if len(true_graphs) > 0:
+        tg = true_graphs[0]
+        if isinstance(tg, DecompGraph):
+            GraphType = DecompGraph
+        else:
+            GraphType = DecompGraphWithSyntax
+
+    else:
+        return None
+
     total_match_num, total_test_num, total_gold_num = 0, 0, 0
 
     for g1, g2, sent  in tqdm(zip(pred_graphs, true_graphs, input_sents), total = len(true_graphs)):
-        instances1, relations1, attributes1 = DecompGraph.get_triples(g1, 
+        if GraphType == DecompGraphWithSyntax: 
+            # expand tuples 
+            (g1, __, __) = g1
+
+        instances1, relations1, attributes1 = GraphType.get_triples(g1, 
                                                                     semantics_only, 
                                                                     drop_syntax, 
                                                                     include_attribute_scores = include_attribute_scores)
@@ -582,7 +599,7 @@ def compute_s_metric(true_graphs: List[DecompGraph],
         attributes1 = [FloatTriple(x[0], x[1], x[2]) for x in attributes1]
         relations1 = [Triple(x[1], x[0], x[2]) for x in relations1]
 
-        instances2, relations2, attributes2 = DecompGraph.get_triples(g2, 
+        instances2, relations2, attributes2 = GraphType.get_triples(g2, 
                                                                     semantics_only, 
                                                                     drop_syntax, 
                                                                     include_attribute_scores = include_attribute_scores)
