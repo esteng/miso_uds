@@ -222,6 +222,6 @@ class DecompSyntaxParsingPredictor(DecompParsingPredictor):
             vals = [row[cn] for cn in colnames]
             conllu_str += "\t".join(vals) + "\n"
         conllu_str += '\n' 
-        return conllu_str
-        #return pred_sem_graph, pred_syn_graph, conllu_graph  
+        #return conllu_str
+        return pred_sem_graph, pred_syn_graph, conllu_graph  
 
