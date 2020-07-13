@@ -586,9 +586,6 @@ def compute_s_metric(true_graphs: List[DecompGraph],
     total_match_num, total_test_num, total_gold_num = 0, 0, 0
 
     for g1, g2, sent  in tqdm(zip(pred_graphs, true_graphs, input_sents), total = len(true_graphs)):
-        if GraphType == DecompGraphWithSyntax: 
-            # expand tuples 
-            (g1, __, __) = g1
 
         instances1, relations1, attributes1 = GraphType.get_triples(g1, 
                                                                     semantics_only, 

@@ -1,5 +1,6 @@
 local data_dir = "dev";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
+local synt_method = "concat-before";
 
 {
   dataset_reader: {
@@ -32,7 +33,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    syntactic_method: "concat-before",
+    syntactic_method: synt_method,
     drop_syntax: "true",
     semantics_only: "false",
     line_limit: 2,
@@ -69,6 +70,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   model: {
     type: "decomp_syntax_parser",
+    syntactic_method: synt_method,
     bert_encoder: null,
     #bert_encoder: {
     #                type: "seq2seq_bert_encoder",
@@ -239,7 +241,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     type: "decomp_syntax_parsing",
     num_epochs: 500,
     warmup_epochs: 490,
-    syntactic_method: "concat-before",
+    syntactic_method: synt_method,
     patience: 1000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.

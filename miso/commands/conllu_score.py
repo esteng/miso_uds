@@ -208,6 +208,11 @@ class ConlluScorer:
     def predict_and_compute(self):
         assert(self.predictor is not None)
         input_instances, output_graphs = self.manager.run()
+   
+        # ignore everything except conllu graph 
+        if len(output_graphs) > 0 and type(output_graphs[0]) == tuple:
+            output_graphs = [x[-1] for x in output_graphs]
+
         input_graphs = [inst.fields['graph'].metadata for inst in input_instances] 
         input_sents = [inst.fields['src_tokens_str'].metadata for inst in input_instances]
 
