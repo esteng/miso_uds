@@ -94,7 +94,7 @@ def test_s_score_concat_before():
     setup_and_test("eval", model_path) 
 
 def test_s_score_encoder_side():
-    model_path = os.path.join(test_path, "checkpoints", "overfit_interface_encoder.ckpt", "model.tar.gz") 
+    model_path = os.path.join(test_path, "checkpoints", "overfit_interface_encoder_side.ckpt", "model.tar.gz") 
     # if checkpoint doesn't exist, first run other test 
     try: 
         assert(os.path.exists(model_path)) 

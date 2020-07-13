@@ -263,7 +263,7 @@ local synt_method = "encoder-side";
     grad_clipping: null,
     cuda_device: -1,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+syn_las",
+    validation_metric: "+s_f1",
     optimizer: {
       type: "adam",
       weight_decay: 3e-9,
