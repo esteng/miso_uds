@@ -218,3 +218,64 @@ class MisoPostNormTransformerDecoderLayer(MisoTransformerDecoderLayer):
         tgt = self.norm3(tgt)
 
         return tgt, tgt_attn, src_attn
+
+
+
+@MisoTransformerDecoderLayer.register("pre_norm_relative") 
+class MisoPreNormRelativeTransformerDecoderLayer(MisoTransformerDecoderLayer):
+    def __init__(self, 
+                d_model, 
+                n_head, 
+                norm: Norm, 
+                dim_feedforward=2048,
+                dropout=0.1, 
+                activation="relu",
+                init_scale = 256):
+        super(MisoPreNormRelativeTransformerDecoderLayer, self).__init__(d_model, 
+                                                                 n_head, 
+                                                                 norm, 
+                                                                 dim_feedforward,
+                                                                 dropout, 
+                                                                 activation,
+                                                                 init_scale)
+
+    @overrides  
+    def forward(self, tgt, memory, tgt_mask=None, memory_mask=None,
+                tgt_key_padding_mask=None, memory_key_padding_mask=None):
+        r"""Pass the inputs (and mask) through the decoder layer.
+
+        Args:
+            tgt: the sequence to the decoder layer (required): (tgt_len, batch_size, hidden_dim) 
+            memory: the sequnce from the last layer of the encoder (required): (src_len, batch_size, hidden_dim) 
+            edge_types: the 1-hot vectors for the syntactic edge relations (required): (batch, src_len, src_len, 49) 
+            edge_type_value_weights: the weight parameter for relative edge encoding (required): (49, hidden_dim) 
+            tgt_mask: the mask for the tgt sequence: (tgt_len, tgt_len)  
+            memory_mask: the mask for the memory sequence: (tgt_len, src_len)
+            tgt_key_padding_mask: the mask for the tgt keys per batch: (batch, tgt_len) 
+            memory_key_padding_mask: the mask for the memory keys per batch: (batch, src_len) 
+
+        Shape:
+            see the docs in Transformer class.
+        """
+
+        # norm before residual as in https://arxiv.org/pdf/1910.05895.pdf
+        tgt2 = tgt.clone()
+        tgt2 = self.norm1(tgt2)
+        tgt2, tgt_attn = self.self_attn(tgt2, tgt2, tgt2, attn_mask=tgt_mask,
+                              key_padding_mask=tgt_key_padding_mask)
+
+        tgt = tgt + self.dropout1(tgt2)
+
+        tgt = self.norm2(tgt)
+        tgt2, src_attn = self.multihead_attn(tgt, memory, memory, attn_mask=memory_mask,
+                                   key_padding_mask=memory_key_padding_mask)
+
+        tgt = tgt + self.dropout2(tgt2)
+
+        tgt = self.norm3(tgt)
+        tgt2 = self.linear2(self.dropout(F.relu(self.linear1(tgt))))
+
+        tgt = tgt + self.dropout3(tgt2)
+
+        return tgt, tgt_attn, src_attn
+

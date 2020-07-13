@@ -155,7 +155,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       key_vector_dim: 512,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 512,
-      num_labels: 60,
+      num_labels: 49,
       is_syntax: true,
       attention: {
         type: "biaffine",
@@ -242,6 +242,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
+    syntax_edge_type_namespace: "syn_edge_types",
     #loss_mixer: {type:"syntax->semantics"},
   },
 
@@ -261,7 +262,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     type: "decomp_syntax_parsing",
     num_epochs: 450,
     patience: 50,
-    warmup_epochs: 50,
+    #warmup_epochs: 50,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,

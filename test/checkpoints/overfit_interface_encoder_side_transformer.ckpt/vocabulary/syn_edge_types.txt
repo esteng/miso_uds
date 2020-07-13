@@ -1,0 +1,15 @@
+@@UNKNOWN@@
+EMPTY
+dependency
+case
+nmod
+det
+root
+nsubj
+punct
+compound
+dobj
+amod
+nummod
+mark
+advcl

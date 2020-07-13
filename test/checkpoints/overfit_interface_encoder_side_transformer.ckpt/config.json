@@ -1,0 +1,296 @@
+{
+    "dataset_reader": {
+        "type": "decomp_syntax_semantics",
+        "drop_syntax": true,
+        "generation_token_indexers": {
+            "generation_tokens": {
+                "type": "single_id",
+                "namespace": "generation_tokens"
+            }
+        },
+        "line_limit": 2,
+        "order": "inorder",
+        "semantics_only": false,
+        "source_token_indexers": {
+            "source_token_characters": {
+                "type": "characters",
+                "min_padding_length": 5,
+                "namespace": "source_token_characters"
+            },
+            "source_tokens": {
+                "type": "single_id",
+                "namespace": "source_tokens"
+            }
+        },
+        "syntactic_method": "encoder-side",
+        "target_token_indexers": {
+            "target_token_characters": {
+                "type": "characters",
+                "min_padding_length": 5,
+                "namespace": "target_token_characters"
+            },
+            "target_tokens": {
+                "type": "single_id",
+                "namespace": "target_tokens"
+            }
+        },
+        "tokenizer": {
+            "type": "pretrained_transformer_for_amr",
+            "args": null,
+            "kwargs": {
+                "do_lowercase": "false"
+            },
+            "model_name": "bert-base-cased"
+        }
+    },
+    "iterator": {
+        "type": "bucket",
+        "batch_size": 64,
+        "padding_noise": 0,
+        "sorting_keys": [
+            [
+                "source_tokens",
+                "num_tokens"
+            ]
+        ]
+    },
+    "model": {
+        "type": "decomp_transformer_syntax_parser",
+        "beam_size": 2,
+        "bert_encoder": null,
+        "biaffine_parser": {
+            "attention": {
+                "type": "biaffine",
+                "key_vector_dim": 256,
+                "query_vector_dim": 256
+            },
+            "edge_head_vector_dim": 256,
+            "edge_type_vector_dim": 128,
+            "is_syntax": true,
+            "key_vector_dim": 128,
+            "num_labels": 16,
+            "query_vector_dim": 128
+        },
+        "decoder": {
+            "decoder_layer": {
+                "type": "pre_norm",
+                "d_model": 128,
+                "dim_feedforward": 256,
+                "dropout": 0,
+                "init_scale": 128,
+                "n_head": 4,
+                "norm": {
+                    "type": "scale_norm",
+                    "dim": 128
+                }
+            },
+            "dropout": 0,
+            "hidden_size": 128,
+            "input_size": 400,
+            "num_layers": 4,
+            "source_attention_layer": {
+                "type": "global",
+                "attention": {
+                    "type": "mlp",
+                    "hidden_vector_dim": 64,
+                    "key_vector_dim": 128,
+                    "query_vector_dim": 128,
+                    "use_coverage": false
+                },
+                "key_vector_dim": 128,
+                "output_vector_dim": 128,
+                "query_vector_dim": 128
+            },
+            "target_attention_layer": {
+                "type": "global",
+                "attention": {
+                    "type": "mlp",
+                    "hidden_vector_dim": 64,
+                    "key_vector_dim": 128,
+                    "query_vector_dim": 128,
+                    "use_coverage": false
+                },
+                "key_vector_dim": 128,
+                "output_vector_dim": 128,
+                "query_vector_dim": 128
+            },
+            "use_coverage": false
+        },
+        "decoder_node_index_embedding": {
+            "embedding_dim": 50,
+            "num_embeddings": 200
+        },
+        "decoder_pos_embedding": {
+            "embedding_dim": 50,
+            "vocab_namespace": "pos_tags"
+        },
+        "decoder_token_embedder": {
+            "token_embedders": {
+                "target_token_characters": {
+                    "type": "character_encoding",
+                    "dropout": 0,
+                    "embedding": {
+                        "embedding_dim": 16,
+                        "vocab_namespace": "target_token_characters"
+                    },
+                    "encoder": {
+                        "type": "cnn",
+                        "embedding_dim": 16,
+                        "ngram_filter_sizes": [
+                            3
+                        ],
+                        "num_filters": 50
+                    }
+                },
+                "target_tokens": {
+                    "type": "embedding",
+                    "embedding_dim": 300,
+                    "trainable": true,
+                    "vocab_namespace": "target_tokens"
+                }
+            }
+        },
+        "dropout": 0,
+        "edge_attribute_module": {
+            "h_input_dim": 32,
+            "hidden_dim": 100,
+            "n_layers": 2,
+            "output_dim": 14
+        },
+        "edge_type_namespace": "edge_types",
+        "encoder": {
+            "type": "transformer_encoder",
+            "dropout": 0,
+            "encoder_layer": {
+                "type": "pre_norm",
+                "d_model": 128,
+                "dim_feedforward": 256,
+                "init_scale": 128,
+                "n_head": 8,
+                "norm": {
+                    "type": "scale_norm",
+                    "dim": 128
+                }
+            },
+            "hidden_size": 128,
+            "input_size": 350,
+            "num_layers": 7
+        },
+        "encoder_pos_embedding": {
+            "embedding_dim": 100,
+            "vocab_namespace": "pos_tags"
+        },
+        "encoder_token_embedder": {
+            "token_embedders": {
+                "source_token_characters": {
+                    "type": "character_encoding",
+                    "dropout": 0,
+                    "embedding": {
+                        "embedding_dim": 16,
+                        "vocab_namespace": "source_token_characters"
+                    },
+                    "encoder": {
+                        "type": "cnn",
+                        "embedding_dim": 16,
+                        "ngram_filter_sizes": [
+                            3
+                        ],
+                        "num_filters": 50
+                    }
+                },
+                "source_tokens": {
+                    "type": "embedding",
+                    "embedding_dim": 300,
+                    "trainable": true,
+                    "vocab_namespace": "source_tokens"
+                }
+            }
+        },
+        "extended_pointer_generator": {
+            "input_vector_dim": 128,
+            "source_copy": true,
+            "target_copy": true
+        },
+        "label_smoothing": {
+            "smoothing": 0
+        },
+        "loss_mixer": null,
+        "max_decoding_steps": 100,
+        "node_attribute_module": {
+            "hidden_dim": 256,
+            "input_dim": 128,
+            "n_layers": 2,
+            "output_dim": 44
+        },
+        "pos_tag_namespace": "pos_tags",
+        "target_output_namespace": "generation_tokens",
+        "tree_parser": {
+            "attention": {
+                "type": "biaffine",
+                "key_vector_dim": 64,
+                "query_vector_dim": 64
+            },
+            "edge_head_vector_dim": 64,
+            "edge_type_vector_dim": 32,
+            "key_vector_dim": 128,
+            "query_vector_dim": 128
+        }
+    },
+    "train_data_path": "dev",
+    "validation_data_path": "dev",
+    "test_data_path": null,
+    "trainer": {
+        "validation_data_path": "dev",
+        "type": "decomp_syntax_parsing",
+        "cuda_device": -1,
+        "drop_syntax": true,
+        "grad_clipping": null,
+        "grad_norm": 5,
+        "learning_rate_scheduler": {
+            "type": "noam",
+            "factor": 1,
+            "model_size": 512,
+            "warmup_steps": 2000
+        },
+        "no_grad": [],
+        "num_epochs": 450,
+        "num_serialized_models_to_keep": 1,
+        "optimizer": {
+            "type": "adam",
+            "amsgrad": true,
+            "betas": [
+                0.9,
+                0.999
+            ],
+            "eps": 1e-09,
+            "lr": 0,
+            "weight_decay": 3e-09
+        },
+        "patience": 10000,
+        "semantics_only": false,
+        "syntactic_method": "encoder-side",
+        "validation_metric": "+syn_las",
+        "validation_prediction_path": "decomp_validation.txt",
+        "warmup_epochs": 40
+    },
+    "vocabulary": {
+        "max_vocab_size": {
+            "generation_tokens": 1000,
+            "source_tokens": 1000,
+            "target_tokens": 1000
+        },
+        "min_count": {
+            "generation_tokens": 1,
+            "source_tokens": 1,
+            "target_tokens": 1
+        },
+        "non_padded_namespaces": []
+    },
+    "datasets_for_vocab_creation": [
+        "train"
+    ],
+    "validation_iterator": {
+        "type": "basic",
+        "batch_size": 32
+    }
+}

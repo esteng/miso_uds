@@ -228,7 +228,6 @@ class DecompParser(Transduction):
         else:
             namespace = self._edge_type_namespace
 
-
         for edge_types in edge_type_ind_predictions:
             edge_type_predictions.append([
                 self.vocab.get_token_from_index(edge_type, namespace) for edge_type in edge_types]

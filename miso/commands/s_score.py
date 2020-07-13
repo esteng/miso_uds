@@ -251,10 +251,16 @@ class Scorer:
 
         if self.pred_args.save_pred_path is not None:
             # save serialized graphs to pkl file  
-            self.save_graphs([nx.adjacency_data(x) for x in input_graphs],
-                             [nx.adjacency_data(x) for x in output_graphs], 
-                            self.pred_args.save_pred_path)
-
+            try:
+                self.save_graphs([nx.adjacency_data(x) for x in input_graphs],
+                                 [nx.adjacency_data(x) for x in output_graphs], 
+                                self.pred_args.save_pred_path)
+            except AttributeError:
+                self.save_graphs([nx.adjacency_data(x) for x in input_graphs],
+                                 [nx.adjacency_data(x[0]) for x in output_graphs], 
+                                self.pred_args.save_pred_path)
+                
+        
         args = ComputeTup(**compute_args)
         return compute_s_metric(input_graphs, 
                                 output_graphs, 
