@@ -1,6 +1,7 @@
 from typing import Tuple, Dict, Optional
 from overrides import overrides
 import numpy as np 
+np.set_printoptions(precision=2, linewidth=300) 
 
 import torch
 import torch.nn.functional as F
@@ -46,7 +47,7 @@ class DeepTreeParser(torch.nn.Module, Registrable):
 
     def _decode_mst(self, edge_type_query, edge_type_key, edge_head_scores, mask):
         batch_size, max_length, edge_label_hidden_size = edge_type_query.size()
-        lengths = mask.data.sum(dim=1).long().cpu().numpy()
+        lengths = mask.data.sum(dim=1).long().cpu().numpy() 
 
         expanded_shape_query = [batch_size, max_length, max_length + 1, edge_label_hidden_size]
         expanded_shape_key = [batch_size, max_length, max_length + 1, edge_label_hidden_size]
@@ -70,19 +71,18 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         # [batch, num_labels, max_head_length, max_modifier_length]
         batch_energy = torch.exp(edge_head_scores.unsqueeze(1) + edge_type_scores)
         #batch_energy = torch.exp(edge_head_scores.unsqueeze(1)) 
-        small_energy, __ = batch_energy.max(1)
-        _, edge_head = small_energy.max(dim=2) 
-        print(f"inside mst greedy head from energy {edge_head}") 
+        bsz, n_lab, seq_len, __ = batch_energy.shape
+        sentinel = torch.zeros(bsz, n_lab, 1, seq_len + 1) 
+        batch_energy = torch.cat([sentinel, batch_energy], dim = 2) 
+        batch_energy[0,0,0,0] = 1
 
-        #num_labels = batch_energy.shape[1]
-        #first_row = torch.zeros((batch_size, num_labels, 1, max_length + 1)) 
-        #batch_energy = torch.cat([first_row, batch_energy], dim=2) 
-        batch_energy = batch_energy[:,:,1:]
-
+        #batch_energy = batch_energy[:,:,:,1:]
+        batch_energy = batch_energy.permute(0,1,3,2) 
+        lengths += 1
         edge_heads, edge_labels = self._run_mst_decoding(batch_energy, lengths)
-        print(f"inside mst after mst {edge_heads}") 
 
-        edge_heads = edge_heads[:, 1:]
+        #edge_heads[edge_heads == 0] = -1
+        edge_heads = edge_heads[:, 1:] 
         edge_labels = edge_labels[:, 1:]
 
         return edge_heads, edge_labels
@@ -111,7 +111,6 @@ class DeepTreeParser(torch.nn.Module, Registrable):
 
         return torch.from_numpy(np.stack(edge_heads)), torch.from_numpy(np.stack(edge_labels))
 
-
     @overrides
     def forward(self,
                 query: torch.FloatTensor,
@@ -138,7 +137,6 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         key, edge_head_mask = self._add_sentinel(query, key, edge_head_mask)
 
         edge_head_query, edge_head_key, edge_type_query, edge_type_key = self._mlp(query, key)
-        #print(f"shapes: edge_head_query {edge_head_query.shape}, edge_head_key: {edge_head_key.shape}, edge_type_query: {edge_type_query.shape}, edge_type_key {edge_type_key.shape}") 
 
         # [batch_size, query_length, key_length + 1]
         edge_head_score = self._get_edge_head_score(edge_head_query, edge_head_key)
@@ -150,17 +148,13 @@ class DeepTreeParser(torch.nn.Module, Registrable):
             )
 
         else:
-            # TODO: add decode with MST 
-            # for pred when using MST 
-            edge_heads, edge_types = self._greedy_search(
-                edge_type_query, edge_type_key, edge_head_score, edge_head_mask
-            )
-            #print(f"from greedy {edge_heads} {edge_types}") 
-
-            #edge_heads, edge_types = self._decode_mst(
-            #    edge_type_query, edge_type_key, edge_head_score, valid_node_mask 
+            #edge_heads, edge_types = self._greedy_search(
+            #    edge_type_query, edge_type_key, edge_head_score, edge_head_mask
             #)
-            #print(f"from mst {edge_heads} {edge_types}") 
+
+            edge_heads, edge_types = self._decode_mst(
+                edge_type_query, edge_type_key, edge_head_score, valid_node_mask 
+            )
 
         if gold_edge_heads is None:
             # test-time we don't have gold heads, use predicted heads 

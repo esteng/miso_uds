@@ -102,4 +102,4 @@ def test_s_score_encoder_side():
         test_interface_encoder_side()  
 
     setup_and_test("eval", model_path) 
-
+    assert(2 == 1) 

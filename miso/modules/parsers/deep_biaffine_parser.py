@@ -119,15 +119,10 @@ class DeepBiaffineParser(torch.nn.Module, Registrable):
 
         gold_heads_masked = gold_heads.reshape(-1) + 100 * neg_mask
 
-        print(f"gold_heads {gold_heads_masked}") 
 
         __, pred_heads = arc_logits.max(dim=-1)
-        print(f"pred heads {pred_heads}") 
 
         arc_loss = self.arc_criterion(arc_logits, gold_heads_masked) 
-
-
-        print(f"gold head inds {gold_heads}") 
 
         gold_head_inds = gold_heads.reshape(bsz,  1, n_len, 1)
         gold_head_inds = gold_head_inds.repeat(1, n_labels, 1, 1).long()
@@ -136,11 +131,7 @@ class DeepBiaffineParser(torch.nn.Module, Registrable):
                                            dim = -1, 
                                            index = gold_head_inds)
 
-        print(f"chosen label logits {chosen_label_logits.shape}" )
-
         chosen_label_logits = chosen_label_logits.reshape(bsz * n_len, n_labels) 
-
-        print(f"chosen label logits {chosen_label_logits.shape}" )
 
         # gold_labels: b x n x 1 -> bxn 
         gold_labels = gold_labels.reshape(-1) 
@@ -148,8 +139,6 @@ class DeepBiaffineParser(torch.nn.Module, Registrable):
         # mask out invalid positions 
         gold_labels_masked = gold_labels +  100 * neg_mask
         __, pred_labels = torch.max(chosen_label_logits, dim=-1) 
-        print(f"gold_labels {gold_labels_masked}") 
-        print(f"pred labels {pred_labels}") 
 
         label_losses = torch.zeros(1, requires_grad=True) 
         gold_labels = gold_labels.reshape(bsz, n_len)
@@ -157,8 +146,6 @@ class DeepBiaffineParser(torch.nn.Module, Registrable):
 
 
         label_loss = self.label_criterion(chosen_label_logits, gold_labels_masked) 
-
-        print(f"label loss {label_loss}" )
 
         return arc_loss + label_loss
 
