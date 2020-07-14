@@ -1,4 +1,0 @@
-@@UNKNOWN@@
-@start@
-@@ROOT@@
-@end@
