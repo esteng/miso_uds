@@ -83,8 +83,8 @@ class EdgeAttributeDecoder(torch.nn.Module):
         attr_loss = self.loss_function(predicted_attrs, target) * self.loss_multiplier
         edge_mask_binary = torch.gt(edge_attribute_mask, 0).float()
         mask_loss = self.mask_loss_function(predicted_mask, edge_mask_binary) * self.loss_multiplier
-        self.metrics(attr_loss)
-        self.metrics(mask_loss)
+        self.metrics(attr_loss.item())
+        self.metrics(mask_loss.item())
         return dict(
                 loss = attr_loss + mask_loss)
 

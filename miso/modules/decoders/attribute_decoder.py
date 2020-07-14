@@ -110,8 +110,8 @@ class NodeAttributeDecoder(torch.nn.Module):
 
         r, __ = pearsonr(flat_pred, flat_true)
 
-        self.metrics(attr_loss)
-        self.metrics(mask_loss)
+        self.metrics(attr_loss.item())
+        self.metrics(mask_loss.item())
 
         return dict(loss=attr_loss + mask_loss)
     
