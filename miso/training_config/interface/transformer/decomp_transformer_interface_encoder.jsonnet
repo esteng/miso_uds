@@ -1,5 +1,6 @@
 local data_dir = "train";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
+local synt_method = "encoder-side";
 
 {
   dataset_reader: {
@@ -34,7 +35,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     drop_syntax: true,
     semantics_only: false,
-    syntactic_method: "encoder-side",
+    syntactic_method: synt_method,
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -67,6 +68,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   model: {
     type: "decomp_transformer_syntax_parser",
+    syntactic_method: synt_method,
     bert_encoder: {
                     type: "seq2seq_bert_encoder",
                     config: "bert-base-cased",
@@ -155,7 +157,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       key_vector_dim: 512,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 512,
-      num_labels: 60,
+      num_labels: 49,
       is_syntax: true,
       attention: {
         type: "biaffine",
@@ -223,15 +225,17 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     node_attribute_module: {
         input_dim: 512,
-        hidden_dim: 2048,
+        hidden_dim: 1024,
         output_dim: 44,
         n_layers: 4, 
+        loss_multiplier: 10,
     },
     edge_attribute_module: {
         h_input_dim: 128,
-        hidden_dim: 200,
+        hidden_dim: 1024,
         output_dim: 14,
         n_layers: 4, 
+        loss_multiplier: 10,
     },
     label_smoothing: {
         smoothing: 0.0,
@@ -242,6 +246,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
+    syntax_edge_type_namespace: "syn_edge_types",
     #loss_mixer: {type:"syntax->semantics"},
   },
 
@@ -261,7 +266,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     type: "decomp_syntax_parsing",
     num_epochs: 450,
     patience: 50,
-    warmup_epochs: 50,
+    #warmup_epochs: 50,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -287,7 +292,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     validation_prediction_path: "decomp_validation.txt",
     semantics_only: false,
     drop_syntax: true,
-    syntactic_method: "encoder-side",
+    syntactic_method: synt_method,
   },
   random_seed: 12,
   numpy_seed: 12,

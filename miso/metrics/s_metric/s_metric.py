@@ -575,6 +575,7 @@ def compute_s_metric(true_graphs: List[DecompGraph],
     GraphType = None 
     if len(true_graphs) > 0:
         tg = true_graphs[0]
+        print(tg)
         if isinstance(tg, DecompGraph):
             GraphType = DecompGraph
         else:

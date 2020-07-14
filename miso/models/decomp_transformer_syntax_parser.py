@@ -60,6 +60,7 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
                  edge_type_namespace: str,
                  syntax_edge_type_namespace: str = None,
                  biaffine_parser: DeepTreeParser = None,
+                 syntactic_method: str = None,
                  dropout: float = 0.0,
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
@@ -92,6 +93,7 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
                          max_decoding_steps=max_decoding_steps,
                          eps=eps)
         
+        self.syntactic_method = syntactic_method
         self.biaffine_parser = biaffine_parser
         self.loss_mixer = loss_mixer
         self._syntax_metrics = AttachmentScores()

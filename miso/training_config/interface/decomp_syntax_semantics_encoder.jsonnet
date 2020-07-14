@@ -1,5 +1,6 @@
 local data_dir = "train";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
+local synt_method = "encoder-side";
 
 {
   dataset_reader: {
@@ -32,9 +33,9 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    drop_syntax: "true",
-    semantics_only: "false",
-    syntactic_method: "encoder-side",
+    drop_syntax: true,
+    semantics_only: false,
+    syntactic_method: synt_method,
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -272,9 +273,9 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
     validation_prediction_path: "decomp_validation.txt",
-    semantics_only: "false",
-    syntactic_method: "encoder-side",
-    drop_syntax: "true",
+    semantics_only: false,
+    syntactic_method: synt_method,
+    drop_syntax: true,
   },
   random_seed: 12,
   numpy_seed: 12,

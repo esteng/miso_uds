@@ -42,6 +42,9 @@ class DecompAttrMetrics(Metric):
                  node_or_edge: str 
                  ) -> None:
         # Attributes
+
+        pred_attr, pred_mask, true_attr, true_mask = self.unwrap_to_tensors(pred_attr, pred_mask, true_attr, true_mask) 
+
         if node_or_edge is not "both":
             pred_mask = torch.gt(pred_mask, 0)
             true_mask = torch.gt(true_mask, 0)

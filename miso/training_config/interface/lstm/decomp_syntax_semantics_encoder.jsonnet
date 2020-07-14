@@ -1,5 +1,6 @@
 local data_dir = "train";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
+local synt_method = "encoder-side";
 
 {
   dataset_reader: {
@@ -32,9 +33,9 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    drop_syntax: "true",
-    semantics_only: "false",
-    syntactic_method: "encoder-side",
+    drop_syntax: true,
+    semantics_only: false,
+    syntactic_method: synt_method,
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -67,6 +68,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   model: {
     type: "decomp_syntax_parser",
+    syntactic_method: synt_method,
     bert_encoder: {
                     type: "seq2seq_bert_encoder",
                     config: "bert-base-cased",
@@ -149,7 +151,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       key_vector_dim: 1024,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 1024,
-      num_labels: 60,
+      num_labels: 49,
       is_syntax: true,
       attention: {
         type: "biaffine",
@@ -234,6 +236,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
+    syntax_edge_type_namespace: "syn_edge_types",
     #loss_mixer: {type:"syntax->semantics"},
   },
 
@@ -246,7 +249,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 10,
+    batch_size: 32,
   },
 
   trainer: {
@@ -273,9 +276,9 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
     validation_prediction_path: "decomp_validation.txt",
-    semantics_only: "false",
-    syntactic_method: "encoder-side",
-    drop_syntax: "true",
+    semantics_only: false,
+    syntactic_method: synt_method,
+    drop_syntax: true,
   },
   random_seed: 12,
   numpy_seed: 12,
