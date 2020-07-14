@@ -47,6 +47,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 test/checkpoints/*
+test/checkpoints/overfit_interface_encoder_side_transformer.ckpt/*
 
 # Translations
 *.mo
