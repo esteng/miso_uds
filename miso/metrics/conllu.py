@@ -213,6 +213,7 @@ def load_conllu(file):
                 if word.parent and word.is_functional_deprel:
                     word.parent.functional_children.append(word)
 
+
             # Check there is a single root node
             if len([word for word in ud.words[sentence_start:] if word.parent is None]) != 1:
                 raise UDError("There are multiple roots in a sentence")
@@ -437,7 +438,6 @@ def evaluate(gold_ud, system_ud):
         while index < len(gold_ud.characters) and index < len(system_ud.characters) and \
                 gold_ud.characters[index] == system_ud.characters[index]:
             index += 1
-
         raise UDError(
             "The concatenation of tokens in gold file and in system file differ!\n" +
             "First 20 differing characters in gold file: '{}' and system file: '{}'".format(
@@ -448,7 +448,6 @@ def evaluate(gold_ud, system_ud):
 
     # Align words
     alignment = align_words(gold_ud.words, system_ud.words)
-
     # Compute the F1-scores
     return {
         "Tokens": spans_score(gold_ud.tokens, system_ud.tokens),

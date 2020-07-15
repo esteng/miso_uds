@@ -661,7 +661,9 @@ class DecompGraphWithSyntax(DecompGraph):
         else:
             raise NotImplementedError
 
-        true_conllu_dict = self.build_conllu_dict(syn_tokens, syn_head_indices, syn_head_tags)
+        syn_heads_for_dict = [x + 1 for x in syn_head_indices]
+        syn_heads_for_dict[0] = 0
+        true_conllu_dict = self.build_conllu_dict(syn_tokens, syn_heads_for_dict, syn_head_tags)
 
         syn_node_mask = np.array([1] * len(syn_tokens), dtype='uint8')
         syn_node_indices = [i+1 for i in range(len(syn_tokens))]
@@ -1178,6 +1180,9 @@ class DecompGraphWithSyntax(DecompGraph):
 
             #sem_heads = [x-1 for x in sem_heads]
             sem_heads[0] = 0
+            #syn_heads = [x-1 for x in syn_heads]
+            #syn_heads[0] = 0
+
         else:
             # encoder side 
             pass

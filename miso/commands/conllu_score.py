@@ -238,12 +238,11 @@ class ConlluScorer:
 
                 args = ComputeTup(**compute_args)
                 try:
-                    print(f"score between \n{true_conllu_str} \n{pred_conllu_str}") 
                     score = evaluate_wrapper(args)
-                    print(f"score between \n{true_conllu_str} \n{pred_conllu_str}\n{score}") 
                     las_scores.append(100 * score["LAS"].f1)
                     mlas_scores.append(100 * score["MLAS"].f1)
                     blex_scores.append(100 * score["BLEX"].f1)
+                
                 except UDError:
                     las_scores.append(0)
                     mlas_scores.append(0)
