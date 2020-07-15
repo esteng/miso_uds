@@ -242,7 +242,6 @@ class ConlluScorer:
                     las_scores.append(100 * score["LAS"].f1)
                     mlas_scores.append(100 * score["MLAS"].f1)
                     blex_scores.append(100 * score["BLEX"].f1)
-                
                 except UDError:
                     las_scores.append(0)
                     mlas_scores.append(0)
