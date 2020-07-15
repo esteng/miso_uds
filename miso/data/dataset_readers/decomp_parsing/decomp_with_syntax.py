@@ -1171,7 +1171,10 @@ class DecompGraphWithSyntax(DecompGraph):
 
             sem_heads = [x-1 for x in sem_heads]
             sem_heads[0] = 0
-             
+            
+            syn_heads = [x + 1 for x in syn_heads]
+            syn_heads[0] = 0
+
         elif syntactic_method == "concat-before": 
             # unpack output syntax first 
             (syn_nodes, sem_nodes, syn_heads, sem_heads, syn_tags, sem_tags,
@@ -1180,8 +1183,6 @@ class DecompGraphWithSyntax(DecompGraph):
 
             #sem_heads = [x-1 for x in sem_heads]
             sem_heads[0] = 0
-            #syn_heads = [x-1 for x in syn_heads]
-            #syn_heads[0] = 0
 
         else:
             # encoder side 
