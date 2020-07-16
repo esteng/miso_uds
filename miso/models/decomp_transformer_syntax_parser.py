@@ -423,7 +423,7 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
             "input_history": None, 
         }
 
-        if inputs["op_vec"] is not None:
+        if "op_vec" in inputs.keys() and inputs["op_vec"] is not None:
             start_state["op_vec"] = inputs["op_vec"]
 
         auxiliaries = {
@@ -472,15 +472,25 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
         # set previously decoded to current step  
         state['input_history'] = decoder_inputs
 
-        decoding_outputs = self._decoder.one_step_forward(
-            inputs=decoder_inputs,
-            source_memory_bank=state["source_memory_bank"],
-            op_vec=state["op_vec"],
-            source_mask=state["source_mask"],
-            decoding_step=misc["last_decoding_step"] + 1,
-            total_decoding_steps=self._max_decoding_steps,
-            coverage=state.get("coverage", None)
-        )
+        if self.intermediate_graph:
+            decoding_outputs = self._decoder.one_step_forward(
+                inputs=decoder_inputs,
+                source_memory_bank=state["source_memory_bank"],
+                op_vec=state["op_vec"],
+                source_mask=state["source_mask"],
+                decoding_step=misc["last_decoding_step"] + 1,
+                total_decoding_steps=self._max_decoding_steps,
+                coverage=state.get("coverage", None)
+            )
+        else:
+            decoding_outputs = self._decoder.one_step_forward(
+                inputs=decoder_inputs,
+                source_memory_bank=state["source_memory_bank"],
+                source_mask=state["source_mask"],
+                decoding_step=misc["last_decoding_step"] + 1,
+                total_decoding_steps=self._max_decoding_steps,
+                coverage=state.get("coverage", None)
+            )
 
         state['attentional_tensor'] = decoding_outputs['attentional_tensor'].squeeze(1)
         state['output'] = decoding_outputs['output'].squeeze(1)

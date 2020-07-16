@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 def _get_clones(module, N):
     return torch.nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
-@MisoDecoder.register("transformer_decoder") 
 class MisoTransformerDecoder(MisoDecoder):
     def __init__(self, 
                     input_size: int,
@@ -202,6 +201,28 @@ class MisoTransformerDecoder(MisoDecoder):
 
         return mask
 
+
+@MisoTransformerDecoder.register("transformer_decoder") 
+class MisoBaseTransformerDecoder(MisoTransformerDecoder):
+    def __init__(self, 
+                    input_size: int,
+                    hidden_size: int,
+                    decoder_layer: MisoTransformerDecoderLayer, 
+                    num_layers: int,
+                    source_attention_layer: AttentionLayer,
+                    target_attention_layer: AttentionLayer,
+                    norm=None,
+                    dropout=0.1,
+                    use_coverage=True):
+        super(MisoBaseTransformerDecoder, self).__init__(input_size,
+                                                         hidden_size,
+                                                        decoder_layer,
+                                                        num_layers,
+                                                        source_attention_layer, 
+                                                        target_attention_layer,
+                                                        norm,
+                                                        dropout,
+                                                        use_coverage)
 
 @MisoTransformerDecoder.register("positional_transformer_decoder") 
 class MisoPositionalTransformerDecoder(MisoTransformerDecoder):

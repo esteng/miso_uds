@@ -143,9 +143,9 @@ def _construct_and_predict(args: argparse.Namespace) -> None:
     args.predictor = predictor
     scorer = ConlluScorer.from_params(args)
 
-    las, mlas, blex = scorer.predict_and_compute()
+    uas, las, mlas, blex = scorer.predict_and_compute()
     print(f"averaged scores") 
-    print(f"LAS: {las}, MLAS: {mlas}, BLEX: {blex}") 
+    print(f"UAS: {uas}, LAS: {las}, MLAS: {mlas}, BLEX: {blex}") 
 
 class ConlluScorer:
     """
@@ -217,6 +217,7 @@ class ConlluScorer:
         input_sents = [inst.fields['src_tokens_str'].metadata for inst in input_instances]
 
         las_scores = []
+        uas_scores = []
         mlas_scores = []
         blex_scores = []
 
@@ -239,6 +240,7 @@ class ConlluScorer:
                 args = ComputeTup(**compute_args)
                 try:
                     score = evaluate_wrapper(args)
+                    uas_scores.append(100 * score["UAS"].f1)
                     las_scores.append(100 * score["LAS"].f1)
                     mlas_scores.append(100 * score["MLAS"].f1)
                     blex_scores.append(100 * score["BLEX"].f1)
@@ -247,7 +249,7 @@ class ConlluScorer:
                     mlas_scores.append(0)
                     blex_scores.append(0)
 
-        return np.mean(las_scores), np.mean(mlas_scores), np.mean(blex_scores)  
+        return np.mean(uas_scores), np.mean(las_scores), np.mean(mlas_scores), np.mean(blex_scores)  
  
     @classmethod
     def from_params(cls, args):

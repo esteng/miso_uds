@@ -72,7 +72,7 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         batch_energy = torch.exp(edge_head_scores.unsqueeze(1) + edge_type_scores)
         #batch_energy = torch.exp(edge_head_scores.unsqueeze(1)) 
         bsz, n_lab, seq_len, __ = batch_energy.shape
-        sentinel = torch.zeros(bsz, n_lab, 1, seq_len + 1) 
+        sentinel = torch.zeros(bsz, n_lab, 1, seq_len + 1).to(batch_energy.device) 
         batch_energy = torch.cat([sentinel, batch_energy], dim = 2) 
         batch_energy[0,0,0,0] = 1
 
