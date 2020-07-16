@@ -80,7 +80,6 @@ class MisoTransformerDecoder(MisoDecoder):
         ar_mask = self.make_autoregressive_mask(outputs.shape[0]).to(source_memory_bank.device)
 
         for i in range(len(self.layers)):
-
             outputs , __, __ = self.layers[i](outputs, 
                                     source_memory_bank, 
                                     tgt_mask=ar_mask,

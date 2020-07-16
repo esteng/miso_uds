@@ -224,12 +224,10 @@ class ConlluScorer:
         for i in range(len(input_instances)):
             true_conllu_str = ConlluScorer.conllu_dict_to_str(input_instances[i]['true_conllu_dict'].metadata)
             pred_conllu_str = output_graphs[i]
-        
 
         # make temp files
             with tempfile.NamedTemporaryFile("w") as true_file, \
                 tempfile.NamedTemporaryFile("w") as pred_file:
-
                 true_file.write(true_conllu_str)
                 pred_file.write(pred_conllu_str) 
                 true_file.seek(0) 

@@ -279,7 +279,7 @@ local synt_method = "encoder-side";
     grad_clipping: null,
     cuda_device: -1,
     num_serialized_models_to_keep: 1,
-    validation_metric: "+syn_las",
+    validation_metric: "+s_f1",
     optimizer: {
       type: "adam",
       betas: [0.9, 0.999],

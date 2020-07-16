@@ -615,6 +615,10 @@ class DecompGraphWithSyntax(DecompGraph):
             tgt_attributes += [{} for i in range(len(syn_tokens)+2)]
             edge_attributes += [{} for i in range(len(syn_head_indices)+2)]
 
+            # for conllu 
+            syn_heads_for_dict = [x + 1 for x in syn_head_indices]
+            syn_heads_for_dict[0] = 0
+
             # need to skip since truncating might mess up the graphs big time
             if len(tgt_tokens) > max_tgt_length:
                 return None
@@ -637,6 +641,10 @@ class DecompGraphWithSyntax(DecompGraph):
             # pad attributes 
             tgt_attributes = [{} for i in range(len(syn_tokens)+2)] + tgt_attributes + [{}]
             edge_attributes = [{} for i in range(len(syn_head_indices)+2)] + edge_attributes + [{}]
+
+            # for conllu 
+            syn_heads_for_dict = [x + 1 for x in syn_head_indices]
+            syn_heads_for_dict[0] = 0
 
             if len(tgt_tokens) > max_tgt_length:
                 return None
@@ -671,13 +679,13 @@ class DecompGraphWithSyntax(DecompGraph):
                                                     syn_head_tags,
                                                     syn_mask,
                                                     syn_node_name_list)
+            # for conllu 
+            syn_heads_for_dict = syn_head_indices
 
 
         else:
             raise NotImplementedError
 
-        syn_heads_for_dict = [x + 1 for x in syn_head_indices]
-        syn_heads_for_dict[0] = 0
         true_conllu_dict = self.build_conllu_dict(syn_tokens, syn_heads_for_dict, syn_head_tags)
 
         syn_node_mask = np.array([1] * len(syn_tokens), dtype='uint8')
@@ -692,6 +700,7 @@ class DecompGraphWithSyntax(DecompGraph):
         #print(tgt_tokens)
         #print(head_indices)
         #print(head_tags)
+        #sys.exit() 
         #inds = [i for i in range(len(head_tags))]
         #print(list(zip(inds, tgt_tokens[1:-1], head_indices, head_tags)))
 
