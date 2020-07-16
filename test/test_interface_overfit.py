@@ -65,9 +65,6 @@ def test_interface_encoder_side():
                                         "validation_syn_uas": 100.0,
                                         "validation_syn_las": 100.0}) 
     
-def test_intermediate_encoder_side():
-    pass 
-    
 def test_interface_encoder_side_transformer():
     config_path = os.path.join(test_path, "configs", "overfit_synt_sem_transformer_encoder.jsonnet") 
     output_dir = os.path.join(test_path, "checkpoints", "overfit_interface_encoder_side_transformer.ckpt") 
