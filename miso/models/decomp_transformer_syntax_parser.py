@@ -26,6 +26,7 @@ from miso.modules.parsers import DeepTreeParser, DecompTreeParser
 from miso.modules.label_smoothing import LabelSmoothing
 from miso.modules.decoders.attribute_decoder import NodeAttributeDecoder 
 from miso.modules.decoders.edge_decoder import EdgeAttributeDecoder 
+from miso.models.decomp_syntax_parser import DecompSyntaxParser
 from miso.metrics.decomp_metrics import DecompAttrMetrics
 from miso.nn.beam_search import BeamSearch
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
@@ -65,7 +66,8 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
                  eps: float = 1e-20,
-                 loss_mixer: LossMixer = None
+                 loss_mixer: LossMixer = None,
+                 intermediate_graph: bool = False,
                  ) -> None:
         super().__init__(vocab=vocab,
                          # source-side
@@ -95,6 +97,7 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
         
         self.syntactic_method = syntactic_method
         self.biaffine_parser = biaffine_parser
+        self.intermediate_graph = intermediate_graph
         self.loss_mixer = loss_mixer
         self._syntax_metrics = AttachmentScores()
         self.syntax_las = 0.0 
@@ -190,17 +193,31 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
             self._update_syntax_scores()
             encoder_side=True
 
+            if self.intermediate_graph:
+                encoder_side = DecompSyntaxParser._add_biaffine_to_encoder(encoding_outputs, biaffine_outputs)
+
         else:
             biaffine_loss = 0.0
 
-        decoding_outputs = self._decode(
-            tokens=inputs["target_tokens"],
-            node_indices=inputs["target_node_indices"],
-            pos_tags=inputs["target_pos_tags"],
-            encoder_outputs=encoding_outputs["encoder_outputs"],
-            source_mask=inputs["source_mask"],
-            target_mask=inputs["target_mask"]
-        )
+        if self.intermediate_graph:
+            decoding_outputs = self._decode(
+                tokens=inputs["target_tokens"],
+                op_vec=inputs["op_vec"],
+                node_indices=inputs["target_node_indices"],
+                pos_tags=inputs["target_pos_tags"],
+                encoder_outputs=encoding_outputs["encoder_outputs"],
+                source_mask=inputs["source_mask"],
+                target_mask=inputs["target_mask"]
+            )
+        else:
+            decoding_outputs = self._decode(
+                tokens=inputs["target_tokens"],
+                node_indices=inputs["target_node_indices"],
+                pos_tags=inputs["target_pos_tags"],
+                encoder_outputs=encoding_outputs["encoder_outputs"],
+                source_mask=inputs["source_mask"],
+                target_mask=inputs["target_mask"]
+            )
 
         node_prediction_outputs = self._extended_pointer_generator(
             inputs=decoding_outputs["attentional_tensors"],
@@ -302,6 +319,8 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
                                                   valid_node_mask = inputs["syn_valid_node_mask"],
                                                   do_mst=True)
             
+            if self.intermediate_graph: 
+                encoding_outputs = DecompSyntaxParser._add_biaffine_to_encoder(encoding_outputs, biaffine_outputs)
 
         start_predictions, start_state, auxiliaries, misc = self._prepare_decoding_start_state(inputs, encoding_outputs)
 
@@ -385,3 +404,101 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
         )
 
         return outputs
+
+    @overrides
+    def _prepare_decoding_start_state(self, inputs: Dict, encoding_outputs: Dict[str, torch.Tensor]) \
+            -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict]:
+        batch_size = inputs["source_tokens"]["source_tokens"].size(0)
+        bos = self.vocab.get_token_index(START_SYMBOL, self._target_output_namespace)
+        start_predictions = inputs["source_tokens"]["source_tokens"].new_full((batch_size,), bos)
+
+        start_state = {
+            # [batch_size, *]
+            "source_memory_bank": encoding_outputs["encoder_outputs"],
+            "source_mask": inputs["source_mask"],
+            "target_mask": inputs["target_mask"], 
+            "source_attention_map": inputs["source_attention_map"],
+            "target_attention_map": inputs["source_attention_map"].new_zeros(
+                (batch_size, self._max_decoding_steps, self._max_decoding_steps + 1)),
+            "input_history": None, 
+        }
+
+        if inputs["op_vec"] is not None:
+            start_state["op_vec"] = inputs["op_vec"]
+
+        auxiliaries = {
+            "target_dynamic_vocabs": inputs["target_dynamic_vocab"]
+        }
+        misc = {
+            "batch_size": batch_size,
+            "last_decoding_step": -1,  # At <BOS>, we set it to -1.
+            "source_dynamic_vocab_size": inputs["source_dynamic_vocab_size"],
+            "instance_meta": inputs["instance_meta"]
+        }
+
+        return start_predictions, start_state, auxiliaries, misc
+
+    @overrides
+    def _take_one_step_node_prediction(self,
+                                       last_predictions: torch.Tensor,
+                                       state: Dict[str, torch.Tensor],
+                                       auxiliaries: Dict[str, List[Any]],
+                                       misc: Dict,
+                                       ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, List[Any]]]:
+
+        inputs = self._prepare_next_inputs(
+            predictions=last_predictions,
+            target_attention_map=state["target_attention_map"],
+            target_dynamic_vocabs=auxiliaries["target_dynamic_vocabs"],
+            meta_data=misc["instance_meta"],
+            batch_size=misc["batch_size"],
+            last_decoding_step=misc["last_decoding_step"],
+            source_dynamic_vocab_size=misc["source_dynamic_vocab_size"]
+        )
+    
+        # TODO: HERE we go, just concatenate "inputs" to history stored in the state 
+        # need a node index history and a token history 
+        # no need to update history inside of _prepare_next_inputs or double-iterate 
+
+        decoder_inputs = torch.cat([
+            self._decoder_token_embedder(inputs["tokens"]),
+            self._decoder_node_index_embedding(inputs["node_indices"]),
+        ], dim=2)
+
+        # if previously decoded steps, concat them in before current input 
+        if state['input_history'] is not None:
+            decoder_inputs = torch.cat([state['input_history'], decoder_inputs], dim = 1)
+
+        # set previously decoded to current step  
+        state['input_history'] = decoder_inputs
+
+        decoding_outputs = self._decoder.one_step_forward(
+            inputs=decoder_inputs,
+            source_memory_bank=state["source_memory_bank"],
+            op_vec=state["op_vec"],
+            source_mask=state["source_mask"],
+            decoding_step=misc["last_decoding_step"] + 1,
+            total_decoding_steps=self._max_decoding_steps,
+            coverage=state.get("coverage", None)
+        )
+
+        state['attentional_tensor'] = decoding_outputs['attentional_tensor'].squeeze(1)
+        state['output'] = decoding_outputs['output'].squeeze(1)
+
+        if decoding_outputs["coverage"] is not None:
+            state["coverage"] = decoding_outputs["coverage"]
+
+
+        node_prediction_outputs = self._extended_pointer_generator(
+            inputs=decoding_outputs["attentional_tensor"],
+            source_attention_weights=decoding_outputs["source_attention_weights"],
+            target_attention_weights=decoding_outputs["target_attention_weights"],
+            source_attention_map=state["source_attention_map"],
+            target_attention_map=state["target_attention_map"]
+        )
+        log_probs = (node_prediction_outputs["hybrid_prob_dist"] + self._eps).squeeze(1).log()
+
+        misc["last_decoding_step"] += 1
+
+        return log_probs, state, auxiliaries
+

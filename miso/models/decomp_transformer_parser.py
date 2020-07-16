@@ -129,6 +129,7 @@ class DecompTransformerParser(DecompParser):
                 encoder_outputs: torch.Tensor,
                 source_mask: torch.Tensor,
                 target_mask: torch.Tensor,
+                op_vec: torch.Tensor = None,
                 **kwargs) -> Dict:
 
         # [batch, num_tokens, embedding_size]
@@ -138,13 +139,22 @@ class DecompTransformerParser(DecompParser):
         ], dim=2)
 
         decoder_inputs = self._dropout(decoder_inputs)
+        if op_vec is None:
+            decoder_outputs = self._decoder(
+                inputs=decoder_inputs,
+                source_memory_bank=encoder_outputs,
+                source_mask = source_mask,
+                target_mask = target_mask
+            )
+        else:
+            decoder_outputs = self._decoder(
+                inputs=decoder_inputs,
+                source_memory_bank=encoder_outputs,
+                op_vec=op_vec,
+                source_mask = source_mask,
+                target_mask = target_mask
+            )
 
-        decoder_outputs = self._decoder(
-            inputs=decoder_inputs,
-            source_memory_bank=encoder_outputs,
-            source_mask = source_mask,
-            target_mask = target_mask
-        )
 
         return decoder_outputs
 
@@ -182,6 +192,7 @@ class DecompTransformerParser(DecompParser):
         # set previously decoded to current step  
         state['input_history'] = decoder_inputs
 
+        
 
         decoding_outputs = self._decoder.one_step_forward(
             inputs=decoder_inputs,
@@ -289,6 +300,7 @@ class DecompTransformerParser(DecompParser):
                 (batch_size, self._max_decoding_steps, self._max_decoding_steps + 1)),
             "input_history": None, 
         }
+
         auxiliaries = {
             "target_dynamic_vocabs": inputs["target_dynamic_vocab"]
         }

@@ -13,6 +13,7 @@ from allennlp.modules import InputVariationalDropout
 from allennlp.nn.util import add_positional_features
 
 from miso.modules.decoders.transformer.norms import Norm 
+from miso.modules.decoders.transformer.multihead_attention import MisoMultiheadAttention
 
 def _get_activation_fn(activation):
     if activation == "relu":
@@ -27,7 +28,7 @@ class MisoTransformerDecoderLayer(torch.nn.Module, Registrable):
     Modified TransformerDecoderLayer that returns attentions 
     Args:
         d_model: the number of expected features in the input (required).
-        nhead: the number of heads in the multiheadattention models (required).
+        n_head: the number of heads in the multiheadattention models (required).
         dim_feedforward: the dimension of the feedforward network model (default=2048).
         dropout: the dropout value (default=0.1).
         activation: the activation function of intermediate layer, relu or gelu (default=relu).
@@ -35,7 +36,7 @@ class MisoTransformerDecoderLayer(torch.nn.Module, Registrable):
 
     def __init__(self, 
                 d_model, 
-                nhead, 
+                n_head, 
                 norm: Norm,
                 dim_feedforward=2048,
                 dropout=0.1, 
@@ -45,8 +46,8 @@ class MisoTransformerDecoderLayer(torch.nn.Module, Registrable):
         super(MisoTransformerDecoderLayer, self).__init__()
         self.init_scale = init_scale
 
-        self.self_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = True)
-        self.multihead_attn = torch.nn.MultiheadAttention(d_model, nhead, dropout=dropout, add_bias_kv = True)
+        self.self_attn = torch.nn.MultiheadAttention(d_model, n_head, dropout=dropout, add_bias_kv = True)
+        self.multihead_attn = torch.nn.MultiheadAttention(d_model, n_head, dropout=dropout, add_bias_kv = True)
         # Implementation of Feedforward model
         self.linear1 = torch.nn.Linear(d_model, dim_feedforward)
         self.dropout = torch.nn.Dropout(dropout)
@@ -219,43 +220,60 @@ class MisoPostNormTransformerDecoderLayer(MisoTransformerDecoderLayer):
 
         return tgt, tgt_attn, src_attn
 
-
-
-@MisoTransformerDecoderLayer.register("pre_norm_relative") 
-class MisoPreNormRelativeTransformerDecoderLayer(MisoTransformerDecoderLayer):
+@MisoTransformerDecoderLayer.register("pre_norm_graph_positional") 
+class MisoGraphPositionalDecoderLayer(MisoPreNormTransformerDecoderLayer):
+    """
+    Modified TransformerDecoderLayer that with graph positional encoding
+    """
     def __init__(self, 
                 d_model, 
                 n_head, 
-                norm: Norm, 
+                norm: Norm,
                 dim_feedforward=2048,
                 dropout=0.1, 
                 activation="relu",
-                init_scale = 256):
-        super(MisoPreNormRelativeTransformerDecoderLayer, self).__init__(d_model, 
-                                                                 n_head, 
-                                                                 norm, 
-                                                                 dim_feedforward,
-                                                                 dropout, 
-                                                                 activation,
-                                                                 init_scale)
+                init_scale = 256,
+                num_ops = 3):
+
+        super(MisoGraphPositionalDecoderLayer, self).__init__(d_model, 
+                                                              n_head,
+                                                              norm,
+                                                              dim_feedforward,
+                                                              dropout,
+                                                              activation,
+                                                              init_scale)
+        # target attention remains the same 
+        self.self_attn = torch.nn.MultiheadAttention(d_model, n_head, dropout=dropout, add_bias_kv = True)
+        # source attention gets augmented with graph encoding 
+        self.multihead_attn = MisoMultiheadAttention(d_model, n_head, num_ops=num_ops, dropout=dropout, add_bias_kv = True)
+
+        # initialize attention heads 
+        for m in self.modules():
+            # shared 
+            if isinstance(m, MisoMultiheadAttention) or \
+               isinstance(m, torch.nn.MultiheadAttention):
+                torch.nn.init.normal_(m.bias_v, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.bias_v))
+                torch.nn.init.normal_(m.bias_k, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.bias_k))
+                torch.nn.init.normal_(m.in_proj_bias, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.in_proj_weight))
+                torch.nn.init.normal_(m.out_proj.weight, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.out_proj.weight))
+
+                torch.nn.init.constant_(m.in_proj_bias, 0.)
+                torch.nn.init.constant_(m.out_proj.bias, 0.)
+            # just my implementation 
+            if isinstance(m, MisoMultiheadAttention): 
+                # positional parameters 
+                torch.nn.init.normal_(m.p_proj_weight_1, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.p_proj_weight_1))
+                torch.nn.init.normal_(m.p_proj_weight_2, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.p_proj_weight_2))
+            # output layers 
+            if isinstance(m, torch.nn.Linear):
+                torch.nn.init.normal_(m.weight, mean = 0, std = self._get_std_from_tensor(self.init_scale, m.weight))
+                torch.nn.init.constant_(m.bias, 0.)
 
     @overrides  
-    def forward(self, tgt, memory, tgt_mask=None, memory_mask=None,
+    def forward(self, tgt, memory, op_vec, tgt_mask=None, memory_mask=None,
                 tgt_key_padding_mask=None, memory_key_padding_mask=None):
-        r"""Pass the inputs (and mask) through the decoder layer.
-
-        Args:
-            tgt: the sequence to the decoder layer (required): (tgt_len, batch_size, hidden_dim) 
-            memory: the sequnce from the last layer of the encoder (required): (src_len, batch_size, hidden_dim) 
-            edge_types: the 1-hot vectors for the syntactic edge relations (required): (batch, src_len, src_len, 49) 
-            edge_type_value_weights: the weight parameter for relative edge encoding (required): (49, hidden_dim) 
-            tgt_mask: the mask for the tgt sequence: (tgt_len, tgt_len)  
-            memory_mask: the mask for the memory sequence: (tgt_len, src_len)
-            tgt_key_padding_mask: the mask for the tgt keys per batch: (batch, tgt_len) 
-            memory_key_padding_mask: the mask for the memory keys per batch: (batch, src_len) 
-
-        Shape:
-            see the docs in Transformer class.
+        """
+        takes additional input op_vec
         """
 
         # norm before residual as in https://arxiv.org/pdf/1910.05895.pdf
@@ -267,8 +285,9 @@ class MisoPreNormRelativeTransformerDecoderLayer(MisoTransformerDecoderLayer):
         tgt = tgt + self.dropout1(tgt2)
 
         tgt = self.norm2(tgt)
-        tgt2, src_attn = self.multihead_attn(tgt, memory, memory, attn_mask=memory_mask,
-                                   key_padding_mask=memory_key_padding_mask)
+        tgt2, src_attn = self.multihead_attn(tgt, memory, memory, op_vec,
+                                            attn_mask=memory_mask,
+                                            key_padding_mask=memory_key_padding_mask)
 
         tgt = tgt + self.dropout2(tgt2)
 
@@ -278,4 +297,3 @@ class MisoPreNormRelativeTransformerDecoderLayer(MisoTransformerDecoderLayer):
         tgt = tgt + self.dropout3(tgt2)
 
         return tgt, tgt_attn, src_attn
-

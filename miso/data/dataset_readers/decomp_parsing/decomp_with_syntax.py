@@ -568,7 +568,20 @@ class DecompGraphWithSyntax(DecompGraph):
             new_inds = [x + 1 for x in new_inds]
             new_inds[new_tags.index("root")] = 0
 
-            return new_tokens, new_inds, new_tags, new_mask, new_nodes
+            # get operation vector 
+            # 0: none, 1: left, 2: right
+            op_vec = np.zeros((1, len(tokens)+1, 3))
+            # add sentinel to front 
+            inds_for_op = [0] + [x-1 if x > 0 else 0 for x in new_inds ]
+            for i, head_idx in enumerate(inds_for_op): 
+                if head_idx < i:
+                    op_vec[0, i, 1] = 1
+                elif head_idx > i:
+                    op_vec[0, i, 2] = 1
+                else:
+                    op_vec[0, i, 0] = 1
+
+            return new_tokens, new_inds, new_tags, new_mask, new_nodes, op_vec
         
         if not self.syntactic_method.startswith("concat"): 
             # get rid of bos token
@@ -582,6 +595,7 @@ class DecompGraphWithSyntax(DecompGraph):
         sem_node_name_list = node_name_list
     
         true_conllu_dict = None 
+        op_vec = None 
 
         if self.syntactic_method == "concat-after":
 
@@ -651,7 +665,8 @@ class DecompGraphWithSyntax(DecompGraph):
             syn_head_indices, 
             syn_head_tags, 
             syn_mask, 
-            syn_node_name_list) = reorder_syntax_for_encoder(syn_tokens,
+            syn_node_name_list,
+            op_vec) = reorder_syntax_for_encoder(syn_tokens,
                                                     syn_head_indices,
                                                     syn_head_tags,
                                                     syn_mask,
@@ -833,7 +848,6 @@ class DecompGraphWithSyntax(DecompGraph):
             src_pos_tags = [token.pos_ for token in doc]
 
         tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(src_tokens, src_pos_tags)
-            
 
         if bert_tokenizer is not None:
             bert_tokenizer_ret = bert_tokenizer.tokenize(src_tokens, True)
@@ -857,14 +871,6 @@ class DecompGraphWithSyntax(DecompGraph):
             node_indices = node_indices[:-1]
         node_mask = np.array([1] * len(node_indices), dtype='uint8')
 
-        #if self.syntactic_method.startswith("concat"): 
-        #    try:
-        #        node_mask[tgt_tokens.index("@syntax-sep@")] = 0
-        #    except (IndexError, ValueError) as e:
-        #        # concat-just-syntax case, syntax-sep already masked
-        #        pass 
-
-
         edge_mask = np.zeros((len(node_indices), len(node_indices)), dtype='uint8')
         for i in range(1, len(node_indices)):
             for j in range(i):
@@ -886,15 +892,6 @@ class DecompGraphWithSyntax(DecompGraph):
         # transduction fix 1: increase by 1 everything, set first to sentinel 0 tok 
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
-        #print(f"syn_tokens {syn_tokens}") 
-        #print(f"syn_head_indices {syn_head_indices}") 
-        #print(f"syn_head_tags {syn_head_tags}") 
-        
-        #print(src_copy_vocab)
-        #print(src_copy_indices)
-        #print(src_copy_map) 
-        #print(list(zip(node_mask, tgt_tokens))) 
-        #print(list(zip(node_mask, tgt_tokens_to_generate))) 
 
         return {
             "tgt_tokens" : tgt_tokens,
@@ -928,7 +925,8 @@ class DecompGraphWithSyntax(DecompGraph):
             "src_copy_invalid_ids" : src_copy_invalid_ids,
             "arbor_graph": arbor_graph,
             "node_name_list": node_name_list,
-            "true_conllu_dict": true_conllu_dict
+            "true_conllu_dict": true_conllu_dict,
+            "op_vec": op_vec
         }
 
     @staticmethod
