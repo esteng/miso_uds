@@ -1,7 +1,7 @@
 import torch
 
 from allennlp.common import Registrable
-from pytorch_transformers import BertModel
+from transformers import BertModel
 
 
 class BaseBertWrapper(Registrable, torch.nn.Module):
