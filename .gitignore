@@ -119,4 +119,5 @@ archive-ckpts/
 
 # vim
 *.swp
+*.swo
 
