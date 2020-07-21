@@ -213,12 +213,18 @@ def compute_pearson_score(predictions, test=False):
 
 
     all_rs_baseline, all_lens_baseline, all_r1s_baseline, all_f1s_baseline, dev_f1_baseline_threshes = make_latex(pearson_baseline, mae_baseline, f1_baseline, do_print=True)
+    dev_avg_baseline_f1 = sum(all_f1s_baseline)/len(all_f1s_baseline)
+    dev_avg_f1 = sum(all_f1s)/len(all_f1s)
+    dev_avg_rho = sum(all_rs)/len(all_rs)
     
     print(all_f1s_baseline) 
-    print(f"DEV avg baseline f1: {sum(all_f1s_baseline)/len(all_f1s_baseline)}")
-    print(f"DEV avg test f1: {sum(all_f1s)/len(all_f1s)}")
-    print(f"DEV avg test rho: {sum(all_rs)/len(all_rs)}")
+    print(f"DEV avg baseline f1: {dev_avg_baseline_f1}") 
+    print(f"DEV avg test f1: {dev_avg_f1}" ) 
+    print(f"DEV avg test rho: {dev_avg_rho}") 
 
+    test_avg_baseline_f1 = None
+    test_avg_f1 = None
+    test_avg_rho = None
 
     if test:
         model_dir = os.path.basename(predictions) 
@@ -250,10 +256,15 @@ def compute_pearson_score(predictions, test=False):
 
 
 
-        print(f"TEST avg baseline f1: {sum(test_f1s_baseline)/len(test_f1s_baseline)}")
-        print(f"TEST avg test f1: {sum(test_f1s)/len(test_f1s)}")
-        print(f"TEST avg test rho: {sum(test_rs)/len(test_rs)}")
+        test_avg_baseline_f1 = sum(test_f1s_baseline)/len(test_f1s_baseline)
+        test_avg_f1 = sum(test_f1s)/len(test_f1s)
+        test_avg_rho = sum(test_rs)/len(test_rs)
+        
+        print(f"TEST avg baseline f1: {test_avg_baseline_f1}") 
+        print(f"TEST avg test f1: {test_avg_f1}" ) 
+        print(f"TEST avg test rho: {test_avg_rho}") 
 
+    return dev_avg_baseline_f1, dev_avg_f1, dev_avg_rho, test_avg_baseline_f1, test_avg_f1, test_avg_rho
 
 if __name__ == "__main__": 
     parser = argparse.ArgumentParser() 
