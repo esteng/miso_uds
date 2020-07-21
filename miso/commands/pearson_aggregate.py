@@ -17,9 +17,6 @@ def compute_pearson_score(predictions, test=False):
     with open(predictions) as f1:
         data = json.load(f1)
 
-    print(data.keys())
-    print(data['factuality-factual'].keys())
-
     def get_true_pred(res_d, key):
         try:
             true_dict = res_d[key]['true_val_with_node_ids']
@@ -156,9 +153,16 @@ def compute_pearson_score(predictions, test=False):
             baseline_data = {k:v for k, v in zip(sorted_keys, baseline_data)}
         
         data_dict = defaultdict(list)
+
+        for i, key in enumerate(sorted_keys):
+            prefix, keyname = get_prefix(key)
+                
+            prev_prefix = prefix 
+            data_dict[prefix].append((keyname, key))
         
         tot = 0
         len_idx = 0
+
         for i, (prefix, lst) in enumerate(data_dict.items()):
             for j, (keyname, key) in enumerate(lst):
                 
@@ -177,7 +181,7 @@ def compute_pearson_score(predictions, test=False):
                     
         return all_rs, all_lens, all_r1s, all_f1s, f1_threshes
 
-    all_rs, all_lens, all_r1s, all_f1s, dev_f1_threshes = make_latex(pearson_data, mae_data, f1_data, do_print=True)
+    all_rs, all_lens, all_r1s, all_f1s, dev_f1_threshes = make_latex(pearson_data, mae_data, f1_data, do_print=False)
 
 
     def baseline(res_d_param):
@@ -209,7 +213,8 @@ def compute_pearson_score(predictions, test=False):
 
 
     all_rs_baseline, all_lens_baseline, all_r1s_baseline, all_f1s_baseline, dev_f1_baseline_threshes = make_latex(pearson_baseline, mae_baseline, f1_baseline, do_print=True)
-
+    
+    print(all_f1s_baseline) 
     print(f"DEV avg baseline f1: {sum(all_f1s_baseline)/len(all_f1s_baseline)}")
     print(f"DEV avg test f1: {sum(all_f1s)/len(all_f1s)}")
     print(f"DEV avg test rho: {sum(all_rs)/len(all_rs)}")
@@ -252,7 +257,7 @@ def compute_pearson_score(predictions, test=False):
 
 if __name__ == "__main__": 
     parser = argparse.ArgumentParser() 
-    parser.add_argument("predictions", help="path to json file of node predictions under oracle setting", required=True) 
+    parser.add_argument("predictions", help="path to json file of node predictions under oracle setting")
     parser.add_argument("--test", action="store_true", required=False, help = "set to true if evaluating test predictions" ) 
     args = parser.parse_args() 
 
