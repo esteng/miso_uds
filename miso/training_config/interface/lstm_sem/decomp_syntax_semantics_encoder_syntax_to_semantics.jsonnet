@@ -3,7 +3,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
 {
   dataset_reader: {
-    type: "decomp",
+    type: "decomp_syntax_semantics",
     source_token_indexers: {
       source_tokens: {
         type: "single_id",
@@ -32,8 +32,9 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         namespace: "generation_tokens",
       }
     },
-    drop_syntax: true,
-    semantics_only: true,
+    drop_syntax: "true",
+    semantics_only: "false",
+    syntactic_method: "encoder-side",
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -65,7 +66,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
   },
 
   model: {
-    type: "decomp_parser",
+    type: "decomp_syntax_parser",
     bert_encoder: {
                     type: "seq2seq_bert_encoder",
                     config: "bert-base-cased",
@@ -143,6 +144,19 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       vocab_namespace: "pos_tags",
       embedding_dim: 50,
     },
+    biaffine_parser: {
+      query_vector_dim: 1024,
+      key_vector_dim: 1024,
+      edge_head_vector_dim: 512,
+      edge_type_vector_dim: 1024,
+      num_labels: 60,
+      is_syntax: true,
+      attention: {
+        type: "biaffine",
+        query_vector_dim: 512,
+        key_vector_dim: 512,
+      },
+    }, 
     decoder: {
       rnn_cell: {
         input_size: 300 + 50 + 50 + 1024,
@@ -162,7 +176,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 1024,
           key_vector_dim: 1024,
           hidden_vector_dim: 256, 
-          use_coverage: false,
+          use_coverage: true,
         },
       },
       target_attention_layer: {
@@ -195,7 +209,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         query_vector_dim: 256,
         key_vector_dim: 256,
       },
-      dropout: 0,
+      dropout: 0.2,
     },
     node_attribute_module: {
         input_dim: 1024,
@@ -203,7 +217,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         output_dim: 44,
         n_layers: 4, 
         loss_multiplier: 10,
-        binary: false,
     },
     edge_attribute_module: {
         h_input_dim: 256,
@@ -211,17 +224,17 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         output_dim: 14,
         n_layers: 4, 
         loss_multiplier: 10,
-        binary: false,
     },
     label_smoothing: {
         smoothing: 0.0,
     },
-    dropout: 0.0,
+    dropout: 0.2,
     beam_size: 2,
-    max_decoding_steps: 50,
+    max_decoding_steps: 100,
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
+    loss_mixer: {type:"syntax->semantics"},
   },
 
   iterator: {
@@ -229,16 +242,17 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 32,
+    batch_size: 10,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 64,
+    batch_size: 10,
   },
 
   trainer: {
-    type: "decomp_parsing",
-    num_epochs: 250,
+    type: "decomp_syntax_parsing",
+    num_epochs: 100,
+    #warmup_epochs: 3,
     patience: 40,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
@@ -251,16 +265,17 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       weight_decay: 3e-9,
       amsgrad: true,
     },
-    learning_rate_scheduler: {
-      type: "reduce_on_plateau",
-      patience: 10,
-    },
+    # learning_rate_scheduler: {
+    #   type: "reduce_on_plateau",
+    #   patience: 10,
+    # },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
     validation_prediction_path: "decomp_validation.txt",
-    semantics_only: true,
-    drop_syntax: true,
+    semantics_only: "false",
+    syntactic_method: "encoder-side",
+    drop_syntax: "true",
   },
   random_seed: 12,
   numpy_seed: 12,

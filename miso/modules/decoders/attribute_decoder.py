@@ -19,13 +19,15 @@ class NodeAttributeDecoder(torch.nn.Module):
                 loss_multiplier = 10,
                 loss_function = Loss,
                 activation = torch.nn.ReLU(),
-                share_networks = False):
+                share_networks = False,
+                binary = False):
         super(NodeAttributeDecoder, self).__init__()
 
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.loss_multiplier = loss_multiplier
+        self.binary = binary 
 
         self.attr_loss_function = loss_function
         self.mask_loss_function = torch.nn.BCEWithLogitsLoss()
@@ -94,9 +96,14 @@ class NodeAttributeDecoder(torch.nn.Module):
                     mask):
 
         # mask out non-predicted stuff
+        to_mult = mask 
         mask_binary = torch.gt(mask, 0).float()
-        predicted_attrs = predicted_attrs * mask_binary
-        target_attrs = target_attrs * mask_binary
+
+        if self.binary:
+            to_mult = mask_binary
+
+        predicted_attrs = predicted_attrs * to_mult
+        target_attrs = target_attrs * to_mult
 
         attr_loss = self.attr_loss_function(predicted_attrs, target_attrs) * self.loss_multiplier
         # see if annotated at all; don't model annotator confidence, already modeled above

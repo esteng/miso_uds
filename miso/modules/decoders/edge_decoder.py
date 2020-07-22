@@ -33,7 +33,8 @@ class EdgeAttributeDecoder(torch.nn.Module):
             output_dim, 
             loss_multiplier = 10,
             loss_function = MSECrossEntropyLoss,
-            share_networks = False):
+            share_networks = False,
+            binary = False):
         super(EdgeAttributeDecoder, self).__init__()
 
         self.mask_loss_function = torch.nn.BCEWithLogitsLoss()
@@ -43,7 +44,7 @@ class EdgeAttributeDecoder(torch.nn.Module):
         self.output_dim = output_dim
         self.loss_multiplier = loss_multiplier
         self.loss_function = loss_function
-
+        self.binary = binary
         self.attr_bilinear = BiLinear(self.h_input_dim, self.m_input_dim, self.output_dim)
         self.attr_MLP = MLP(self.output_dim + self.h_input_dim + self.m_input_dim, hidden_dim, self.output_dim, n_layers)
 
@@ -75,13 +76,17 @@ class EdgeAttributeDecoder(torch.nn.Module):
                     predicted_mask,
                     target,
                     edge_attribute_mask):
-        # mask it 
-        predicted_attrs = predicted_attrs * edge_attribute_mask
-        target = target * edge_attribute_mask
+        # mask it
+        to_mult = edge_attribute_mask
+        edge_mask_binary = torch.gt(edge_attribute_mask, 0).float()
 
+        if self.binary:
+            to_mult = edge_mask_mask_binary
+         
+        predicted_attrs = predicted_attrs * to_mult
+        target = target * to_mult
         
         attr_loss = self.loss_function(predicted_attrs, target) * self.loss_multiplier
-        edge_mask_binary = torch.gt(edge_attribute_mask, 0).float()
         mask_loss = self.mask_loss_function(predicted_mask, edge_mask_binary) * self.loss_multiplier
         self.metrics(attr_loss.item())
         self.metrics(mask_loss.item())

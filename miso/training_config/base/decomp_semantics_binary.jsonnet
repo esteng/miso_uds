@@ -203,7 +203,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         output_dim: 44,
         n_layers: 4, 
         loss_multiplier: 10,
-        binary: false,
+        binary: true,
     },
     edge_attribute_module: {
         h_input_dim: 256,
@@ -211,7 +211,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
         output_dim: 14,
         n_layers: 4, 
         loss_multiplier: 10,
-        binary: false,
+        binary: true,
     },
     label_smoothing: {
         smoothing: 0.0,
