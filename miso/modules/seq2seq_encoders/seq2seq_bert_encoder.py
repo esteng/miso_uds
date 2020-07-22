@@ -2,14 +2,17 @@ import torch
 
 from allennlp.common import Registrable
 from transformers import BertModel
+from transformers import XLMRobertaModel
 
 
 class BaseBertWrapper(Registrable, torch.nn.Module):
 
     def __init__(self, config: str) -> None:
         super().__init__()
-        self.bert_model = BertModel.from_pretrained(config).eval()
-
+        if "bert" in config:
+            self.bert_model = BertModel.from_pretrained(config).eval()
+        elif "xlmr" in config:
+            self.bert_model = XLMRobertaModel.from_pretrained(config).eval() 
 
 @BaseBertWrapper.register("seq2seq_bert_encoder")
 class Seq2SeqBertEncoder(BaseBertWrapper):

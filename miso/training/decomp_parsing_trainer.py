@@ -186,139 +186,139 @@ class DecompTrainer(Trainer):
         return val_loss, batches_this_epoch
 
 
-    @classmethod
-    def from_params(cls,  # type: ignore
-                    params: Params,
-                    serialization_dir: str,
-                    recover: bool = False,
-                    cache_directory: str = None,
-                    cache_prefix: str = None):
-        pieces = TrainerPieces.from_params(params,  # pylint: disable=no-member
-                                           serialization_dir,
-                                           recover,
-                                           cache_directory,
-                                           cache_prefix)
-        return _from_params(cls,
-                            pieces.model,
-                            serialization_dir,
-                            pieces.iterator,
-                            pieces.train_dataset,
-                            pieces.validation_dataset,
-                            pieces.params,
-                            pieces.validation_iterator)
+    #@classmethod
+    #def from_params(cls,  # type: ignore
+    #                params: Params,
+    #                serialization_dir: str,
+    #                recover: bool = False,
+    #                cache_directory: str = None,
+    #                cache_prefix: str = None):
+    #    pieces = TrainerPieces.from_params(params,  # pylint: disable=no-member
+    #                                       serialization_dir,
+    #                                       recover,
+    #                                       cache_directory,
+    #                                       cache_prefix)
+    #    return _from_params(cls,
+    #                        pieces.model,
+    #                        serialization_dir,
+    #                        pieces.iterator,
+    #                        pieces.train_dataset,
+    #                        pieces.validation_dataset,
+    #                        pieces.params,
+    #                        pieces.validation_iterator)
 
 
 # An ugly way to inherit ``from_params`` of the ``Trainer`` class in AllenNLP.
-def _from_params(cls,  # type: ignore
-                 model: Model,
-                 serialization_dir: str,
-                 iterator: DataIterator,
-                 train_data: Iterable[Instance],
-                 validation_data: Optional[Iterable[Instance]],
-                 params: Params,
-                 validation_iterator: DataIterator = None) -> DecompTrainer:
-    # pylint: disable=arguments-differ
-    patience = params.pop_int("patience", None)
-    validation_metric = params.pop("validation_metric", "-loss")
-    shuffle = params.pop_bool("shuffle", True)
-
-    num_epochs = params.pop_int("num_epochs", 20)
-
-    cuda_device = parse_cuda_device(params.pop("cuda_device", -1))
-    grad_norm = params.pop_float("grad_norm", None)
-    grad_clipping = params.pop_float("grad_clipping", None)
-    lr_scheduler_params = params.pop("learning_rate_scheduler", None)
-    momentum_scheduler_params = params.pop("momentum_scheduler", None)
-
-    validation_data_path = params.pop("validation_data_path", None)
-    validation_prediction_path = params.pop("validation_prediction_path", None)
-
-    semantics_only = params.pop("semantics_only", False)
-    drop_syntax = params.pop("drop_syntax", True)
-    include_attribute_scores = params.pop("include_attribute_scores", False)
-
-    warmup_epochs = params.pop("warmup_epochs", 0) 
-
-    if isinstance(cuda_device, list):
-        model_device = cuda_device[0]
-    else:
-        model_device = cuda_device
-    if model_device >= 0:
-        # Moving model to GPU here so that the optimizer state gets constructed on
-        # the right device.
-        model = model.cuda(model_device)
-
-    parameters = [[n, p] for n, p in model.named_parameters() if p.requires_grad]
-    optimizer = Optimizer.from_params(parameters, params.pop("optimizer"))
-    if "moving_average" in params:
-        moving_average = MovingAverage.from_params(params.pop("moving_average"), parameters=parameters)
-    else:
-        moving_average = None
-
-    if lr_scheduler_params:
-        lr_scheduler = LearningRateScheduler.from_params(optimizer, lr_scheduler_params)
-    else:
-        lr_scheduler = None
-    if momentum_scheduler_params:
-        momentum_scheduler = MomentumScheduler.from_params(optimizer, momentum_scheduler_params)
-    else:
-        momentum_scheduler = None
-
-    if 'checkpointer' in params:
-        if 'keep_serialized_model_every_num_seconds' in params or \
-                'num_serialized_models_to_keep' in params:
-            raise ConfigurationError(
-                    "Checkpointer may be initialized either from the 'checkpointer' key or from the "
-                    "keys 'num_serialized_models_to_keep' and 'keep_serialized_model_every_num_seconds'"
-                    " but the passed config uses both methods.")
-        checkpointer = Checkpointer.from_params(params.pop("checkpointer"))
-    else:
-        num_serialized_models_to_keep = params.pop_int("num_serialized_models_to_keep", 20)
-        keep_serialized_model_every_num_seconds = params.pop_int(
-                "keep_serialized_model_every_num_seconds", None)
-        checkpointer = Checkpointer(
-                serialization_dir=serialization_dir,
-                num_serialized_models_to_keep=num_serialized_models_to_keep,
-                keep_serialized_model_every_num_seconds=keep_serialized_model_every_num_seconds)
-    model_save_interval = params.pop_float("model_save_interval", None)
-    summary_interval = params.pop_int("summary_interval", 100)
-    histogram_interval = params.pop_int("histogram_interval", None)
-    should_log_parameter_statistics = params.pop_bool("should_log_parameter_statistics", True)
-    should_log_learning_rate = params.pop_bool("should_log_learning_rate", False)
-    log_batch_size_period = params.pop_int("log_batch_size_period", None)
-    syntactic_method = params.pop("syntactic_method", None)
-
-    params.assert_empty(cls.__name__)
-    return cls(model=model,
-               optimizer=optimizer,
-               iterator=iterator,
-               train_dataset=train_data,
-               validation_dataset=validation_data,
-               validation_data_path=validation_data_path,
-               validation_prediction_path=validation_prediction_path,
-               semantics_only=semantics_only,
-               warmup_epochs = warmup_epochs, 
-               syntactic_method = syntactic_method,
-               drop_syntax=drop_syntax,
-               include_attribute_scores=include_attribute_scores,
-               patience=patience,
-               validation_metric=validation_metric,
-               validation_iterator=validation_iterator,
-               shuffle=shuffle,
-               num_epochs=num_epochs,
-               serialization_dir=serialization_dir,
-               cuda_device=cuda_device,
-               grad_norm=grad_norm,
-               grad_clipping=grad_clipping,
-               learning_rate_scheduler=lr_scheduler,
-               momentum_scheduler=momentum_scheduler,
-               checkpointer=checkpointer,
-               model_save_interval=model_save_interval,
-               summary_interval=summary_interval,
-               histogram_interval=histogram_interval,
-               should_log_parameter_statistics=should_log_parameter_statistics,
-               should_log_learning_rate=should_log_learning_rate,
-               log_batch_size_period=log_batch_size_period,
-               moving_average=moving_average)
-               
-
+#def _from_params(cls,  # type: ignore
+#                 model: Model,
+#                 serialization_dir: str,
+#                 iterator: DataIterator,
+#                 train_data: Iterable[Instance],
+#                 validation_data: Optional[Iterable[Instance]],
+#                 params: Params,
+#                 validation_iterator: DataIterator = None) -> DecompTrainer:
+#    # pylint: disable=arguments-differ
+#    patience = params.pop_int("patience", None)
+#    validation_metric = params.pop("validation_metric", "-loss")
+#    shuffle = params.pop_bool("shuffle", True)
+#
+#    num_epochs = params.pop_int("num_epochs", 20)
+#
+#    cuda_device = parse_cuda_device(params.pop("cuda_device", -1))
+#    grad_norm = params.pop_float("grad_norm", None)
+#    grad_clipping = params.pop_float("grad_clipping", None)
+#    lr_scheduler_params = params.pop("learning_rate_scheduler", None)
+#    momentum_scheduler_params = params.pop("momentum_scheduler", None)
+#
+#    validation_data_path = params.pop("validation_data_path", None)
+#    validation_prediction_path = params.pop("validation_prediction_path", None)
+#
+#    semantics_only = params.pop("semantics_only", False)
+#    drop_syntax = params.pop("drop_syntax", True)
+#    include_attribute_scores = params.pop("include_attribute_scores", False)
+#
+#    warmup_epochs = params.pop("warmup_epochs", 0) 
+#
+#    if isinstance(cuda_device, list):
+#        model_device = cuda_device[0]
+#    else:
+#        model_device = cuda_device
+#    if model_device >= 0:
+#        # Moving model to GPU here so that the optimizer state gets constructed on
+#        # the right device.
+#        model = model.cuda(model_device)
+#
+#    parameters = [[n, p] for n, p in model.named_parameters() if p.requires_grad]
+#    optimizer = Optimizer.from_params(parameters, params.pop("optimizer"))
+#    if "moving_average" in params:
+#        moving_average = MovingAverage.from_params(params.pop("moving_average"), parameters=parameters)
+#    else:
+#        moving_average = None
+#
+#    if lr_scheduler_params:
+#        lr_scheduler = LearningRateScheduler.from_params(optimizer, lr_scheduler_params)
+#    else:
+#        lr_scheduler = None
+#    if momentum_scheduler_params:
+#        momentum_scheduler = MomentumScheduler.from_params(optimizer, momentum_scheduler_params)
+#    else:
+#        momentum_scheduler = None
+#
+#    if 'checkpointer' in params:
+#        if 'keep_serialized_model_every_num_seconds' in params or \
+#                'num_serialized_models_to_keep' in params:
+#            raise ConfigurationError(
+#                    "Checkpointer may be initialized either from the 'checkpointer' key or from the "
+#                    "keys 'num_serialized_models_to_keep' and 'keep_serialized_model_every_num_seconds'"
+#                    " but the passed config uses both methods.")
+#        checkpointer = Checkpointer.from_params(params.pop("checkpointer"))
+#    else:
+#        num_serialized_models_to_keep = params.pop_int("num_serialized_models_to_keep", 20)
+#        keep_serialized_model_every_num_seconds = params.pop_int(
+#                "keep_serialized_model_every_num_seconds", None)
+#        checkpointer = Checkpointer(
+#                serialization_dir=serialization_dir,
+#                num_serialized_models_to_keep=num_serialized_models_to_keep,
+#                keep_serialized_model_every_num_seconds=keep_serialized_model_every_num_seconds)
+#    model_save_interval = params.pop_float("model_save_interval", None)
+#    summary_interval = params.pop_int("summary_interval", 100)
+#    histogram_interval = params.pop_int("histogram_interval", None)
+#    should_log_parameter_statistics = params.pop_bool("should_log_parameter_statistics", True)
+#    should_log_learning_rate = params.pop_bool("should_log_learning_rate", False)
+#    log_batch_size_period = params.pop_int("log_batch_size_period", None)
+#    syntactic_method = params.pop("syntactic_method", None)
+#
+#    params.assert_empty(cls.__name__)
+#    return cls(model=model,
+#               optimizer=optimizer,
+#               iterator=iterator,
+#               train_dataset=train_data,
+#               validation_dataset=validation_data,
+#               validation_data_path=validation_data_path,
+#               validation_prediction_path=validation_prediction_path,
+#               semantics_only=semantics_only,
+#               warmup_epochs = warmup_epochs, 
+#               syntactic_method = syntactic_method,
+#               drop_syntax=drop_syntax,
+#               include_attribute_scores=include_attribute_scores,
+#               patience=patience,
+#               validation_metric=validation_metric,
+#               validation_iterator=validation_iterator,
+#               shuffle=shuffle,
+#               num_epochs=num_epochs,
+#               serialization_dir=serialization_dir,
+#               cuda_device=cuda_device,
+#               grad_norm=grad_norm,
+#               grad_clipping=grad_clipping,
+#               learning_rate_scheduler=lr_scheduler,
+#               momentum_scheduler=momentum_scheduler,
+#               checkpointer=checkpointer,
+#               model_save_interval=model_save_interval,
+#               summary_interval=summary_interval,
+#               histogram_interval=histogram_interval,
+#               should_log_parameter_statistics=should_log_parameter_statistics,
+#               should_log_learning_rate=should_log_learning_rate,
+#               log_batch_size_period=log_batch_size_period,
+#               moving_average=moving_average)
+#               
+#
