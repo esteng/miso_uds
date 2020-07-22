@@ -20,7 +20,7 @@ from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDG
 from miso.data.dataset_readers.decomp_parsing.tests import DROP_TEST_CASES, NODROP_TEST_CASES, test_reader
 from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax 
 from miso.data.dataset_readers.decomp_parsing.uds import TestUDSCorpus
-from miso.data.tokenizers import AMRTransformerTokenizer
+from miso.data.tokenizers import AMRBertTokenizer, AMRXLMRobertaTokenizer, MisoTokenizer
 
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -34,7 +34,7 @@ class DecompDatasetReader(DatasetReader):
                  source_token_indexers: Dict[str, TokenIndexer],
                  target_token_indexers: Dict[str, TokenIndexer],
                  generation_token_indexers: Dict[str, TokenIndexer],
-                 tokenizer: Tokenizer = AMRTransformerTokenizer,
+                 tokenizer: MisoTokenizer = None, #AMRTransformerTokenizer,
                  syntactic_method: str = "concat-after",
                  evaluation: bool = False,
                  drop_syntax: bool = True,
@@ -64,6 +64,7 @@ class DecompDatasetReader(DatasetReader):
         self._edge_type_indexers = {"edge_types": SingleIdTokenIndexer(namespace="edge_types")}
         self._syntax_edge_type_indexers = {"syn_edge_types": SingleIdTokenIndexer(namespace="syn_edge_types")}
 
+        #self._tokenizer = tokenizer
         self._tokenizer = tokenizer
         self._num_subtokens = 0
         self._num_subtoken_oovs = 0
