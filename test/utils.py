@@ -4,7 +4,7 @@ import os
 import shutil
 from collections import namedtuple
 
-from allennlp.common.util import import_submodules
+from allennlp.common.util import  import_submodules
 
 TOL = 0.0001
 
@@ -31,7 +31,9 @@ def setup_checkpointing_and_args(config_path, output_dir):
 
     include_package = ["miso.data.dataset_readers",
                       "miso.models",
+                      "miso.data.tokenizers",
                       "miso.modules.seq2seq_encoders",
+                      "miso.modules",
                       "miso.training",
                       "miso.metrics"]
 
