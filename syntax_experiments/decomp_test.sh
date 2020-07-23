@@ -64,8 +64,8 @@ function eval() {
     python -m miso.commands.s_score eval \
     ${model_file} ${TEST_DATA} \
     --predictor "decomp_syntax_parsing" \
-    --batch-size 1 \
-    --beam-size 1 \
+    --batch-size 2 \
+    --beam-size 2 \
     --use-dataset-reader \
     --line-limit 2 \
     --cuda-device -1 \

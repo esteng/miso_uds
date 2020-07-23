@@ -65,18 +65,18 @@ function eval() {
     python -m miso.commands.s_score eval \
     ${model_file} ${TEST_DATA} \
     --predictor "decomp_syntax_parsing" \
-    --batch-size 32 \
-    --beam-size 1 \
+    --batch-size 128 \
+    --beam-size 2 \
     --use-dataset-reader \
-    --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
-    --cuda-device -1 \
+    --cuda-device 0 \
     --include-package miso.data.dataset_readers \
-    --include-package miso.models \
     --include-package miso.modules.seq2seq_encoders \
+    --include-package miso.models \
     --include-package miso.predictors \
     --include-package miso.metrics &> ${CHECKPOINT_DIR}/${TEST_DATA}.synt_struct.out
 }
 
+    #--save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
 function eval_sem() {
     echo "Evaluating a transductive model for decomp parsing..."
     model_file=${CHECKPOINT_DIR}/model.tar.gz
@@ -86,11 +86,11 @@ function eval_sem() {
     python -m miso.commands.s_score eval \
     ${model_file} ${TEST_DATA} \
     --predictor "decomp_syntax_parsing" \
-    --batch-size 1 \
+    --batch-size 128 \
+    --beam-size 2 \
     --use-dataset-reader \
-    --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
     --semantics-only \
-    --cuda-device -1 \
+    --cuda-device 0 \
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
     --include-package miso.modules.seq2seq_encoders \
@@ -109,11 +109,11 @@ function eval_attr() {
     ${model_file} ${TEST_DATA} \
     --predictor "decomp_syntax_parsing" \
     --include-attribute-scores \
-    --batch-size 32 \
-    --beam-size 1 \
+    --batch-size 128 \
+    --beam-size 2 \
     --use-dataset-reader \
     --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
-    --cuda-device -1 \
+    --cuda-device 0 \
     --include-package miso.data.dataset_readers \
     --include-package miso.models \
     --include-package miso.modules.seq2seq_encoders \
@@ -131,7 +131,7 @@ function spr_eval() {
     ${model_file} ${TEST_DATA} \
     --predictor "decomp_syntax_parsing" \
     --use-dataset-reader \
-    --batch-size 32 \
+    --batch-size 128 \
     --oracle \
     --json-output-file ${CHECKPOINT_DIR}/data.json\
     --include-package miso.data.dataset_readers \
@@ -150,11 +150,10 @@ function conllu_eval() {
     python -m miso.commands.s_score conllu_eval \
     ${model_file} ${TEST_DATA} \
     --predictor "decomp_syntax_parsing" \
-    --batch-size 1 \
-    --beam-size 1 \
+    --batch-size 128 \
+    --beam-size 2 \
     --use-dataset-reader \
-    --line-limit 128 \
-    --cuda-device -1 \
+    --cuda-device 0 \
     --include-package miso.data.dataset_readers \
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.models \

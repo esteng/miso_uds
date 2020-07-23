@@ -212,6 +212,7 @@ class DecompSyntaxParsingPredictor(DecompParsingPredictor):
     @overrides
     def dump_line(self, outputs: JsonDict) -> str:
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
+        print(f"self._model.syntactic_method {self._model.syntactic_method}") 
         pred_sem_graph, pred_syn_graph, conllu_graph = DecompGraphWithSyntax.from_prediction(outputs, self._model.syntactic_method) 
         conllu_str = ""
 

@@ -17,6 +17,7 @@ from miso.training.decomp_parsing_trainer import DecompTrainer
 #from miso.data.iterators.data_iterator import DecompDataIterator, DecompBasicDataIterator 
 from miso.metrics.s_metric.s_metric import S, compute_s_metric
 from miso.models.decomp_syntax_only_parser import DecompSyntaxOnlyParser
+from miso.models.decomp_transformer_syntax_only_parser import DecompTransformerSyntaxOnlyParser
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -128,7 +129,8 @@ class DecompSyntaxTrainer(DecompTrainer):
         # compute attachement scores here without having to override another function
         self._update_attachment_scores(pred_instances, true_instances) 
         
-        if isinstance(self.model, DecompSyntaxOnlyParser):
+        if isinstance(self.model, DecompSyntaxOnlyParser) or \
+           isinstance(self.model, DecompTransformerSyntaxOnlyParser):
             return 
 
         logger.info("Computing S")
