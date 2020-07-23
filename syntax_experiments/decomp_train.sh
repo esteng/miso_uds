@@ -19,6 +19,7 @@ function train() {
     echo "Training a new transductive model for decomp parsing..."
     python -um allennlp.run train \
     --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
     --include-package miso.models \
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.training \
@@ -31,6 +32,7 @@ function resume() {
     python scripts/edit_config.py ${CHECKPOINT_DIR}/config.json ${TRAINING_CONFIG}
     python -m allennlp.run train \
     --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
     --include-package miso.models \
     --include-package miso.training \
     --include-package miso.modules.seq2seq_encoders \
@@ -51,6 +53,7 @@ function test() {
     --batch-size 1 \
     --use-dataset-reader \
     --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
     --include-package miso.models \
     --include-package miso.predictors \
     --include-package miso.metrics
@@ -70,6 +73,7 @@ function eval() {
     --use-dataset-reader \
     --cuda-device 0 \
     --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.models \
     --include-package miso.predictors \
@@ -92,6 +96,7 @@ function eval_sem() {
     --semantics-only \
     --cuda-device 0 \
     --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
     --include-package miso.models \
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.predictors \
@@ -115,6 +120,7 @@ function eval_attr() {
     --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
     --cuda-device 0 \
     --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
     --include-package miso.models \
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.predictors \
@@ -135,6 +141,7 @@ function spr_eval() {
     --oracle \
     --json-output-file ${CHECKPOINT_DIR}/data.json\
     --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
     --include-package miso.models \
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.predictors \
@@ -155,6 +162,7 @@ function conllu_eval() {
     --use-dataset-reader \
     --cuda-device 0 \
     --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.models \
     --include-package miso.predictors \

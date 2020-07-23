@@ -12,10 +12,9 @@ import torch
 
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence, PackedSequence
 
-from miso.utils.checks import ConfigurationError
-from miso.utils.nn import get_dropout_mask
-from miso.modules.initializers import block_orthogonal
-
+from allennlp.common.checks import ConfigurationError
+from allennlp.nn.util import get_dropout_mask
+from allennlp.nn.initializers import block_orthogonal
 
 class AugmentedLstm(torch.nn.Module):
     """

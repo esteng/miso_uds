@@ -4,7 +4,37 @@ from torch.nn.utils.rnn import PackedSequence, pack_padded_sequence, pad_packed_
 
 from allennlp.modules.stacked_bidirectional_lstm import StackedBidirectionalLstm
 from allennlp.common.checks import ConfigurationError
+from allennlp.modules.seq2seq_encoders import PytorchSeq2SeqWrapper, Seq2SeqEncoder
 
+
+Seq2SeqEncoder.register("miso_stacked_bilstm")
+class MisoStackedBidirectionalLstmSeq2SeqEncoder(PytorchSeq2SeqWrapper):
+    """
+    Registered as a `Seq2SeqEncoder` with name "stacked_bidirectional_lstm".
+    """
+
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        num_layers: int,
+        recurrent_dropout_probability: float = 0.0,
+        layer_dropout_probability: float = 0.0,
+        use_highway: bool = True,
+        stateful: bool = False,
+    ) -> None:
+        module = MisoStackedBidirectionalLstm(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            recurrent_dropout_probability=recurrent_dropout_probability,
+            layer_dropout_probability=layer_dropout_probability,
+            use_highway=use_highway,
+        )
+        super().__init__(module=module, stateful=stateful)
+
+    #def get_final_states(self) -> RnnStateStorage:
+    #    return self._states
 
 class MisoStackedBidirectionalLstm(StackedBidirectionalLstm):
     """

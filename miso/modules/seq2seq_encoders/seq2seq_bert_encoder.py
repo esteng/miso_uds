@@ -1,21 +1,21 @@
 import torch
 
 from allennlp.common import Registrable
-from transformers import BertModel
+from transformers import BertModel, XLMRobertaModel
 
 
 class BaseBertWrapper(Registrable, torch.nn.Module):
 
-    def __init__(self, config: str) -> None:
+    def __init__(self, config: str, 
+                       model_class = BertModel) -> None:
         super().__init__()
-        self.bert_model = BertModel.from_pretrained(config).eval()
-
+        self.bert_model = model_class.from_pretrained(config).eval()
 
 @BaseBertWrapper.register("seq2seq_bert_encoder")
 class Seq2SeqBertEncoder(BaseBertWrapper):
 
     def __init__(self, config: str) -> None:
-        super().__init__(config)
+        super(Seq2SeqBertEncoder, self).__init__(config, BertModel) 
 
     def forward(self,
                 input_ids: torch.LongTensor,
@@ -32,6 +32,34 @@ class Seq2SeqBertEncoder(BaseBertWrapper):
         """
         # encoded_layers: [batch_size, num_subword_pieces, hidden_size]
         with torch.no_grad():
+            encoded_layers, _ = self.bert_model(
+                input_ids = input_ids, token_type_ids = token_type_ids, attention_mask = attention_mask)
+            if token_recovery_matrix is None:
+                return encoded_layers
+            else:
+                return average_pooling(encoded_layers, token_recovery_matrix)
+
+@BaseBertWrapper.register("seq2seq_xlmr_encoder")
+class Seq2SeqXLMRobertaEncoder(BaseBertWrapper):
+
+    def __init__(self, config, use_bert_all_layers=False):
+        super(Seq2SeqXLMRobertaEncoder, self).__init__(config, XLMRobertaModel)
+
+    def forward(self,
+                input_ids: torch.LongTensor,
+                token_type_ids: torch.Tensor = None,
+                attention_mask: torch.Tensor = None,
+                output_all_encoded_layers: bool = True,
+                token_recovery_matrix: torch.LongTensor = None) -> torch.Tensor:
+        """
+        :param input_ids: same as it in BertModel
+        :param token_type_ids: same as it in BertModel
+        :param attention_mask: same as it in BertModel
+        :param output_all_encoded_layers: same as it in BertModel
+        :param token_recovery_matrix: [batch_size, num_tokens, num_subwords]
+        """
+        with torch.no_grad(): 
+            # encoded_layers: [batch_size, num_subword_pieces, hidden_size]
             encoded_layers, _ = self.bert_model(
                 input_ids = input_ids, token_type_ids = token_type_ids, attention_mask = attention_mask)
             if token_recovery_matrix is None:
