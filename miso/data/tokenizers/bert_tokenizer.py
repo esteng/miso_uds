@@ -44,18 +44,13 @@ class AMRBertTokenizer(BertTokenizer):
                 args: None, # extra args to make backwards-compatible
                 kwargs: None):
 
+        # Hacky fix to get to play nice with registering and pretrained 
         tok = AutoTokenizer.from_pretrained(model_name)
-        print(tok.__dict__.keys()) 
-        vocab_file = tok.vocab_file
-        config = tok.__dict__
-        config.pop("vocab_file")
-        super(AMRBertTokenizer, self).__init__(vocab_file,
-                                                    **config) 
+        self.__dict__ = tok.__dict__
 
     @overrides
     def tokenize(self, tokens, split=False):
         return tokenize_helper(self, tokens, split=split)
-
 
 @MisoTokenizer.register("pretrained_xlmr") 
 class AMRXLMRobertaTokenizer(XLMRobertaTokenizer):
@@ -63,12 +58,9 @@ class AMRXLMRobertaTokenizer(XLMRobertaTokenizer):
         self.model_name = model_name
 
     def __init__(self, model_name: str): 
+        # Hacky fix to get to play nice with registering and pretrained 
         tok = AutoTokenizer.from_pretrained(model_name)
-        vocab_file = tok.vocab_file
-        config = tok.__dict__
-        config.pop("vocab_file")
-        super(AMRXLMRobertaTokenizer, self).__init__(vocab_file,
-                                                    **config) 
+        self.__dict__ = tok.__dict__
 
     @overrides
     def tokenize(self, tokens, split=False):
