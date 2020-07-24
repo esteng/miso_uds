@@ -21,6 +21,7 @@ from allennlp.training.metrics import AttachmentScores
 from miso.models.transduction_base import Transduction
 from miso.models.decomp_syntax_parser import DecompSyntaxParser
 from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder, BaseBertWrapper
+from miso.modules.seq2seq_encoders.transformer_encoder import MisoTransformerEncoder
 from miso.modules.decoders import RNNDecoder
 from miso.modules.generators import ExtendedPointerGenerator
 from miso.modules.parsers import DeepTreeParser, DecompTreeParser, DeepBiaffineParser
@@ -148,14 +149,51 @@ class UDParser(Transduction):
 
         return inputs 
 
-    def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
-        encoding_outputs = self._encode(
-            tokens=inputs["source_tokens"],
-            pos_tags=inputs["source_pos_tags"],
-            subtoken_ids=inputs["source_subtoken_ids"],
-            token_recovery_matrix=inputs["source_token_recovery_matrix"],
-            mask=inputs["source_mask"]
+    def _transformer_encode(self,
+                tokens: Dict[str, torch.Tensor],
+                subtoken_ids: torch.Tensor,
+                token_recovery_matrix: torch.Tensor,
+                mask: torch.Tensor,
+                **kwargs) -> Dict:
+
+        # [batch, num_tokens, embedding_size]
+        encoder_inputs = [self._encoder_token_embedder(tokens)]
+        if subtoken_ids is not None and self._bert_encoder is not None:
+            bert_embeddings = self._bert_encoder(
+                input_ids=subtoken_ids,
+                attention_mask=subtoken_ids.ne(0),
+                output_all_encoded_layers=False,
+                token_recovery_matrix=token_recovery_matrix
+            )
+            encoder_inputs += [bert_embeddings]
+        encoder_inputs = torch.cat(encoder_inputs, 2)
+        encoder_inputs = self._dropout(encoder_inputs)
+
+        # [batch, num_tokens, encoder_output_size]
+        encoder_outputs = self._encoder(encoder_inputs, mask)
+        encoder_outputs = self._dropout(encoder_outputs)
+
+        return dict(
+            encoder_outputs=encoder_outputs,
         )
+
+    def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
+        if isinstance(self._encoder, MisoTransformerEncoder):
+            encoding_outputs = self._transformer_encode(
+                tokens=inputs["source_tokens"],
+                pos_tags=inputs["source_pos_tags"],
+                subtoken_ids=inputs["source_subtoken_ids"],
+                token_recovery_matrix=inputs["source_token_recovery_matrix"],
+                mask=inputs["source_mask"]
+            )
+        else:
+            encoding_outputs = self._encode(
+                tokens=inputs["source_tokens"],
+                pos_tags=inputs["source_pos_tags"],
+                subtoken_ids=inputs["source_subtoken_ids"],
+                token_recovery_matrix=inputs["source_token_recovery_matrix"],
+                mask=inputs["source_mask"]
+            )
 
         biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
                                         inputs["syn_edge_head_mask"],
