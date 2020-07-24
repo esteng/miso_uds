@@ -1,6 +1,7 @@
 import pytest
 import sys 
 import os 
+import numpy as np 
 
 path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, path) 
@@ -22,8 +23,8 @@ def test_get_list_data():
     expected = {'syn_tokens': ['Manasse', 'ist', 'ein', 'einzigartiger', 'Parfümeur', '.'], 
                 'syn_head_indices': ['5', '5', '5', '5', '0', '5'], 
                 'syn_head_tags': ['nsubj', 'cop', 'det', 'amod', 'root', 'punct'], 
-                'syn_node_mask': [], 
-                'syn_edge_mask': [], 
+                'syn_node_mask': np.array([1, 1, 1, 1, 1, 1]), 
+                'syn_edge_mask': np.array([1, 1, 1, 1, 1, 1]), 
                 'src_tokens': ['Manasse', 'ist', 'ein', 'einzigartiger', 'Parfümeur', '.'], 
                 'src_pos_tags': ['PROPN', 'AUX', 'DET', 'ADJ', 'NOUN', 'PUNCT'], 
                 'src_token_ids': None, 'src_token_subword_index': None, 

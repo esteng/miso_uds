@@ -18,7 +18,6 @@ class UDGraph:
 
     def get_list_data(self, bert_tokenizer=None): 
         syn_tokens, syn_head_indices, syn_head_tags = [], [], []
-        syn_node_mask, syn_edge_mask = [], []
         src_tokens, src_token_ids, src_pos_tags, src_token_subword_index = [], [], [], []
 
         #colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
@@ -47,6 +46,9 @@ class UDGraph:
             src_token_subword_index = bert_tokenizer_ret["token_recovery_matrix"]
 
         true_conllu_dict = self.conllu_dict
+
+        syn_node_mask = np.array([1] * len(syn_tokens), dtype='uint8')
+        syn_edge_mask = np.ones((len(syn_tokens), len(syn_tokens)), dtype='uint8')
 
         return {
             "syn_tokens": syn_tokens, 
