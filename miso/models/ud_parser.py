@@ -82,7 +82,6 @@ class UDParser(Transduction):
         self.syntax_uas = 0.0 
         # compatibility
         self.loss_mixer = None
-        self.syntactic_method = "encoder-side" 
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         metrics = OrderedDict(
@@ -195,7 +194,8 @@ class UDParser(Transduction):
             encoder_outputs=encoder_outputs,
         )
 
-    def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
+    @overrides
+    def _encode(self, inputs) -> Dict:
         if isinstance(self._encoder, MisoTransformerEncoder):
             encoding_outputs = self._transformer_encode(
                 tokens=inputs["source_tokens"],
@@ -205,13 +205,17 @@ class UDParser(Transduction):
                 mask=inputs["source_mask"]
             )
         else:
-            encoding_outputs = self._encode(
+            encoding_outputs = super()._encode(
                 tokens=inputs["source_tokens"],
                 pos_tags=inputs["source_pos_tags"],
                 subtoken_ids=inputs["source_subtoken_ids"],
                 token_recovery_matrix=inputs["source_token_recovery_matrix"],
                 mask=inputs["source_mask"]
             )
+        return encoding_outputs
+
+    def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
+        encoding_outputs = self._encode(inputs) 
 
         biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
                                         inputs["syn_edge_head_mask"],
@@ -227,13 +231,7 @@ class UDParser(Transduction):
         return dict(loss=biaffine_loss) 
 
     def _test_forward(self, inputs: Dict) -> Dict:
-        encoding_outputs = self._encode(
-            tokens=inputs["source_tokens"],
-            pos_tags=inputs["source_pos_tags"],
-            subtoken_ids=inputs["source_subtoken_ids"],
-            token_recovery_matrix=inputs["source_token_recovery_matrix"],
-            mask=inputs["source_mask"]
-        )
+        encoding_outputs = self._encode(inputs)
 
         biaffine_outputs = self._parse_syntax(encoding_outputs['encoder_outputs'],
                                                 inputs["syn_edge_head_mask"],
