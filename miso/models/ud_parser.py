@@ -37,8 +37,12 @@ from miso.losses.mixing import LossMixer
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 @Model.register("ud_parser")
-class UDParser(Model):
-
+class UDParser(Transduction):
+    """
+    Model will use only the encoder part of a Transduction model,
+    but to make maximally compatible we'll have it inherit and just
+    not use the decoder modules. 
+    """
     def __init__(self,
                  vocab: Vocabulary,
                  # source-side
@@ -52,24 +56,32 @@ class UDParser(Model):
                  eps: float = 1e-20,
                  ) -> None:
 
-        super(UDParser, self).__init__(vocab=vocab)
+        super(UDParser, self).__init__(vocab=vocab,
+                                       bert_encoder=bert_encoder,
+                                       encoder_token_embedder=encoder_token_embedder,
+                                       encoder=encoder,
+                                       decoder_token_embedder=None,
+                                       decoder_node_index_embedding=None,
+                                       decoder=None,
+                                       extended_pointer_generator=None,
+                                       tree_parser=None,
+                                       label_smoothing=None,
+                                       target_output_namespace=None,
+                                       dropout=dropout,
+                                       eps=eps)
 
         # source-side
-        self.bert_encoder=bert_encoder
-        self.encoder_token_embedder=encoder_token_embedder
         self.encoder_pos_embedding=encoder_pos_embedding
-        self.encoder=encoder
         # misc
         self.syntax_edge_type_namespace=syntax_edge_type_namespace
-        self.dropout=dropout
-        self.eps=eps
         self.biaffine_parser = biaffine_parser
         #metrics
         self._syntax_metrics = AttachmentScores()
         self.syntax_las = 0.0 
         self.syntax_uas = 0.0 
+        # compatibility
+        self.loss_mixer = None
 
-    @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         syntax_metrics = self._syntax_metrics.get_metric(reset)
 
@@ -117,6 +129,25 @@ class UDParser(Model):
         return parser_outputs
 
     @overrides
+    def _prepare_inputs(self, raw_inputs):
+        inputs = raw_inputs.copy()
+
+        inputs["source_mask"] = get_text_field_mask(raw_inputs["source_tokens"])
+
+        source_subtoken_ids = raw_inputs.get("source_subtoken_ids", None)
+        if source_subtoken_ids is None:
+            inputs["source_subtoken_ids"] = None
+        else:
+            inputs["source_subtoken_ids"] = source_subtoken_ids.long()
+
+        source_token_recovery_matrix = raw_inputs.get("source_token_recovery_matrix", None)
+        if source_token_recovery_matrix is None:
+            inputs["source_token_recovery_matrix"] = None
+        else:
+            inputs["source_token_recovery_matrix"] = source_token_recovery_matrix.long()
+
+        return inputs 
+
     def _training_forward(self, inputs: Dict) -> Dict[str, torch.Tensor]:
         encoding_outputs = self._encode(
             tokens=inputs["source_tokens"],
@@ -140,7 +171,6 @@ class UDParser(Model):
 
         return dict(loss=biaffine_loss) 
 
-    @overrides
     def _test_forward(self, inputs: Dict) -> Dict:
         encoding_outputs = self._encode(
             tokens=inputs["source_tokens"],

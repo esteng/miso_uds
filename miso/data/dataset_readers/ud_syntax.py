@@ -19,7 +19,7 @@ from miso.data.dataset_readers.ud_parsing.ud import UDGraph
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-@DatasetReader.register("ud-syntax") 
+#@DatasetReader.register("ud-syntax") 
 class UDDatasetReader(DatasetReader):
     '''
     Dataset reader for Decomp data
@@ -96,7 +96,7 @@ class UDDatasetReader(DatasetReader):
         fields: Dict[str, Field] = {}
 
         max_tgt_length = None if self.eval else 60
-        d = UDGraph(graph, drop_syntax = self.drop_syntax, order = self.order)
+        d = UDGraph(graph)
         list_data = d.get_list_data(
              bert_tokenizer = self._tokenizer)
         if list_data is None:
@@ -135,9 +135,6 @@ class UDDatasetReader(DatasetReader):
 
         fields['syn_edge_head_mask'] = ArrayField(list_data['syn_edge_mask'])
         fields['syn_valid_node_mask'] = ArrayField(list_data['syn_node_mask'])
-
-        fields["syn_tokens_str"] = MetadataField(
-                list_data["syn_tokens"])
 
         fields["syn_node_name_list"] = MetadataField(
                 list_data["syn_node_name_list"])
