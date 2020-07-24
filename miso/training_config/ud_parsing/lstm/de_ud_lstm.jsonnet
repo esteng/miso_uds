@@ -1,4 +1,4 @@
-local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
+local data_dir = "/Users/Elias/miso_research/data/UD/";
 
 {
   dataset_reader: {
@@ -22,8 +22,8 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
                 model_name: "xlm-roberta-base",
                },
   },
-  train_data_path: data_dir,
-  validation_data_path: data_dir,
+  train_data_path: data_dir + "/train/*",
+  validation_data_path: data_dir + "/dev/*",
   #test_data_path: null,
   #line_limit: 2,
   datasets_for_vocab_creation: [
@@ -108,6 +108,7 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
     batch_size: 64,
+    instances_per_epoch: 20000,
   },
   validation_iterator: {
     type: "basic",
@@ -138,9 +139,9 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
     validation_prediction_path: "ud_validation.txt",
-    semantics_only: "false",
+    semantics_only: false,
     syntactic_method: null,
-    drop_syntax: "true",
+    drop_syntax: true,
   },
   random_seed: 12,
   numpy_seed: 12,

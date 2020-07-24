@@ -183,6 +183,9 @@ class DecompTrainer(Trainer):
             self._moving_average.restore()
         self._update_validation_s_score(val_outputs, val_true_instances)
 
+        if hasattr(self, "_update_validation_syntax_score"):
+            self._update_validation_syntax_score(val_outputs, val_true_instances)
+
         return val_loss, batches_this_epoch
 
 

@@ -18,6 +18,7 @@ from miso.training.decomp_parsing_trainer import DecompTrainer
 from miso.metrics.s_metric.s_metric import S, compute_s_metric
 from miso.models.decomp_syntax_only_parser import DecompSyntaxOnlyParser
 from miso.models.decomp_transformer_syntax_only_parser import DecompTransformerSyntaxOnlyParser
+from miso.models.ud_parser import UDParser
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -130,7 +131,8 @@ class DecompSyntaxTrainer(DecompTrainer):
         self._update_attachment_scores(pred_instances, true_instances) 
         
         if isinstance(self.model, DecompSyntaxOnlyParser) or \
-           isinstance(self.model, DecompTransformerSyntaxOnlyParser):
+           isinstance(self.model, DecompTransformerSyntaxOnlyParser) or \
+           isinstance(self.model, UDParser):
             return 
 
         logger.info("Computing S")

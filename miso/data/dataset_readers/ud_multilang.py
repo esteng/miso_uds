@@ -113,6 +113,9 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
         fields['syn_edge_head_mask'] = ArrayField(np.ones((len(words), len(words)), dtype='uint8'))
         fields['syn_valid_node_mask'] = ArrayField(np.array([1] * len(words), dtype='uint8')) 
 
-        fields["metadata"] = MetadataField({"src_tokens_str": words, "src_pos_str": upos_tags, "lang": lang})
+        fields["syn_tokens_str"] = MetadataField(
+                words)
+
+        fields["metadata"] = MetadataField({"syn_tokens_str": words, "src_pos_str": upos_tags, "lang": lang})
 
         return Instance(fields)

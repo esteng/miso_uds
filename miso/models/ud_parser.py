@@ -74,7 +74,7 @@ class UDParser(Transduction):
         # source-side
         self.encoder_pos_embedding=encoder_pos_embedding
         # misc
-        self.syntax_edge_type_namespace=syntax_edge_type_namespace
+        self._syntax_edge_type_namespace=syntax_edge_type_namespace
         self.biaffine_parser = biaffine_parser
         #metrics
         self._syntax_metrics = AttachmentScores()
@@ -82,14 +82,14 @@ class UDParser(Transduction):
         self.syntax_uas = 0.0 
         # compatibility
         self.loss_mixer = None
+        self.syntactic_method = "encoder-side" 
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
-        syntax_metrics = self._syntax_metrics.get_metric(reset)
-
         metrics = OrderedDict(
-            syn_uas=syntax_metrics["UAS"] * 100,
-            syn_las=syntax_metrics["LAS"] * 100,
+            syn_uas=0.0,
+            syn_las=0.0,
         )
+
         metrics["syn_las"] = self.syntax_las
         metrics["syn_uas"] = self.syntax_uas
         return metrics
@@ -128,6 +128,24 @@ class UDParser(Transduction):
                             )
 
         return parser_outputs
+
+    def _read_edge_predictions(self,
+                               edge_predictions: Dict[str, torch.Tensor],
+                               is_syntax = False) -> Tuple[List[List[int]], List[List[str]]]:
+        edge_type_predictions = []
+        edge_head_predictions = edge_predictions["edge_heads"].tolist()
+        edge_type_ind_predictions = edge_predictions["edge_types"].tolist()
+
+        if is_syntax:
+            namespace = self._syntax_edge_type_namespace
+        else:
+            namespace = self._edge_type_namespace
+
+        for edge_types in edge_type_ind_predictions:
+            edge_type_predictions.append([
+                self.vocab.get_token_from_index(edge_type, namespace) for edge_type in edge_types]
+            )
+        return edge_head_predictions, edge_type_predictions, edge_type_ind_predictions
 
     @overrides
     def _prepare_inputs(self, raw_inputs):
@@ -205,7 +223,6 @@ class UDParser(Transduction):
         biaffine_loss = self._compute_biaffine_loss(biaffine_outputs,
                                                     inputs)
 
-        self._update_syntax_scores()
 
         return dict(loss=biaffine_loss) 
 
