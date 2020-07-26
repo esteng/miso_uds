@@ -122,9 +122,9 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 200,
-    warmup_epochs: 200,
-    patience: 40,
+    num_epochs: 100,
+    warmup_epochs: 99,
+    patience: 100,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -145,7 +145,7 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
     validation_data_path: "dev",
     validation_prediction_path: "ud_validation.txt",
     semantics_only: "false",
-    syntactic_method: null,
+    syntactic_method: "encoder-side",
     drop_syntax: "true",
   },
   random_seed: 12,

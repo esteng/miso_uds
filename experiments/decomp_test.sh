@@ -9,7 +9,7 @@ EXP_DIR=experiments
 # Import utility functions.
 source ${EXP_DIR}/utils.sh
 
-CHECKPOINT_DIR=decomp-synt-sem-ckpt
+#CHECKPOINT_DIR=decomp-synt-sem-ckpt
 #TRAINING_CONFIG=miso/training_config/overfit_synt_sem.jsonnet
 TEST_DATA=dev
 
