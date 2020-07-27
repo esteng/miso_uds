@@ -55,6 +55,7 @@ class UDParser(Transduction):
                  biaffine_parser: DeepTreeParser = None,
                  dropout: float = 0.0,
                  eps: float = 1e-20,
+                 pretrained_weights: str = None,
                  ) -> None:
 
         super(UDParser, self).__init__(vocab=vocab,
@@ -69,7 +70,8 @@ class UDParser(Transduction):
                                        label_smoothing=None,
                                        target_output_namespace=None,
                                        dropout=dropout,
-                                       eps=eps)
+                                       eps=eps,
+                                       pretrained_weights=pretrained_weights)
 
         # source-side
         self.encoder_pos_embedding=encoder_pos_embedding
@@ -82,6 +84,10 @@ class UDParser(Transduction):
         self.syntax_uas = 0.0 
         # compatibility
         self.loss_mixer = None
+        
+        # pretrained
+        if self.pretrained_weights is not None:
+            self.load_partial(self.pretrained_weights)
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         metrics = OrderedDict(

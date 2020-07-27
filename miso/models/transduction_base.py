@@ -21,6 +21,8 @@ from miso.metrics.extended_pointer_generator_metrics import ExtendedPointerGener
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
+# debugging
+from icecream import ic
 
 class Transduction(Model):
 
@@ -41,6 +43,7 @@ class Transduction(Model):
                  target_output_namespace: str,
                  dropout: float = 0.0,
                  eps: float = 1e-20,
+                 pretrained_weights: str = None,
                  ) -> None:
         super().__init__(vocab=vocab)
         # source-side
@@ -68,6 +71,9 @@ class Transduction(Model):
         self._target_output_namespace = target_output_namespace
         self._vocab_size = self.vocab.get_vocab_size(target_output_namespace)
         self._vocab_pad_index = self.vocab.get_token_index(DEFAULT_PADDING_TOKEN, target_output_namespace)
+
+        # loading partial weights
+        self.pretrained_weights = pretrained_weights
 
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
@@ -366,3 +372,34 @@ class Transduction(Model):
         )
         loss = node_pred_loss["loss_per_node"] + edge_pred_loss["loss_per_node"]
         return dict(loss=loss)
+
+    def load_partial(self, param_file: str): 
+        """
+        loads weights and matches the ones it can 
+        """
+        logger.info(f"Attempting to load pretrained weights from {param_file}") 
+        pretrained_state_dict = torch.load(param_file)
+        current_state_dict = self.state_dict() 
+        for k, v in pretrained_state_dict.items():
+            print(f"k {k}") 
+            if isinstance(v, torch.nn.Parameter):
+                v = v.data
+            try:
+                current_state_dict[k].copy_(v)
+            except RuntimeError:
+                new_shape = pretrained_state_dict[k].shape
+                og_shape = current_state_dict[k].shape
+                print(f"Unable to match {k} due to shape error: pretrained: {new_shape} vs original: {og_shape}") 
+                logger.warning(f"Unable to match {k} due to shape error: pretrained: {new_shape} vs original: {og_shape}") 
+                continue 
+            except KeyError:
+                logger.warning(f"Unable to match {k} because it does not exist in original model") 
+                print(f"Unable to match {k} because it does not exist in original model") 
+                continue
+
+        key = "biaffine_parser.edge_type_query_linear.weight"
+        print(f"pretrained {pretrained_state_dict[key]}") 
+        print(f"before {self.state_dict()[key]}") 
+        self.load_state_dict(current_state_dict) 
+        print(f"after {self.state_dict()[key]}") 
+

@@ -68,6 +68,7 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
                  eps: float = 1e-20,
                  loss_mixer: LossMixer = None,
                  intermediate_graph: bool = False,
+                 pretrained_weights: str = None
                  ) -> None:
         super().__init__(vocab=vocab,
                          # source-side
@@ -93,7 +94,8 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
                          dropout=dropout,
                          beam_size=beam_size,
                          max_decoding_steps=max_decoding_steps,
-                         eps=eps)
+                         eps=eps,
+                         pretrained_weights=pretrained_weights)
         
         self.syntactic_method = syntactic_method
         self.biaffine_parser = biaffine_parser
@@ -102,6 +104,9 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
         self._syntax_metrics = AttachmentScores()
         self.syntax_las = 0.0 
         self.syntax_uas = 0.0 
+
+        if self.pretrained_weights is not None:
+            self.load_partial(self.pretrained_weights)
 
     @overrides
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:

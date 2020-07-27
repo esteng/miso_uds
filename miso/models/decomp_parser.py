@@ -65,6 +65,7 @@ class DecompParser(Transduction):
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
                  eps: float = 1e-20,
+                 pretrained_weights: str = None,
                  ) -> None:
         super().__init__(vocab=vocab,
                          # source-side
@@ -81,7 +82,8 @@ class DecompParser(Transduction):
                          label_smoothing=label_smoothing,
                          target_output_namespace=target_output_namespace,
                          dropout=dropout,
-                         eps=eps)
+                         eps=eps,
+                         pretrained_weights=pretrained_weights)
 
         self._decomp_metrics = DecompAttrMetrics() 
         self._node_attribute_module=node_attribute_module
