@@ -1,11 +1,10 @@
-local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
+local data_dir = "dev";
+local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
+local synt_method = "encoder-side";
 
 {
   dataset_reader: {
-    type: "ud-syntax",
-    languages: ["de"],
-    alternate: false,
-    instances_per_file: 32,
+    type: "decomp_syntax_semantics",
     source_token_indexers: {
       source_tokens: {
         type: "single_id",
@@ -17,19 +16,44 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
         min_padding_length: 5,
       },
     },
-    tokenizer: null,
-    #tokenizer: {
-    #            type: "pretrained_xlmr",
-    #            model_name: "xlm-roberta-base",
-    #           },
+    target_token_indexers: {
+      target_tokens: {
+        type: "single_id",
+        namespace: "target_tokens",
+      },
+      target_token_characters: {
+        type: "characters",
+        namespace: "target_token_characters",
+        min_padding_length: 5,
+      },
+    },
+    generation_token_indexers: {
+      generation_tokens: {
+        type: "single_id",
+        namespace: "generation_tokens",
+      }
+    },
+    syntactic_method: synt_method,
+    drop_syntax: "true",
+    semantics_only: "false",
+    line_limit: 2,
+    order: "inorder",
+    tokenizer: {
+                type: "pretrained_transformer_for_amr",
+                model_name: "bert-base-cased",
+                args: null,
+                kwargs: {do_lowercase: 'false'},
+                #kwargs: null,
+               },
   },
-  train_data_path: data_dir,
-  validation_data_path: data_dir,
-  #test_data_path: null,
-  #line_limit: 2,
+  train_data_path: "dev",
+  validation_data_path: "dev",
+  #validation_data_path: null,
+  test_data_path: null,
   datasets_for_vocab_creation: [
     "train"
   ],
+
   vocabulary: {
     non_padded_namespaces: [],
     min_count: {
@@ -38,21 +62,25 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
       generation_tokens: 1,
     },
     max_vocab_size: {
-      source_tokens: 400,
+      source_tokens: 1000,
+      target_tokens: 1000,
+      generation_tokens: 1000,
     },
   },
+
   model: {
     type: "ud_parser",
     bert_encoder: null,
     #bert_encoder: {
-    #                type: "seq2seq_xlmr_encoder",
-    #                config: "xlm-roberta-base",
-    #},
+    #                type: "seq2seq_bert_encoder",
+    #                config: "bert-base-cased",
+    #              },
     encoder_token_embedder: {
       token_embedders: {
         source_tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
+          #pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -77,37 +105,33 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
       embedding_dim: 100,
     },
     encoder: {
-      type: "transformer_encoder",
+      type: "miso_stacked_bilstm",
+      batch_first: true,
+      stateful: true,
       input_size: 300 + 50,
       hidden_size: 64,
-      num_layers: 6,
-      encoder_layer: {
-          type: "pre_norm",
-          d_model: 64,
-          n_head: 4,
-          norm: {type: "scale_norm",
-                dim: 64},
-          dim_feedforward: 256,
-          init_scale: 4,
-          },
-      dropout: 0.00,
+      num_layers: 2,
+      recurrent_dropout_probability: 0.00,
+      use_highway: false,
     },
     biaffine_parser: {
-      query_vector_dim: 64,
-      key_vector_dim: 64,
-      edge_head_vector_dim: 64,
-      edge_type_vector_dim: 64,
-      num_labels: 49,
+      query_vector_dim: 128,
+      key_vector_dim: 128,
+      edge_head_vector_dim: 256,
+      edge_type_vector_dim: 128,
+      num_labels: 16,
       is_syntax: true,
       attention: {
         type: "biaffine",
-        query_vector_dim: 64,
-        key_vector_dim: 64,
+        query_vector_dim: 256,
+        key_vector_dim: 256,
       },
     }, 
-    dropout: 0.00,
+    dropout: 0.0,
     syntax_edge_type_namespace: "syn_edge_types",
+    pretrained_weights: "",
   },
+
   iterator: {
     type: "bucket",
     # TODO: try to sort by target tokens.
@@ -117,20 +141,21 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 128,
+    batch_size: 32,
   },
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 100,
-    warmup_epochs: 99,
-    patience: 100,
+    num_epochs: 250,
+    warmup_epochs: 240,
+    syntactic_method: synt_method,
+    patience: 10000,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
     cuda_device: -1,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+syn_uas",
+    validation_metric: "+syn_las",
     optimizer: {
       type: "adam",
       weight_decay: 3e-9,
@@ -143,9 +168,9 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
-    validation_prediction_path: "ud_validation.txt",
+    #validation_data_path: null,
+    validation_prediction_path: "decomp_validation.txt",
     semantics_only: "false",
-    syntactic_method: "encoder-side",
     drop_syntax: "true",
   },
   random_seed: 12,

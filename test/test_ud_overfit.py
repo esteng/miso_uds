@@ -36,3 +36,15 @@ def test_ud_de_transformer():
     assert_successful_overfit(metrics, {"validation_syn_uas": 100.0,
                                         "validation_syn_las": 100.0}) 
 
+def test_ud_ewt_lstm():
+    config_path = os.path.join(test_path, "configs", "overfit_syntax_only.jsonnet") 
+    output_dir = os.path.join(test_path, "checkpoints", "overfit_syntax_only.ckpt") 
+
+    test_args = setup_checkpointing_and_args(config_path, output_dir) 
+    train_model_from_file(test_args.param_path,
+                          test_args.serialization_dir)
+
+    metrics = read_metrics(output_dir) 
+    assert_successful_overfit(metrics, {"validation_syn_uas": 100.0,
+                                        "validation_syn_las": 100.0}) 
+
