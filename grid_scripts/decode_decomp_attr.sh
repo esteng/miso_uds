@@ -13,7 +13,7 @@ ml cudnn/7.5.0_cuda10.0
 
 cd /home/hltcoe/estengel/miso_research
 
-./experiments/decomp_train.sh -d ${CHECKPOINT_DIR} -a eval_attr
+./experiments/decomp_train.sh -d ${CHECKPOINT_DIR} -a eval_attr 
 
 #python -um miso.commands.s_score eval \
 #    ${MODEL_DIR}/model.tar.gz \
