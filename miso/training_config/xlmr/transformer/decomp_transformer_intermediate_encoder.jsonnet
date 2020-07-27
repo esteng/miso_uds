@@ -76,7 +76,7 @@ local synt_method = "encoder-side";
         source_tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
-          pretrained_file: glove_embeddings,
+          #pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -121,7 +121,7 @@ local synt_method = "encoder-side";
         target_tokens: {
           type: "embedding",
           vocab_namespace: "target_tokens",
-          pretrained_file: glove_embeddings,
+          #pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },

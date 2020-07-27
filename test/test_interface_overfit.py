@@ -20,7 +20,7 @@ def test_decomp_overfit():
 
     metrics = read_metrics(output_dir) 
     assert_successful_overfit(metrics, {"validation_s_f1": 100.0, 
-                                        "training_node_pearson": 0.97728,
+                                        "training_node_pearson": 0.98831,
                                         "training_edge_pearson": 0.99999,
                                         "training_uas": 100.0,
                                          "training_las": 100.0}) 

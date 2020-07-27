@@ -1,6 +1,6 @@
 local data_dir = "dev";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
-local synt_method = "encoder-side";
+local synt_method = "concat-before";
 
 {
   dataset_reader: {
@@ -71,7 +71,6 @@ local synt_method = "encoder-side";
   model: {
     type: "decomp_transformer_syntax_parser",
     syntactic_method: synt_method,
-    intermediate_graph: true,
     bert_encoder: null,
     #bert_encoder: {
     #                type: "seq2seq_bert_encoder",
@@ -109,16 +108,16 @@ local synt_method = "encoder-side";
     encoder: {
       type: "transformer_encoder",
       input_size: 300 + 50,
-      hidden_size: 64,
+      hidden_size: 128,
       num_layers: 7,
       encoder_layer: {
           type: "pre_norm",
-          d_model: 64,
+          d_model: 128,
           n_head: 8,
           norm: {type: "scale_norm",
                 dim: 128},
           dim_feedforward: 256,
-          init_scale: 4,
+          init_scale: 128,
           },
       dropout: 0.00,
     },
@@ -156,60 +155,45 @@ local synt_method = "encoder-side";
       vocab_namespace: "pos_tags",
       embedding_dim: 50,
     },
-    biaffine_parser: {
-      query_vector_dim: 64,
-      key_vector_dim: 64,
-      edge_head_vector_dim: 128,
-      edge_type_vector_dim: 64,
-      num_labels: 16,
-      is_syntax: true,
-      attention: {
-        type: "biaffine",
-        query_vector_dim: 128,
-        key_vector_dim: 128,
-      },
-    }, 
     decoder: {
       type: "transformer_decoder",
       input_size: 300 + 50 + 50,
-      hidden_size: 256,
+      hidden_size: 128,
       num_layers: 4,
       use_coverage: false,
-      type: "positional_transformer_decoder", 
       decoder_layer: {
-        type: "pre_norm_graph_positional",
-        d_model: 256, 
+        type: "pre_norm",
+        d_model: 128, 
         n_head: 4, 
         norm: {type: "scale_norm",
-               dim: 256},
+               dim: 128},
         dim_feedforward: 256,
         dropout: 0.00, 
         init_scale: 128,
-        num_ops: 3,
       },
       source_attention_layer: {
         type: "global",
-        query_vector_dim: 256,
-        key_vector_dim: 256,
-        output_vector_dim: 256,
+        query_vector_dim: 128,
+        key_vector_dim: 128,
+        output_vector_dim: 128,
         attention: {
           type: "mlp",
           # TODO: try to use smaller dims.
-          query_vector_dim: 256,
-          key_vector_dim: 256,
+          query_vector_dim: 128,
+          key_vector_dim: 128,
           hidden_vector_dim: 64, 
           use_coverage: false,
         },
       },
       target_attention_layer: {
         type: "global",
-        query_vector_dim: 256,
-        key_vector_dim: 256,
-        output_vector_dim: 256,
+        query_vector_dim: 128,
+        key_vector_dim: 128,
+        output_vector_dim: 128,
         attention: {
           type: "mlp",
-          query_vector_dim: 256,
-          key_vector_dim: 256,
+          query_vector_dim: 128,
+          key_vector_dim: 128,
           hidden_vector_dim: 64,
           use_coverage: false,
         },
@@ -217,13 +201,13 @@ local synt_method = "encoder-side";
       dropout: 0.00,
     },
     extended_pointer_generator: {
-      input_vector_dim: 256,
+      input_vector_dim: 128,
       source_copy: true,
       target_copy: true,
     },
     tree_parser: {
-      query_vector_dim: 256,
-      key_vector_dim: 256,
+      query_vector_dim: 128,
+      key_vector_dim: 128,
       edge_head_vector_dim: 64,
       edge_type_vector_dim: 32,
       attention: {
@@ -233,7 +217,7 @@ local synt_method = "encoder-side";
       },
     },
     node_attribute_module: {
-        input_dim: 256,
+        input_dim: 128,
         hidden_dim: 256,
         output_dim: 44,
         n_layers: 2, 
@@ -249,7 +233,7 @@ local synt_method = "encoder-side";
     },
     dropout: 0.0,
     beam_size: 2,
-    max_decoding_steps: 60,
+    max_decoding_steps: 100,
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
@@ -271,8 +255,8 @@ local synt_method = "encoder-side";
 
   trainer: {
     type: "decomp_syntax_parsing",
-    num_epochs: 350,
-    warmup_epochs: 340,
+    num_epochs: 550,
+    warmup_epochs: 540,
     syntactic_method: synt_method,
     patience: 10000,
     grad_norm: 5.0,
@@ -291,7 +275,7 @@ local synt_method = "encoder-side";
     },
      learning_rate_scheduler: {
        type: "noam",
-       model_size: 256, 
+       model_size: 512, 
        factor: 1,
        warmup_steps: 2000,
      },

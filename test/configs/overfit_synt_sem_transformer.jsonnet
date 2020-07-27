@@ -162,6 +162,7 @@ local synt_method = "encoder-side";
       embedding_dim: 50,
     },
     decoder: {
+      type: "transformer_decoder",
       input_size: 300 + 50 + 50,
       hidden_size: 64,
       num_layers: 4,

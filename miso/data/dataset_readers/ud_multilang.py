@@ -97,6 +97,7 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
                 tokens=[Token(x[0]) for x in dependencies],
                 token_indexers=self._syntax_edge_type_indexers,
             )
+
             fields["syn_edge_heads"] = SequenceLabelField(
                 labels=[int(x[1]) for x in dependencies],
                 sequence_field=fields["syn_edge_types"],

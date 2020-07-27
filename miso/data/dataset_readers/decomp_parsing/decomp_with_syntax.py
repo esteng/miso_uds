@@ -1228,7 +1228,7 @@ class DecompGraphWithSyntax(DecompGraph):
 
         syn_graph = cls.build_syn_graph(syn_nodes, syn_heads, syn_tags)
         conllu_dict = cls.build_conllu_dict(syn_nodes, syn_heads, syn_tags) 
-        
+
         return sem_graph, syn_graph, conllu_dict
 
     @staticmethod

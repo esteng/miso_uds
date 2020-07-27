@@ -48,6 +48,7 @@ def setup_and_test(func, model_path, predictor = "decomp_parsing"):
     "--line-limit", "2",
     "--cuda-device", "-1",
     "--include-package",  "miso.data.dataset_readers",
+    "--include-package",  "miso.data.tokenizers",
     "--include-package", "miso.modules.seq2seq_encoders",
     "--include-package", "miso.models",
     "--include-package", "miso.predictors",
@@ -60,22 +61,21 @@ def setup_and_test(func, model_path, predictor = "decomp_parsing"):
             import_submodules(package_name)
         args.func(args)
 
-def base_s_score_test(model_path, backoff_func, capsys): 
+def base_s_score_test(model_path, backoff_func, capsys, predictor = "decomp_parsing"): 
     # if checkpoint doesn't exist, first run other test 
     try: 
         assert(os.path.exists(model_path)) 
     except AssertionError:
         backoff_func()  
 
-    setup_and_test("eval", model_path) 
+    setup_and_test("eval", model_path, predictor) 
     
     out, err = capsys.readouterr() 
-    print(out) 
     out = out.strip().split("\n")[0]
     expected = "Precision: 1.0, Recall: 1.0, F1: 1.0" 
     assert(out.strip() == expected.strip())
 
-def base_connlu_test(model_path, backoff_func, capsys): 
+def base_conllu_test(model_path, backoff_func, capsys): 
     # if checkpoint doesn't exist, first run other test 
     try: 
         assert(os.path.exists(model_path)) 
@@ -95,46 +95,46 @@ def test_s_score_base(capsys):
 
 def test_s_score_concat_after(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_after.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_concat_after, capsys) 
+    base_s_score_test(model_path, test_interface_concat_after, capsys, "decomp_syntax_parsing") 
 
 def test_s_score_concat_before(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_before.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_concat_before, capsys) 
+    base_s_score_test(model_path, test_interface_concat_before, capsys, "decomp_syntax_parsing") 
 
 def test_s_score_encoder_side(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_encoder_side.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_encoder_side, capsys) 
+    base_s_score_test(model_path, test_interface_encoder_side, capsys, "decomp_syntax_parsing") 
 
 def test_transformer_s_score_concat_after(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_after_transformer.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_concat_after_transformer, capsys) 
+    base_s_score_test(model_path, test_interface_concat_after_transformer, capsys, "decomp_syntax_parsing") 
 
 def test_transformer_s_score_concat_before(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_before_transformer.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_concat_before_transformer, capsys) 
+    base_s_score_test(model_path, test_interface_concat_before_transformer, capsys, "decomp_syntax_parsing") 
 
 def test_transformer_s_score_encoder_side(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_encoder_side_transformer.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_encoder_side_transformer, capsys) 
+    base_s_score_test(model_path, test_interface_encoder_side_transformer, capsys, "decomp_syntax_parsing") 
 
 def test_conllu_concat_after(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_after.ckpt", "model.tar.gz") 
-    base_connlu_test(model_path, test_interface_concat_after, capsys) 
+    base_conllu_test(model_path, test_interface_concat_after, capsys) 
 
 def test_conllu_concat_before(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_before.ckpt", "model.tar.gz") 
-    base_connlu_test(model_path, test_interface_concat_before, capsys) 
+    base_conllu_test(model_path, test_interface_concat_before, capsys) 
 
 def test_conllu_encoder_side(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_encoder_side.ckpt", "model.tar.gz") 
-    base_connlu_test(model_path, test_interface_encoder_side, capsys) 
+    base_conllu_test(model_path, test_interface_encoder_side, capsys) 
 
 def test_conllu_intermediate_lstm(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_intermediate_lstm.ckpt", "model.tar.gz") 
-    base_connlu_test(model_path, test_interface_encoder_side, capsys) 
+    base_conllu_test(model_path, test_interface_encoder_side, capsys) 
 
 def test_conllu_intermediate_transformer(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_intermediate_transformer.ckpt", "model.tar.gz") 
-    base_connlu_test(model_path, test_interface_encoder_side, capsys) 
+    base_conllu_test(model_path, test_interface_encoder_side, capsys) 
 
 
