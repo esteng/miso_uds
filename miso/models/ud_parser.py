@@ -57,7 +57,7 @@ class UDParser(Transduction):
                  dropout: float = 0.0,
                  eps: float = 1e-20,
                  pretrained_weights: str = None,
-                 use_syn_vocab: bool = False
+                 vocab_dir: str = None,
                  ) -> None:
 
         super(UDParser, self).__init__(vocab=vocab,
@@ -72,15 +72,15 @@ class UDParser(Transduction):
                                        label_smoothing=None,
                                        target_output_namespace=None,
                                        dropout=dropout,
-                                       eps=eps,
-                                       pretrained_weights=pretrained_weights)
+                                       eps=eps)
+                                       
 
         # source-side
         self.encoder_pos_embedding=encoder_pos_embedding
         # misc
         self._syntax_edge_type_namespace=syntax_edge_type_namespace
         self.biaffine_parser = biaffine_parser
-        self.use_syn_vocab = use_syn_vocab
+        self.vocab_dir = vocab_dir
         #metrics
         self._syntax_metrics = AttachmentScores()
         self.syntax_las = 0.0 
@@ -92,12 +92,9 @@ class UDParser(Transduction):
         if self.pretrained_weights is not None:
             self.load_partial(self.pretrained_weights)
         # load vocab 
-        if self.use_syn_vocab is not None and \
-           self.pretrained_weights is not None:
-            root = os.path.dirname(self.pretrained_weights)
-            vocab_dir = os.path.join(root, "vocabulary")
+        if self.vocab_dir is not None:
             syn_vocab = Vocabulary.from_files(vocab_dir) 
-            print(syn_vocab)
+            self.vocab._token_to_index[self._syntax_edge_type_namespace] = syn_vocab._token_to_index[self._syntax_edge_type_namespace]
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         metrics = OrderedDict(
