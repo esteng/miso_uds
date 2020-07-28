@@ -130,6 +130,7 @@ local synt_method = "encoder-side";
     dropout: 0.0,
     syntax_edge_type_namespace: "syn_edge_types",
     pretrained_weights: "",
+    use_syn_vocab: false,
   },
 
   iterator: {

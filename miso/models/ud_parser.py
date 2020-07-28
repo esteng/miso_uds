@@ -1,6 +1,7 @@
 from typing import List, Dict, Tuple, Any
 import logging
 from collections import OrderedDict
+import os 
 
 import subprocess
 import math
@@ -56,6 +57,7 @@ class UDParser(Transduction):
                  dropout: float = 0.0,
                  eps: float = 1e-20,
                  pretrained_weights: str = None,
+                 use_syn_vocab: bool = False
                  ) -> None:
 
         super(UDParser, self).__init__(vocab=vocab,
@@ -78,6 +80,7 @@ class UDParser(Transduction):
         # misc
         self._syntax_edge_type_namespace=syntax_edge_type_namespace
         self.biaffine_parser = biaffine_parser
+        self.use_syn_vocab = use_syn_vocab
         #metrics
         self._syntax_metrics = AttachmentScores()
         self.syntax_las = 0.0 
@@ -88,6 +91,13 @@ class UDParser(Transduction):
         # pretrained
         if self.pretrained_weights is not None:
             self.load_partial(self.pretrained_weights)
+        # load vocab 
+        if self.use_syn_vocab is not None and \
+           self.pretrained_weights is not None:
+            root = os.path.dirname(self.pretrained_weights)
+            vocab_dir = os.path.join(root, "vocabulary")
+            syn_vocab = Vocabulary.from_files(vocab_dir) 
+            print(syn_vocab)
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
         metrics = OrderedDict(
