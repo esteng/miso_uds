@@ -5,7 +5,7 @@
 #$ -q gpu.q@@2080
 #$ -m ae -M elias@jhu.edu
 #$ -cwd
-#$ -o /home/hltcoe/estengel/miso_research/grid_logs/train_decomp2.out
+#$ -o /home/hltcoe/estengel/miso_research/grid_logs/train_decomp.out
 
 
 ml cuda10.0/toolkit

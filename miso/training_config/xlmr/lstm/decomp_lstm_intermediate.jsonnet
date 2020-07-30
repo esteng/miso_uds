@@ -149,7 +149,7 @@ local synt_method = "encoder-side";
       key_vector_dim: 512,
       edge_head_vector_dim: 1024,
       edge_type_vector_dim: 512,
-      num_labels: 49,
+      num_labels: 87,
       is_syntax: true,
       attention: {
         type: "biaffine",
