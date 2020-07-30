@@ -130,7 +130,7 @@ local synt_method = "encoder-side";
     dropout: 0.0,
     syntax_edge_type_namespace: "syn_edge_types",
     pretrained_weights: "",
-    use_syn_vocab: false,
+    vocab_dir: "/Users/Elias/miso_research/test/checkpoints/overfit_interface_encoder_side.ckpt/vocabulary",
   },
 
   iterator: {
