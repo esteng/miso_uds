@@ -26,6 +26,7 @@ def test_decomp_overfit():
                                          "training_las": 100.0}) 
 
 def test_interface_concat_after():
+
     config_path = os.path.join(test_path, "configs", "overfit_synt_sem_concat_after.jsonnet") 
     output_dir = os.path.join(test_path, "checkpoints", "overfit_interface_concat_after.ckpt") 
 
