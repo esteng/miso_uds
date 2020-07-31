@@ -21,6 +21,16 @@ from decomp.semantics.uds import UDSGraph
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
+# spacy model required for decoding at test time, when POS tags needed for an input string 
+SPACY_MODEL = "en_core_web_sm"
+try:
+  nlp = spacy.load(SPACY_MODEL)
+except:
+  import subprocess
+  logger.info(f"Downloading spacy model: {SPACY_MODEL}")
+  subprocess.check_output(["python", "-m", "spacy", "download", SPACY_MODEL])
+  nlp = spacy.load(SPACY_MODEL)
+
 class DecompGraphWithSyntax(DecompGraph): 
 
     def __init__(self, graph, keep_punct = False, drop_syntax = True, order = "inorder", syntactic_method = "concat"):
@@ -375,7 +385,16 @@ class DecompGraphWithSyntax(DecompGraph):
         doesn't add EOS or BOS tokens since those 
         change depending on concat/combo strategy 
         """
+        node_list = []
+        node_name_list = []
+        head_inds = []
+        head_labels = []
+        head_mask = []  
+
         syntax_graph = self.graph.syntax_subgraph
+        if len(syntax_graph.nodes) == 0:
+            # test-time, lenght is 0
+            return node_list, node_name_list, head_inds, head_labels, head_mask 
 
         possible_roots = set(syntax_graph.nodes.keys())
         for source_node, target_node in syntax_graph.edges:
@@ -384,12 +403,7 @@ class DecompGraphWithSyntax(DecompGraph):
         assert(len(possible_roots) == 1)
         root = list(possible_roots)[0]
 
-        node_list = []
-        node_name_list = []
         head_lookup = {root: 0}
-        head_inds = []
-        head_labels = []
-        head_mask = []  
 
         # do BFS
         idx = 0
@@ -554,6 +568,11 @@ class DecompGraphWithSyntax(DecompGraph):
             """
             reorder tokens and relabel indices so that order corresponds to syntactic order 
             """
+            if len(tokens) == 0:
+                # test time, no nodes 
+                op_vec = np.zeros((1, len(tokens)+1, 3))
+                return tokens, inds, tags, mask, nodes, op_vec
+
             # nodes has corrected ordering 
             everything_zipped = zip(tokens, inds, tags, mask, nodes)
             correct_order_zipped = sorted(everything_zipped, key = lambda x: int(x[-1].split("-")[-1]))
@@ -855,6 +874,11 @@ class DecompGraphWithSyntax(DecompGraph):
             # use spacy to get a POS tag sequence 
             doc = nlp(" ".join(src_tokens).strip())
             src_pos_tags = [token.pos_ for token in doc]
+            # set syntax nodes
+            syn_tokens = src_tokens
+            syn_node_name_list = [str(i) for i in range(len(src_tokens))]
+            syn_node_mask = np.array([1] * len(syn_tokens), dtype='uint8')
+            syn_edge_mask = np.ones((len(syn_tokens), len(syn_tokens)), dtype='uint8')
 
         tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(src_tokens, src_pos_tags)
 
@@ -954,6 +978,7 @@ class DecompGraphWithSyntax(DecompGraph):
                 edge = (i, head)
                 attr = {"deprel": label} 
                 graph.add_edge(*edge, **attr)
+            return graph 
 
         except IndexError:
             return None
@@ -1361,7 +1386,7 @@ class DecompGraphWithSyntax(DecompGraph):
         return instances, relations, attributes
 
     @staticmethod
-    def arbor_to_uds(arbor_graph, name):
+    def arbor_to_uds(arbor_graph, syn_graph, name):
         def get_pred_arg(edge):
             source_node = arbor_graph.nodes[e[0]]
             target_node = arbor_graph.nodes[e[1]]
@@ -1405,6 +1430,7 @@ class DecompGraphWithSyntax(DecompGraph):
 
         type_mapping = {"pred": "predicate", "arg": "argument"}
         name_mapping = {}
+        current_forms = []
         for node in arbor_graph.nodes:
             node_type = arbor_graph.nodes[node]['node_type']
             node_class = node_type 
@@ -1418,6 +1444,7 @@ class DecompGraphWithSyntax(DecompGraph):
             else:
                 arbor_graph.nodes[node]['domain'] = "syntax"
                 arbor_graph.nodes[node]['type'] = "token"
+                current_forms.append(arbor_graph.nodes[node]['text'])
 
             uds_subgraph.add_node(node_name, **arbor_graph.nodes[node]) 
             name_mapping[node] = node_name
@@ -1426,6 +1453,7 @@ class DecompGraphWithSyntax(DecompGraph):
             if node_type in ["pred", "arg"]:
                 synt_name = node+'-'+"syntax"
                 uds_subgraph.add_node(synt_name, form = arbor_graph.nodes[node]['text'], node_type = "syntax", domain = "syntax", type="token") 
+                current_forms.append(arbor_graph.nodes[node]['text'])
                 uds_subgraph.add_edge(node_name, synt_name, semrel = "head")
 
         for edge in arbor_graph.edges:
@@ -1445,6 +1473,24 @@ class DecompGraphWithSyntax(DecompGraph):
                 assert("domain" in uds_subgraph.nodes[node].keys())
             except AssertionError:
                 print(f"node {node} has no attribute domain")
+        
+        # add syntactic graph
+        # add any missing nodes (possible due transduction) 
+        #for name, node in syn_graph.nodes.items():
+        #    try:
+        #        if node['form'] not in current_forms:
+        #            synt_name = name + "-syntax"
+        #            uds_subgraph.add_node(synt_name, form = node['form'], node_type="syntax", domain="syntax", type="token")
+        #    except KeyError:
+        #        print(name, node) 
+
+        # add syntactic edges 
+        for dep, head in syn_graph.edges:
+            #head_name = str(head) + "-syntax"
+            #dep_name = str(dep) + "-syntax"
+            head_name = f"predicted-{head}-syntax"
+            dep_name = f"predicted-{dep}-syntax"
+            uds_subgraph.add_edge(dep_name, head_name, deprel=syn_graph.edges[(dep,head)]["deprel"], domain="syntax") 
 
         uds_graph = UDSGraph(uds_subgraph, name)
         return uds_graph
