@@ -239,11 +239,11 @@ class DecompTrainer(Trainer):
             #if batches_this_epoch % self.accumulate_batches == 0: 
             self.optimizer.zero_grad()
 
-            loss += self.batch_loss(batch_group, for_training=True)
+            loss = self.batch_loss(batch_group, for_training=True)
+            loss.backward()
 
             # accumulate over number of batches 
             if batches_this_epoch % self.accumulate_batches == 0:
-                loss.backward()
                 if torch.isnan(loss):
                     raise ValueError("nan loss encountered")
 

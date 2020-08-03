@@ -8,6 +8,8 @@ from matplotlib import pyplot as plt
 from scipy.stats import pearsonr 
 from collections import defaultdict 
 
+np.random.seed(12) 
+
 def compute_pearson_score(predictions, test=False): 
     """
     compute aggregate pearson and f1 scores for a given model 
