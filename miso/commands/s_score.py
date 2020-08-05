@@ -28,6 +28,7 @@ from miso.metrics.s_metric.repr import Triple, FloatTriple
 from miso.metrics.s_metric import utils
 from miso.commands.predict import _ReturningPredictManager 
 from miso.commands.conllu_score import ConlluScore
+from miso.commands.conllu_predict import ConlluPredict 
 
 logger = logging.getLogger(__name__) 
 
@@ -304,7 +305,8 @@ if __name__ == "__main__":
             # Default commands
             "eval": SScore(),
             "spr_eval": SScore(),
-            "conllu_eval": ConlluScore()
+            "conllu_eval": ConlluScore(),
+            "conllu_predict": ConlluPredict()
     }
 
     for name, subcommand in subcommands.items():

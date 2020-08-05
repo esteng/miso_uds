@@ -116,6 +116,10 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
         fields["syn_tokens_str"] = MetadataField(
                 words)
 
+        fields["src_tokens_str"] = MetadataField(
+            words
+        )
+
         fields["metadata"] = MetadataField({"syn_tokens_str": words, "src_pos_str": upos_tags, "lang": lang})
 
         return Instance(fields)

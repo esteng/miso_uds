@@ -1242,7 +1242,7 @@ class DecompGraphWithSyntax(DecompGraph):
                                             node_attr, corefs,
                                             sem_heads, sem_tags, edge_attr)
             cls.arbor_graph = sem_graph
-        except IndexError:
+        except (TypeError, IndexError) as e: 
             sem_graph = None
             cls.arbor_graph = sem_graph
 
