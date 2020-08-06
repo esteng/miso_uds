@@ -60,9 +60,9 @@ local synt_method = "encoder-side";
       generation_tokens: 1,
     },
     max_vocab_size: {
-      source_tokens: 19700,
-      target_tokens: 19700,
-      generation_tokens: 19700,
+      source_tokens: 36000, 
+      target_tokens: 24400,
+      generation_tokens: 24400,
     },
   },
 
@@ -95,7 +95,7 @@ local synt_method = "encoder-side";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.33,
+          dropout: 0.00,
         },
       },
     },
@@ -212,7 +212,7 @@ local synt_method = "encoder-side";
         query_vector_dim: 256,
         key_vector_dim: 256,
       },
-      dropout: 0.2,
+      dropout: 0.0,
     },
     node_attribute_module: {
         input_dim: 512,
@@ -220,6 +220,7 @@ local synt_method = "encoder-side";
         output_dim: 44,
         n_layers: 4, 
         loss_multiplier: 10,
+        binary: true,
     },
     edge_attribute_module: {
         h_input_dim: 256,
@@ -227,11 +228,12 @@ local synt_method = "encoder-side";
         output_dim: 14,
         n_layers: 4, 
         loss_multiplier: 10,
+        binary: true,
     },
     label_smoothing: {
         smoothing: 0.0,
     },
-    dropout: 0.2,
+    dropout: 0.33,
     beam_size: 2,
     max_decoding_steps: 100,
     target_output_namespace: "generation_tokens",
@@ -268,6 +270,7 @@ local synt_method = "encoder-side";
       type: "adam",
       weight_decay: 3e-9,
       amsgrad: true,
+      lr: 0.001,
     },
     # learning_rate_scheduler: {
     #   type: "reduce_on_plateau",

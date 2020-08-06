@@ -66,6 +66,7 @@ class DecompTransformerParser(DecompParser):
                  beam_size: int = 5,
                  max_decoding_steps: int = 50,
                  eps: float = 1e-20,
+                 pretrained_weights: str = None,
                  ) -> None:
         super().__init__(vocab=vocab,
                          # source-side
@@ -91,7 +92,8 @@ class DecompTransformerParser(DecompParser):
                          dropout=dropout,
                          beam_size=beam_size,
                          max_decoding_steps=max_decoding_steps,
-                         eps=eps)
+                         eps=eps,
+                         pretrained_weights=pretrained_weights)
 
     @overrides
     def _encode(self,

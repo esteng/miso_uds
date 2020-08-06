@@ -3,7 +3,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
 {
   dataset_reader: {
     type: "ud-syntax",
-    languages: ["de"],
+    languages: ["hu"],
     alternate: false,
     instances_per_file: 32,
     source_token_indexers: {
@@ -91,7 +91,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       key_vector_dim: 1024,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 1024,
-      num_labels: 49,
+      num_labels: 56,
       is_syntax: true,
       attention: {
         type: "biaffine",

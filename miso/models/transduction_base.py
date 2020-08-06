@@ -381,7 +381,6 @@ class Transduction(Model):
         pretrained_state_dict = torch.load(param_file)
         current_state_dict = self.state_dict() 
         for k, v in pretrained_state_dict.items():
-            print(f"k {k}") 
             if isinstance(v, torch.nn.Parameter):
                 v = v.data
             try:
@@ -398,8 +397,5 @@ class Transduction(Model):
                 continue
 
         key = "biaffine_parser.edge_type_query_linear.weight"
-        print(f"pretrained {pretrained_state_dict[key]}") 
-        print(f"before {self.state_dict()[key]}") 
         self.load_state_dict(current_state_dict) 
-        print(f"after {self.state_dict()[key]}") 
 

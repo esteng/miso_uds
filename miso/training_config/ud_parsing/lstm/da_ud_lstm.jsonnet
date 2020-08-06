@@ -3,7 +3,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
 {
   dataset_reader: {
     type: "ud-syntax",
-    languages: ["de"],
+    languages: ["da"],
     alternate: false,
     instances_per_file: 32,
     source_token_indexers: {

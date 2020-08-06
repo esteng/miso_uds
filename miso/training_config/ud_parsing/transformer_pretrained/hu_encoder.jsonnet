@@ -3,7 +3,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
 {
   dataset_reader: {
     type: "ud-syntax",
-    languages: ["de"],
+    languages: ["hu"],
     alternate: false,
     instances_per_file: 32,
     source_token_indexers: {
@@ -77,21 +77,27 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       embedding_dim: 100,
     },
     encoder: {
-      type: "miso_stacked_bilstm",
-      batch_first: true,
-      stateful: true,
+      type: "transformer_encoder",
       input_size: 300 + 50 + 768,
       hidden_size: 512,
-      num_layers: 2,
-      recurrent_dropout_probability: 0.33,
-      use_highway: false,
+      num_layers: 7,
+      encoder_layer: {
+          type: "pre_norm",
+          d_model: 512,
+          n_head: 16,
+          norm: {type: "scale_norm",
+                dim: 512},
+          dim_feedforward: 2048,
+          init_scale: 128,
+          },
+      dropout: 0.20,
     },
     biaffine_parser: {
-      query_vector_dim: 1024,
-      key_vector_dim: 1024,
+      query_vector_dim: 512,
+      key_vector_dim: 512,
       edge_head_vector_dim: 512,
-      edge_type_vector_dim: 1024,
-      num_labels: 49,
+      edge_type_vector_dim: 512,
+      num_labels: 56,
       is_syntax: true,
       attention: {
         type: "biaffine",
@@ -101,18 +107,19 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     }, 
     dropout: 0.2,
     syntax_edge_type_namespace: "syn_edge_types",
+    pretrained_weights: "/exp/estengel/miso_res/xlmr_models/decomp_transformer_encoder_best/best.th"
   },
   iterator: {
     type: "bucket",
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 10,
+    batch_size: 30,
     instances_per_epoch: 20000,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 32,
+    batch_size: 64,
   },
 
   trainer: {
@@ -124,17 +131,21 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     # TODO: try to use grad clipping.
     grad_clipping: null,
     cuda_device: 0,
-    num_serialized_models_to_keep: 5,
+    num_serialized_models_to_keep: 1,
     validation_metric: "+syn_uas",
     optimizer: {
       type: "adam",
-      weight_decay: 3e-9,
+      betas: [0.9, 0.999],
+      eps: 1e-9,
+      lr: 0.0000, 
+      weight_decay: 3e-9, 
       amsgrad: true,
     },
-    # learning_rate_scheduler: {
-    #   type: "reduce_on_plateau",
-    #   patience: 10,
-    # },
+     learning_rate_scheduler: {
+       type: "noam",
+       model_size: 512, 
+       warmup_steps: 4000,
+     },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
