@@ -94,56 +94,21 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         # i to j, head to dependent 
         # so row 0 should only have 1 thing > -inf, except for 0-0 
         # num_labels x 1
-        ROW = True
-        COL = False
         _minus_inf = -1e8
-
+        
         n_lab, seq_len, __ = energy.shape
         before_energy = energy.clone()
         
-        # root index for AF is 11
-        print(energy[11,0:10,0:10].numpy() ) 
-
         # get second max dependent besides 0-0 edge 
-        if ROW:
-            # max over cols at row 0 
-            row_val, row_idx = torch.max(energy[:,0,1:], dim = 1)
-            row_val = row_val.clone()
-            row_idx += 1
-            print(f"val {row_val} idx {row_idx}")
-        if COL:
-            # max over rows at col  0 
-            col_val, col_idx = torch.max(energy[:,1:,0], dim = 1)
-            col_val = col_val.clone()
-            col_idx += 1
-            print(f"val {col_val} idx {col_idx}")
-        
-        if ROW and COL:
-            # wipe out row 0
-            energy[:, 0, 1:] = _minus_inf
-            # reset best column in row 0
-            energy[:,0,row_idx] = row_val 
-            # wipe out col 0
-            energy[:, 1:, 0] = _minus_inf 
-            # reset best row in col 0
-            energy[:,col_idx,0] = col_val 
-        elif ROW and not COL:
-            # wipe out row 0
-            energy[:, 0, 1:] = _minus_inf
-            # reset best column in row 0
-            energy[:,0,row_idx] = row_val 
-        elif COL and not ROW:
-            # wipe out col 0
-            energy[:, 1:, 0] = _minus_inf 
-            # reset best row in col 0
-            energy[:,col_idx,0] = col_val 
-        else:
-            pass
+        # max over cols at row 0 
+        row_val, row_idx = torch.max(energy[:,0,1:], dim = 1)
+        row_val = row_val.clone()
+        row_idx += 1
+        # wipe out row 0
+        energy[:, 0, 1:] = _minus_inf
+        # reset best column in row 0
+        energy[:,0,row_idx] = row_val 
 
-        changes = torch.sum(torch.abs(before_energy - energy))
-        print(f"changes {changes.item()}") 
-        print(energy[11,0:10,0:10].numpy() ) 
-        sys.exit() 
         return energy
 
     @staticmethod
@@ -153,21 +118,19 @@ class DeepTreeParser(torch.nn.Module, Registrable):
 
         for i, (energy, length) in enumerate(zip(batch_energy.detach().cpu(), lengths)):
             # decode heads and labels 
+            # need to decode labels separately so that we can enforce single root 
             scores, label_ids = energy.max(dim=0)
-            energy = energy[label_ids]
-            
+            energy = scores.unsqueeze(0) 
+
             # TODO: fix so that it can't have multiple roots 
             # enforce single-root constraint 
             energy = DeepTreeParser._enforce_root(energy) 
-
-            #instance_heads, instance_head_labels = decode_mst(energy.numpy(), length, has_labels=True)
             instance_heads, instance_head_labels = decode_mst(scores.numpy(), length, has_labels=False)
 
-
             ## Find the labels which correspond to the edges in the max spanning tree.
-            #instance_head_labels = []
-            #for child, parent in enumerate(instance_heads):
-            #    instance_head_labels.append(label_ids[parent, child].item())
+            instance_head_labels = []
+            for child, parent in enumerate(instance_heads):
+                instance_head_labels.append(label_ids[parent, child].item())
 
             edge_heads.append(instance_heads)
             edge_labels.append(instance_head_labels)
