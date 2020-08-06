@@ -32,6 +32,7 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
                  lazy: bool = False,
                  alternate: bool = True,
                  is_first_pass_for_vocab: bool = True,
+                 max_src_len: int = 75, 
                  instances_per_file: int = 32) -> None:
         super(MisoUDDatasetReader, self).__init__(languages,
                                                   source_token_indexers,
@@ -44,7 +45,32 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
         self._source_token_indexers = source_token_indexers
 
         self._syntax_edge_type_indexers = {"syn_edge_types": SingleIdTokenIndexer(namespace="syn_edge_types")}
+        self._max_src_len = max_src_len
 
+    @overrides
+    def _read_one_file(self, lang: str, file_path: str):
+        with open(file_path, 'r') as conllu_file:
+            logger.info("Reading UD instances for %s language from conllu dataset at: %s", lang, file_path)
+
+            for annotation in parse_incr(conllu_file):
+                # CoNLLU annotations sometimes add back in words that have been elided
+                # in the original sentence; we remove these, as we're just predicting
+                # dependencies for the original sentence.
+                # We filter by None here as elided words have a non-integer word id,
+                # and are replaced with None by the conllu python library.
+                annotation = [x for x in annotation if x["id"] is not None]
+
+                heads = [x["head"] for x in annotation]
+                tags = [x["deprel"] for x in annotation]
+                words = [x["form"] for x in annotation]
+                if self._use_language_specific_pos:
+                    pos_tags = [x["xpostag"] for x in annotation]
+                else:
+                    pos_tags = [x["upostag"] for x in annotation]
+                instance = self.text_to_instance(lang, words, pos_tags, list(zip(tags, heads)))
+                if instance is None:
+                    continue
+                yield instance
 
 
     @overrides
@@ -75,10 +101,21 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
         """
         fields: Dict[str, Field] = {}
 
+        # trim words
+        if self._max_src_len is not None and len(words) > self._max_src_len:
+            return None
+            #words = words[0:self._max_src_len]
+            #upos_tags = upos_tags[0:self._max_src_len]
+            #dependencies = dependencies[0:self._max_src_len+1]
+
         if self._tokenizer is not None:
             bert_tokenizer_ret = self._tokenizer.tokenize(words, True)
             src_token_ids = bert_tokenizer_ret["token_ids"]
             src_token_subword_index = bert_tokenizer_ret["token_recovery_matrix"]
+            if src_token_ids.shape[0] > 512: 
+                return None
+            
+            
         else:
             src_token_ids, src_token_subword_index = None, None
 
@@ -97,11 +134,15 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
                 tokens=[Token(x[0]) for x in dependencies],
                 token_indexers=self._syntax_edge_type_indexers,
             )
-            fields["syn_edge_heads"] = SequenceLabelField(
-                labels=[int(x[1]) for x in dependencies],
-                sequence_field=fields["syn_edge_types"],
-                label_namespace="syn_edge_heads"
-            )
+            try:
+                fields["syn_edge_heads"] = SequenceLabelField(
+                    labels=[int(x[1]) for x in dependencies],
+                    sequence_field=fields["syn_edge_types"],
+                    label_namespace="syn_edge_heads"
+                )
+            except TypeError:
+                print(words)
+                sys.exit() 
 
 
         if src_token_ids is not None:
@@ -115,10 +156,6 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
 
         fields["syn_tokens_str"] = MetadataField(
                 words)
-
-        fields["src_tokens_str"] = MetadataField(
-            words
-        )
 
         fields["metadata"] = MetadataField({"syn_tokens_str": words, "src_pos_str": upos_tags, "lang": lang})
 
