@@ -372,7 +372,7 @@ class DecompDatasetReader(DatasetReader):
             fields["syn_node_name_list"] = MetadataField(
                     list_data["syn_node_name_list"])
 
-            fields["op_vec"] = ArrayField(list_data['op_vec']) 
+            #fields["op_vec"] = ArrayField(list_data['op_vec']) 
 
         to_print_keys = ["target_attributes", "target_tokens"]
         to_print = {k:v for k, v in fields.items() if k in to_print_keys}

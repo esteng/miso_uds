@@ -1,10 +1,9 @@
 local data_dir = "train";
 local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
-local synt_method = "encoder-side";
 
 {
   dataset_reader: {
-    type: "decomp_syntax_semantics",
+    type: "decomp",
     source_token_indexers: {
       source_tokens: {
         type: "single_id",
@@ -35,7 +34,6 @@ local synt_method = "encoder-side";
     },
     drop_syntax: true,
     semantics_only: true,
-    syntactic_method: synt_method,
     order: "inorder",
     tokenizer: {
                 type: "pretrained_transformer_for_amr",
@@ -60,15 +58,13 @@ local synt_method = "encoder-side";
       generation_tokens: 1,
     },
     max_vocab_size: {
-      source_tokens: 36000, 
-      target_tokens: 24400,
-      generation_tokens: 24400,
+      source_tokens: 18000,
+      target_tokens: 12200,
+      generation_tokens: 12200,
     },
   },
-
   model: {
-    type: "decomp_syntax_parser",
-    syntactic_method: synt_method,
+    type: "decomp_parser",
     bert_encoder: {
                     type: "seq2seq_bert_encoder",
                     config: "bert-base-cased",
@@ -94,7 +90,7 @@ local synt_method = "encoder-side";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.0,
+          dropout: 0.00,
         },
       },
     },
@@ -146,19 +142,6 @@ local synt_method = "encoder-side";
       vocab_namespace: "pos_tags",
       embedding_dim: 50,
     },
-    biaffine_parser: {
-      query_vector_dim: 1024,
-      key_vector_dim: 1024,
-      edge_head_vector_dim: 512,
-      edge_type_vector_dim: 1024,
-      num_labels: 49,
-      is_syntax: true,
-      attention: {
-        type: "biaffine",
-        query_vector_dim: 512,
-        key_vector_dim: 512,
-      },
-    }, 
     decoder: {
       rnn_cell: {
         input_size: 300 + 50 + 50 + 1024,
@@ -211,11 +194,11 @@ local synt_method = "encoder-side";
         query_vector_dim: 256,
         key_vector_dim: 256,
       },
-      dropout: 0.0,
+      dropout: 0,
     },
     node_attribute_module: {
         input_dim: 1024,
-        hidden_dim: 1024,
+        hidden_dim: 2048,
         output_dim: 44,
         n_layers: 4, 
         loss_multiplier: 10,
@@ -232,32 +215,28 @@ local synt_method = "encoder-side";
     label_smoothing: {
         smoothing: 0.0,
     },
-    dropout: 0.33,
+    dropout: 0.0,
     beam_size: 2,
-    max_decoding_steps: 100,
+    max_decoding_steps: 50,
     target_output_namespace: "generation_tokens",
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
-    syntax_edge_type_namespace: "syn_edge_types",
-    #loss_mixer: {type:"syntax->semantics"},
   },
-
   iterator: {
     type: "bucket",
     # TODO: try to sort by target tokens.
-    sorting_keys: [["source_tokens", "num_tokens"]],
+    sorting_keys: [["target_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 10,
+    batch_size: 56,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 32,
+    batch_size: 64,
   },
 
   trainer: {
-    type: "decomp_syntax_parsing",
+    type: "decomp_parsing",
     num_epochs: 250,
-    #warmup_epochs: 3,
     patience: 40,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
@@ -268,19 +247,18 @@ local synt_method = "encoder-side";
     optimizer: {
       type: "adam",
       weight_decay: 3e-9,
-      amsgrad: true,
       lr: 0.001,
+      amsgrad: true,
     },
-    # learning_rate_scheduler: {
-    #   type: "reduce_on_plateau",
-    #   patience: 10,
-    # },
+    #learning_rate_scheduler: {
+    #  type: "reduce_on_plateau",
+    #  patience: 10,
+    #},
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
     validation_prediction_path: "decomp_validation.txt",
     semantics_only: true,
-    syntactic_method: synt_method,
     drop_syntax: true,
   },
   random_seed: 12,

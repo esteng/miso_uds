@@ -33,7 +33,7 @@ local synt_method = "concat-after";
         namespace: "generation_tokens",
       }
     },
-    drop_syntax: "true",
+    drop_syntax: true,
     semantics_only: true,
     syntactic_method: synt_method,
     order: "inorder",
@@ -60,9 +60,9 @@ local synt_method = "concat-after";
       generation_tokens: 1,
     },
     max_vocab_size: {
-      source_tokens: 19700,
-      target_tokens: 19700,
-      generation_tokens: 19700,
+      source_tokens: 36000, 
+      target_tokens: 24400,
+      generation_tokens: 24400,
     },
   },
 
@@ -94,7 +94,7 @@ local synt_method = "concat-after";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.33,
+          dropout: 0.00,
         },
       },
     },
@@ -198,7 +198,7 @@ local synt_method = "concat-after";
         query_vector_dim: 256,
         key_vector_dim: 256,
       },
-      dropout: 0.2,
+      dropout: 0.0,
     },
     node_attribute_module: {
         input_dim: 1024,
@@ -206,6 +206,7 @@ local synt_method = "concat-after";
         output_dim: 44,
         n_layers: 4, 
         loss_multiplier: 10,
+        binary: true,
     },
     edge_attribute_module: {
         h_input_dim: 256,
@@ -213,11 +214,12 @@ local synt_method = "concat-after";
         output_dim: 14,
         n_layers: 4, 
         loss_multiplier: 10,
+        binary: true,
     },
     label_smoothing: {
         smoothing: 0.0,
     },
-    dropout: 0.2,
+    dropout: 0.33,
     beam_size: 2,
     max_decoding_steps: 100,
     target_output_namespace: "generation_tokens",
@@ -230,17 +232,17 @@ local synt_method = "concat-after";
     # TODO: try to sort by target tokens.
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 16,
+    batch_size: 26,
   },
   validation_iterator: {
     type: "basic",
-    batch_size: 16,
+    batch_size: 32,
   },
 
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 250,
-    warmup_epochs: 10,
+    #warmup_epochs: 10,
     syntactic_method: synt_method,
     patience: 40,
     grad_norm: 5.0,
@@ -253,6 +255,7 @@ local synt_method = "concat-after";
       type: "adam",
       weight_decay: 3e-9,
       amsgrad: true,
+      lr: 0.001,
     },
     # learning_rate_scheduler: {
     #   type: "reduce_on_plateau",
@@ -263,7 +266,7 @@ local synt_method = "concat-after";
     validation_data_path: "dev",
     validation_prediction_path: "decomp_validation.txt",
     semantics_only: true,
-    drop_syntax: "true",
+    drop_syntax: true,
   },
   random_seed: 12,
   numpy_seed: 12,

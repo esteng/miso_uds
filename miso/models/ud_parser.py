@@ -87,6 +87,7 @@ class UDParser(Transduction):
         self.syntax_uas = 0.0 
         # compatibility
         self.loss_mixer = None
+        self.syntactic_method = "encoder-side" 
         
         # pretrained
         if self.pretrained_weights is not None:

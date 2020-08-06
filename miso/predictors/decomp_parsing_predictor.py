@@ -213,9 +213,14 @@ class DecompSyntaxParsingPredictor(DecompParsingPredictor):
     def dump_line(self, outputs: JsonDict) -> str:
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
         pred_sem_graph, pred_syn_graph, conllu_graph = DecompGraphWithSyntax.from_prediction(outputs, self._model.syntactic_method) 
-        conllu_str = ""
 
         if conllu_graph is not None:
+            text = " ".join([row["form"] for row in conllu_graph])
+            id = 1
+
+            conllu_str = f"# sent_id = train-s{id}\n" +\
+                         f"# text = {text}\n" + \
+                         f"# org_sent_id = {id}\n"
             colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
             for row in conllu_graph:
                 vals = [row[cn] for cn in colnames]

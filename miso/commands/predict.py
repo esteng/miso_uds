@@ -21,7 +21,7 @@ from miso.predictors.decomp_parsing_predictor import sanitize, DecompSyntaxParsi
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax
 
-from decomp import UDSVisualization, serve_parser
+#from decomp import UDSVisualization, serve_parser
 
 def parse_api_sentence(input_line, args, predictor):
     #semantics_only = args.semantics_only

@@ -205,9 +205,10 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
             biaffine_loss = 0.0
 
         if self.intermediate_graph:
+            # TODO: put op vec back in 
             decoding_outputs = self._decode(
                 tokens=inputs["target_tokens"],
-                op_vec=inputs["op_vec"],
+                # op_vec=inputs["op_vec"],
                 node_indices=inputs["target_node_indices"],
                 pos_tags=inputs["target_pos_tags"],
                 encoder_outputs=encoding_outputs["encoder_outputs"],
@@ -478,10 +479,11 @@ class DecompTransformerSyntaxParser(DecompTransformerParser):
         state['input_history'] = decoder_inputs
 
         if self.intermediate_graph:
+            # TODO: put op vec back in 
             decoding_outputs = self._decoder.one_step_forward(
                 inputs=decoder_inputs,
                 source_memory_bank=state["source_memory_bank"],
-                op_vec=state["op_vec"],
+                # op_vec=state["op_vec"],
                 source_mask=state["source_mask"],
                 decoding_step=misc["last_decoding_step"] + 1,
                 total_decoding_steps=self._max_decoding_steps,

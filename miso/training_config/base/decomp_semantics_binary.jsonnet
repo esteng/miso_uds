@@ -61,12 +61,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       source_tokens: 36000, 
       target_tokens: 24400,
       generation_tokens: 24400,
-      #source_tokens: 19700,
-      #target_tokens: 19700,
-      #generation_tokens: 19700,
     },
   },
-
   model: {
     type: "decomp_parser",
     bert_encoder: {
@@ -94,8 +90,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
+          dropout: 0.00,
         },
-      dropout: 0.33,
       },
     },
     encoder_pos_embedding: {
@@ -165,7 +161,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 1024,
           key_vector_dim: 1024,
           hidden_vector_dim: 256, 
-          use_coverage: false,
+          use_coverage: true,
         },
       },
       target_attention_layer: {
@@ -226,7 +222,6 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
   },
-
   iterator: {
     type: "bucket",
     # TODO: try to sort by target tokens.
@@ -255,10 +250,10 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       lr: 0.001,
       amsgrad: true,
     },
-    learning_rate_scheduler: {
-      type: "reduce_on_plateau",
-      patience: 10,
-    },
+    #learning_rate_scheduler: {
+    #  type: "reduce_on_plateau",
+    #  patience: 10,
+    #},
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",

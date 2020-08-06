@@ -48,7 +48,7 @@ class ArgNamespace:
         self.save_pred_path = save_pred_path
 
 
-class ConlluScore(Subcommand): 
+class ConlluPredict(Subcommand): 
     def add_subparser(self, name: str, parser: argparse._SubParsersAction) -> argparse.ArgumentParser:
         self.name = name 
         description = """Run the specified model against a JSON-lines input file."""
@@ -141,13 +141,10 @@ class ConlluScore(Subcommand):
 def _construct_and_predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)
     args.predictor = predictor
-    scorer = ConlluScorer.from_params(args)
+    ConlluPredictWrapper.from_params(args).predict_and_compute()
 
-    uas, las, mlas, blex = scorer.predict_and_compute()
-    print(f"averaged scores") 
-    print(f"UAS: {uas}, LAS: {las}, MLAS: {mlas}, BLEX: {blex}") 
 
-class ConlluScorer:
+class ConlluPredictWrapper:
     """
     Reads, predicts, and scores syntactic conllu score 
     """
@@ -164,7 +161,7 @@ class ConlluScorer:
                 line_limit = None,
                 include_attribute_scores = False,
                 oracle = False,
-                json_output_file = None):
+                output_file = None):
 
         self.load_path = load_path
         if self.load_path is not None:
@@ -181,7 +178,7 @@ class ConlluScorer:
         self.line_limit = line_limit
         self.include_attribute_scores = include_attribute_scores
         self.oracle = oracle
-        self.json_output_file = json_output_file
+        self.output_file = output_file
 
         if os.path.exists(self.pred_args.input_file):
             # ud only case
@@ -197,11 +194,16 @@ class ConlluScorer:
                                     self.pred_args.beam_size,
                                     line_limit = self.line_limit,
                                     oracle = self.oracle,
-                                    json_output_file = self.json_output_file)
+                                    json_output_file = None)  
 
     @staticmethod
-    def conllu_dict_to_str(conllu_dict):
-        conllu_str = ""
+    def conllu_dict_to_str(conllu_dict, id):
+
+        text = " ".join([row["form"] for row in conllu_dict])
+
+        conllu_str = f"# sent_id = train-s{id}\n" +\
+                     f"# text = {text}\n" + \
+                     f"# org_sent_id = {id}\n"
         colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
         for row in conllu_dict:
             vals = [row[cn] for cn in colnames]
@@ -223,35 +225,15 @@ class ConlluScorer:
         uas_scores = []
         mlas_scores = []
         blex_scores = []
-
+        
+        all_strs = []
         for i in range(len(input_instances)):
-            true_conllu_str = ConlluScorer.conllu_dict_to_str(input_instances[i]['true_conllu_dict'].metadata)
-            pred_conllu_str = output_graphs[i]
+            all_strs.append(output_graphs[i])
 
-        # make temp files
-            with tempfile.NamedTemporaryFile("w") as true_file, \
-                tempfile.NamedTemporaryFile("w") as pred_file:
-                true_file.write(true_conllu_str)
-                pred_file.write(pred_conllu_str) 
-                true_file.seek(0) 
-                pred_file.seek(0) 
-                compute_args["gold_file"] = true_file.name
-                compute_args["system_file"] = pred_file.name
+        with open(self.output_file, "w") as pred_file:
+            pred_file.write("\n".join(all_strs))
 
-                args = ComputeTup(**compute_args)
-                try:
-                    score = evaluate_wrapper(args)
-                    uas_scores.append(100 * score["UAS"].f1)
-                    las_scores.append(100 * score["LAS"].f1)
-                    mlas_scores.append(100 * score["MLAS"].f1)
-                    blex_scores.append(100 * score["BLEX"].f1)
-                except UDError:
-                    uas_scores.append(0)
-                    las_scores.append(0)
-                    mlas_scores.append(0)
-                    blex_scores.append(0)
-
-        return np.mean(uas_scores), np.mean(las_scores), np.mean(mlas_scores), np.mean(blex_scores)  
+        logger.info(f"succesfully wrote {len(all_strs)} to {self.output_file}") 
  
     @classmethod
     def from_params(cls, args):
@@ -267,6 +249,6 @@ class ConlluScorer:
                    line_limit = args.line_limit,
                    include_attribute_scores = args.include_attribute_scores,
                    oracle = args.oracle,
-                   json_output_file = args.json_output_file
+                   output_file = args.output_file
                    )
 
