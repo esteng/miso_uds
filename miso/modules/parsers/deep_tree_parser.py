@@ -95,8 +95,9 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         for i, (energy, length) in enumerate(zip(batch_energy.detach().cpu(), lengths)):
             # decode heads and labels 
             #scores, label_ids = energy.max(dim=0)
-
-            # TODO: change back to having labels once issues resolved 
+            
+            # TODO: fix so that it can't have multiple roots 
+            print(f"energy is {energy.shape}") 
             instance_heads, instance_head_labels = decode_mst(energy.numpy(), length, has_labels=True)
             #instance_heads, instance_head_labels = decode_mst(scores.numpy(), length, has_labels=False)
 

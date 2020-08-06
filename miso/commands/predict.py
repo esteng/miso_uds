@@ -53,9 +53,6 @@ def _predict(args: argparse.Namespace) -> None:
     with_syntax = False 
     if "syntax" in args.predictor: 
         with_syntax = True 
-    print(f"with_syntax : {with_syntax}") 
-    print(f"predictor: {args.predictor}") 
-
     if args.run_api:
         serve_parser(lambda x: parse_api_sentence(x, args, predictor), with_syntax=with_syntax) 
 
