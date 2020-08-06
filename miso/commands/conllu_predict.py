@@ -219,7 +219,7 @@ class ConlluPredictWrapper:
         if len(output_graphs) > 0 and type(output_graphs[0]) == tuple:
             output_graphs = [x[-1] for x in output_graphs]
 
-        input_sents = [inst.fields['src_tokens_str'].metadata for inst in input_instances]
+        input_sents = [inst.fields['syn_tokens_str'].metadata for inst in input_instances]
 
         las_scores = []
         uas_scores = []

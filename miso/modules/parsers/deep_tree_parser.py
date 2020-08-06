@@ -88,24 +88,49 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         return edge_heads, edge_labels
 
     @staticmethod
+    def _enforce_root(energy): 
+        # energy: num_labels x seq_len x seq_len
+        # for each i,j in seq_len
+        # i to j, head to dependent 
+        # so row 0 should only have 1 thing > -inf, except for 0-0 
+        # num_labels x 1
+        _minus_inf = -1e8
+        
+        n_lab, seq_len, __ = energy.shape
+        before_energy = energy.clone()
+        
+        # get second max dependent besides 0-0 edge 
+        # max over cols at row 0 
+        row_val, row_idx = torch.max(energy[:,0,1:], dim = 1)
+        row_val = row_val.clone()
+        row_idx += 1
+        # wipe out row 0
+        energy[:, 0, 1:] = _minus_inf
+        # reset best column in row 0
+        energy[:,0,row_idx] = row_val 
+
+        return energy
+
+    @staticmethod
     def _run_mst_decoding(batch_energy, lengths):
         edge_heads = []
         edge_labels = []
 
         for i, (energy, length) in enumerate(zip(batch_energy.detach().cpu(), lengths)):
             # decode heads and labels 
-            #scores, label_ids = energy.max(dim=0)
-            
-            # TODO: fix so that it can't have multiple roots 
-            print(f"energy is {energy.shape}") 
-            instance_heads, instance_head_labels = decode_mst(energy.numpy(), length, has_labels=True)
-            #instance_heads, instance_head_labels = decode_mst(scores.numpy(), length, has_labels=False)
+            # need to decode labels separately so that we can enforce single root 
+            scores, label_ids = energy.max(dim=0)
+            energy = scores.unsqueeze(0) 
 
+            # TODO: fix so that it can't have multiple roots 
+            # enforce single-root constraint 
+            energy = DeepTreeParser._enforce_root(energy) 
+            instance_heads, instance_head_labels = decode_mst(scores.numpy(), length, has_labels=False)
 
             ## Find the labels which correspond to the edges in the max spanning tree.
-            #instance_head_labels = []
-            #for child, parent in enumerate(instance_heads):
-            #    instance_head_labels.append(label_ids[parent, child].item())
+            instance_head_labels = []
+            for child, parent in enumerate(instance_heads):
+                instance_head_labels.append(label_ids[parent, child].item())
 
             edge_heads.append(instance_heads)
             edge_labels.append(instance_head_labels)
