@@ -197,9 +197,9 @@ class ConlluPredictWrapper:
                                     json_output_file = None)  
 
     @staticmethod
-    def conllu_dict_to_str(conllu_dict, id):
+    def conllu_dict_to_str(conllu_dict, id, text):
 
-        text = " ".join([row["form"] for row in conllu_dict])
+        #text = " ".join([row["form"] for row in conllu_dict])
 
         conllu_str = f"# sent_id = train-s{id}\n" +\
                      f"# text = {text}\n" + \
@@ -208,7 +208,7 @@ class ConlluPredictWrapper:
         for row in conllu_dict:
             vals = [row[cn] for cn in colnames]
             conllu_str += "\t".join(vals) + "\n"
-        conllu_str += '\n' 
+        #conllu_str += '\n' 
         return conllu_str
 
     def predict_and_compute(self):

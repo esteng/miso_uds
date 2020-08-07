@@ -97,7 +97,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       key_vector_dim: 512,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 512,
-      num_labels: 49,
+      num_labels: 44,
       is_syntax: true,
       attention: {
         type: "biaffine",
@@ -143,7 +143,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
-       warmup_steps: 8000,
+       warmup_steps: 4000,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",

@@ -3,7 +3,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
 {
   dataset_reader: {
     type: "ud-syntax",
-    languages: ["af"],
+    languages: ["de"],
     alternate: false,
     instances_per_file: 32,
     source_token_indexers: {
@@ -97,7 +97,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       key_vector_dim: 512,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 512,
-      num_labels: 28,
+      num_labels: 44,
       is_syntax: true,
       attention: {
         type: "biaffine",
@@ -107,7 +107,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     }, 
     dropout: 0.2,
     syntax_edge_type_namespace: "syn_edge_types",
-    pretrained_weights: "/exp/estengel/miso_res/xlmr_models/decomp_transformer_intermediate_no_positional/best.th"
+    pretrained_weights: "/exp/estengel/miso_res/xlmr_models/decomp_transformer_encoder_best/best.th"
   },
   iterator: {
     type: "bucket",

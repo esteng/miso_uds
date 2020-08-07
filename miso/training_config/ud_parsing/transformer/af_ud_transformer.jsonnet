@@ -97,7 +97,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       key_vector_dim: 512,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 512,
-      num_labels: 49,
+      num_labels: 28,
       is_syntax: true,
       attention: {
         type: "biaffine",

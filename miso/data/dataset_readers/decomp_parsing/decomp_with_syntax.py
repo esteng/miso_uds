@@ -984,14 +984,21 @@ class DecompGraphWithSyntax(DecompGraph):
             return None
 
     @staticmethod
-    def build_conllu_dict(nodes, edge_heads, edge_labels):
+    def build_conllu_dict(nodes, edge_heads, edge_labels, text=None):
         """
         turn the syntactic graph into conllu format
         """
         #print(f"nodes {nodes}") 
         #print(f"edge_heads {edge_heads}") 
         #print(f"edge_labels {edge_labels}") 
-        assert(len(nodes) == len(edge_heads) == len(edge_labels))
+        try:
+            assert(len(nodes) == len(edge_heads) == len(edge_labels))
+        except AssertionError:
+            assert(len(nodes) > len(edge_heads) )
+            assert(len(edge_heads) == len(edge_labels)) 
+            # this is when we've trimmed, add empty predictions here 
+            edge_heads += ["-" for i in range(len(nodes)-len(edge_heads))]
+            edge_labels += ["-" for i in range(len(nodes)-len(edge_heads))]
         colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
 
         rows = []

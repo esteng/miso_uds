@@ -215,8 +215,8 @@ def load_conllu(file):
 
 
             # Check there is a single root node
-            if len([word for word in ud.words[sentence_start:] if word.parent is None]) != 1:
-                raise UDError("There are multiple roots in a sentence")
+            #if len([word for word in ud.words[sentence_start:] if word.parent is None]) != 1:
+            #    raise UDError("There are multiple roots in a sentence")
 
             # End the sentence
             ud.sentences[-1].end = index
@@ -501,6 +501,7 @@ def main():
     # Print the evaluation
     if not args.verbose and not args.counts:
         print("LAS F1 Score: {:.2f}".format(100 * evaluation["LAS"].f1))
+        print("UAS F1 Score: {:.2f}".format(100 * evaluation["UAS"].f1))
         print("MLAS Score: {:.2f}".format(100 * evaluation["MLAS"].f1))
         print("BLEX Score: {:.2f}".format(100 * evaluation["BLEX"].f1))
     else:

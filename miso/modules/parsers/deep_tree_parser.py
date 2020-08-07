@@ -96,9 +96,6 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         # num_labels x 1
         _minus_inf = -1e8
         
-        n_lab, seq_len, __ = energy.shape
-        before_energy = energy.clone()
-        
         # get second max dependent besides 0-0 edge 
         # max over cols at row 0 
         row_val, row_idx = torch.max(energy[:,0,1:], dim = 1)
