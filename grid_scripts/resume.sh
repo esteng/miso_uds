@@ -2,11 +2,12 @@
 #$ -j yes
 #$ -N resume_decomp
 #$ -l 'mem_free=50G,h_rt=28:00:00,gpu=1'
-#$ -q gpu.q@@2080
+#$ -q gpu.q
 #$ -m ae -M elias@jhu.edu
 #$ -cwd
 #$ -o /home/hltcoe/estengel/miso_research/grid_logs/resume.out
 
+# -q gpu.q@@2080
 
 ml cuda10.0/toolkit
 ml cudnn/7.5.0_cuda10.0
