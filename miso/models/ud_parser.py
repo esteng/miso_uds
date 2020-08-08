@@ -25,7 +25,7 @@ from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder, BaseBertWrapper
 from miso.modules.seq2seq_encoders.transformer_encoder import MisoTransformerEncoder
 from miso.modules.decoders import RNNDecoder
 from miso.modules.generators import ExtendedPointerGenerator
-from miso.modules.parsers import DeepTreeParser, DecompTreeParser, DeepBiaffineParser
+from miso.modules.parsers import DeepTreeParser, DecompTreeParser
 from miso.modules.label_smoothing import LabelSmoothing
 from miso.modules.decoders.attribute_decoder import NodeAttributeDecoder 
 from miso.modules.decoders.edge_decoder import EdgeAttributeDecoder 
@@ -113,6 +113,10 @@ class UDParser(Transduction):
         self.syntax_uas = scores["UAS"] * 100
 
     def _compute_biaffine_loss(self, biaffine_outputs, inputs):
+        #print(f"pred heads {biaffine_outputs['edge_heads']}") 
+        #print(f"true heads {inputs['syn_edge_heads']}") 
+        #print(f"pred tags  {biaffine_outputs['edge_types']}") 
+        #print(f"true types {inputs['syn_edge_types']['syn_edge_types']}") 
         edge_prediction_loss = self._compute_edge_prediction_loss(
                                 biaffine_outputs['edge_head_ll'],
                                 biaffine_outputs['edge_type_ll'],

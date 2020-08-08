@@ -48,9 +48,13 @@ class DeepTreeParser(torch.nn.Module, Registrable):
     def _decode_mst(self, edge_type_query, edge_type_key, edge_head_scores, mask):
         batch_size, max_length, edge_label_hidden_size = edge_type_query.size()
         lengths = mask.data.sum(dim=1).long().cpu().numpy() 
-
+        
+        #if not self.is_syntax:
         expanded_shape_query = [batch_size, max_length, max_length + 1, edge_label_hidden_size]
         expanded_shape_key = [batch_size, max_length, max_length + 1, edge_label_hidden_size]
+        #else:
+        #    expanded_shape_query = [batch_size, max_length, max_length, edge_label_hidden_size]
+        #    expanded_shape_key = [batch_size, max_length, max_length , edge_label_hidden_size]
 
         edge_type_query  = edge_type_query.unsqueeze(2).expand(*expanded_shape_query).contiguous()
         edge_type_key = edge_type_key.unsqueeze(1).expand(*expanded_shape_key).contiguous()
@@ -72,16 +76,18 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         batch_energy = torch.exp(edge_head_scores.unsqueeze(1) + edge_type_scores)
         #batch_energy = torch.exp(edge_head_scores.unsqueeze(1)) 
         bsz, n_lab, seq_len, __ = batch_energy.shape
+
+        #if not self.is_syntax: 
         sentinel = torch.zeros(bsz, n_lab, 1, seq_len + 1).to(batch_energy.device) 
         batch_energy = torch.cat([sentinel, batch_energy], dim = 2) 
         batch_energy[0,0,0,0] = 1
 
-        #batch_energy = batch_energy[:,:,:,1:]
         batch_energy = batch_energy.permute(0,1,3,2) 
         lengths += 1
         edge_heads, edge_labels = self._run_mst_decoding(batch_energy, lengths)
 
         #edge_heads[edge_heads == 0] = -1
+        #if not self.is_syntax: 
         edge_heads = edge_heads[:, 1:] 
         edge_labels = edge_labels[:, 1:]
 
@@ -95,16 +101,26 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         # so row 0 should only have 1 thing > -inf, except for 0-0 
         # num_labels x 1
         _minus_inf = -1e8
-        
+       
+        ROW = False
         # get second max dependent besides 0-0 edge 
         # max over cols at row 0 
-        row_val, row_idx = torch.max(energy[:,0,1:], dim = 1)
-        row_val = row_val.clone()
-        row_idx += 1
-        # wipe out row 0
-        energy[:, 0, 1:] = _minus_inf
-        # reset best column in row 0
-        energy[:,0,row_idx] = row_val 
+        if ROW:
+            row_val, row_idx = torch.max(energy[:,0,1:], dim = 1)
+            row_val = row_val.clone()
+            row_idx += 1
+            # wipe out row 0
+            energy[:, 0, 1:] = _minus_inf
+            # reset best column in row 0
+            energy[:,0,row_idx] = row_val 
+        else:
+            col_val, col_idx = torch.max(energy[:,1:,0], dim = 1)
+            col_val = col_val.clone()
+            col_idx += 1
+            # wipe out row 0
+            energy[:, 1:, 0] = _minus_inf
+            # reset best column in col 0
+            energy[:,col_idx,0] = col_val 
 
         return energy
 
@@ -157,8 +173,8 @@ class DeepTreeParser(torch.nn.Module, Registrable):
             edge_head_ll: [batch_size, query_length, key_length + 1(sentinel)].
             edge_type_ll: [batch_size, query_length, num_labels] (based on gold_edge_head) or None.
         """
-        #if not self.is_syntax: 
-        key, edge_head_mask = self._add_sentinel(query, key, edge_head_mask)
+        if not self.is_syntax: 
+            key, edge_head_mask = self._add_sentinel(query, key, edge_head_mask)
 
         edge_head_query, edge_head_key, edge_type_query, edge_type_key = self._mlp(query, key)
 
