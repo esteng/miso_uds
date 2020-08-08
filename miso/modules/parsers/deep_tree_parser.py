@@ -123,6 +123,7 @@ class DeepTreeParser(torch.nn.Module, Registrable):
             # enforce single-root constraint 
             energy = DeepTreeParser._enforce_root(energy) 
             instance_heads, instance_head_labels = decode_mst(scores.numpy(), length, has_labels=False)
+            #instance_heads, instance_head_labels = decode_mst(scores.numpy(), length, has_labels=True)
 
             ## Find the labels which correspond to the edges in the max spanning tree.
             instance_head_labels = []
