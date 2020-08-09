@@ -4,6 +4,8 @@ import sys
 import json
 
 import torch
+import numpy as np
+import random
 
 from allennlp.commands.predict import _get_predictor, Predict
 from allennlp.commands import ArgumentParserWithDefaults
@@ -19,6 +21,11 @@ from allennlp.common.util import import_submodules
 from miso.predictors import  DecompPredictor
 from miso.metrics.s_metric import utils
 from miso.commands.predict import _ReturningPredictManager 
+
+torch.manual_seed(12) 
+np.random.seed(12) 
+random.seed(12) 
+
 
 def _predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)

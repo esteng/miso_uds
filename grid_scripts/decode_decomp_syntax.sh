@@ -7,7 +7,6 @@
 #$ -m ae -M elias@jhu.edu
 #$ -cwd
 
-# -q gpu.q
 source ~/envs/miso_res/bin/activate
 ml cuda10.0/toolkit
 ml cudnn/7.5.0_cuda10.0

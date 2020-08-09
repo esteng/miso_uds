@@ -14,5 +14,7 @@ ml cudnn/7.5.0_cuda10.0
 cd /home/hltcoe/estengel/miso_research
 
 ./experiments/decomp_train.sh -a spr_eval -d ${CHECKPOINT_DIR} &> ${CHECKPOINT_DIR}/dev.oracle_out
-#./experiments/decomp_test.sh -a spr_eval
+
+echo "EVALUATION GRAPHS"
+python -m miso.commands.pearson_aggregate ${CHECKPOINT_DIR}/data.json >> ${CHECKPOINT_DIR}/dev.pearson.out 
 

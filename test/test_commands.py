@@ -68,7 +68,7 @@ def base_s_score_test(model_path, backoff_func, capsys, predictor = "decomp_pars
     except AssertionError:
         backoff_func()  
 
-    setup_and_test("eval", model_path, predictor) 
+    setup_and_test("eval", model_path, predictor = predictor)
     
     out, err = capsys.readouterr() 
     out = out.strip().split("\n")[0]
@@ -95,27 +95,27 @@ def test_s_score_base(capsys):
 
 def test_s_score_concat_after(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_after.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_concat_after, capsys, "decomp_syntax_parsing") 
+    base_s_score_test(model_path, test_interface_concat_after, capsys, predictor="decomp_syntax_parsing")
 
 def test_s_score_concat_before(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_before.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_concat_before, capsys, "decomp_syntax_parsing") 
+    base_s_score_test(model_path, test_interface_concat_before, capsys, predictor="decomp_syntax_parsing") 
 
 def test_s_score_encoder_side(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_encoder_side.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_encoder_side, capsys, "decomp_syntax_parsing") 
+    base_s_score_test(model_path, test_interface_encoder_side, capsys, predictor="decomp_syntax_parsing") 
 
-def test_transformer_s_score_concat_after(capsys):
-    model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_after_transformer.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_concat_after_transformer, capsys, "decomp_syntax_parsing") 
-
-def test_transformer_s_score_concat_before(capsys):
-    model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_before_transformer.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_concat_before_transformer, capsys, "decomp_syntax_parsing") 
-
-def test_transformer_s_score_encoder_side(capsys):
-    model_path = os.path.join(test_path, "checkpoints", "overfit_interface_encoder_side_transformer.ckpt", "model.tar.gz") 
-    base_s_score_test(model_path, test_interface_encoder_side_transformer, capsys, "decomp_syntax_parsing") 
+#def test_transformer_s_score_concat_after(capsys):
+#    model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_after_transformer.ckpt", "model.tar.gz") 
+#    base_s_score_test(model_path, test_interface_concat_after_transformer, capsys, predictor="decomp_syntax_parsing") 
+#
+#def test_transformer_s_score_concat_before(capsys):
+#    model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_before_transformer.ckpt", "model.tar.gz") 
+#    base_s_score_test(model_path, test_interface_concat_before_transformer, capsys, predictor="decomp_syntax_parsing") 
+#
+#def test_transformer_s_score_encoder_side(capsys):
+#    model_path = os.path.join(test_path, "checkpoints", "overfit_interface_encoder_side_transformer.ckpt", "model.tar.gz") 
+#    base_s_score_test(model_path, test_interface_encoder_side_transformer, capsys, predictor="decomp_syntax_parsing") 
 
 def test_conllu_concat_after(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_interface_concat_after.ckpt", "model.tar.gz") 

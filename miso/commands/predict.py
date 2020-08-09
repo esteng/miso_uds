@@ -17,8 +17,9 @@ from allennlp.data import Instance
 from allennlp.commands.predict import _PredictManager
 from allennlp.common.util import import_submodules
 
-from miso.predictors.decomp_parsing_predictor import sanitize 
+from miso.predictors.decomp_parsing_predictor import sanitize, DecompSyntaxParsingPredictor
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
+from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax
 
 #from decomp import UDSVisualization, serve_parser
 
@@ -39,13 +40,21 @@ def parse_api_sentence(input_line, args, predictor):
                                 json_output_file = None)
 
     manager._dataset_reader.api_time = True
+
+    if isinstance(predictor, DecompSyntaxParsingPredictor):
+        sem_graph, syn_graph, __ = manager.run()[1][0]
+        return DecompGraphWithSyntax.arbor_to_uds(sem_graph, syn_graph, "test-graph") 
+
     return DecompGraph.arbor_to_uds(manager.run()[1][0], "test-graph") 
 
 def _predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)
 
+    with_syntax = False 
+    if "syntax" in args.predictor: 
+        with_syntax = True 
     if args.run_api:
-        serve_parser(lambda x: parse_api_sentence(x, args, predictor)) 
+        serve_parser(lambda x: parse_api_sentence(x, args, predictor), with_syntax=with_syntax) 
 
     else:
         if args.silent and not args.output_file:

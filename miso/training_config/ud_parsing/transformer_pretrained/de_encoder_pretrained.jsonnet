@@ -107,7 +107,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     }, 
     dropout: 0.2,
     syntax_edge_type_namespace: "syn_edge_types",
-    pretrained_weights: "/exp/estengel/miso_res/xlmr_models/decomp_transformer_encoder/best.th",
+    pretrained_weights: "/exp/estengel/miso_res/xlmr_models/decomp_transformer_encoder_best/best.th"
   },
   iterator: {
     type: "bucket",
@@ -131,7 +131,11 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     # TODO: try to use grad clipping.
     grad_clipping: null,
     cuda_device: 0,
+<<<<<<< HEAD
     num_serialized_models_to_keep: 5,
+=======
+    num_serialized_models_to_keep: 1,
+>>>>>>> transduction-synt-sem-experimental
     validation_metric: "+syn_uas",
     optimizer: {
       type: "adam",
@@ -144,7 +148,11 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
+<<<<<<< HEAD
        warmup_steps: 4000,
+=======
+       warmup_steps: 8000,
+>>>>>>> transduction-synt-sem-experimental
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",

@@ -58,12 +58,11 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       generation_tokens: 1,
     },
     max_vocab_size: {
-      source_tokens: 19700,
-      target_tokens: 19700,
-      generation_tokens: 19700,
+      source_tokens: 36000, 
+      target_tokens: 24400,
+      generation_tokens: 24400,
     },
   },
-
   model: {
     type: "decomp_parser",
     bert_encoder: {
@@ -91,7 +90,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.33,
+          dropout: 0.00,
         },
       },
     },
@@ -162,7 +161,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 1024,
           key_vector_dim: 1024,
           hidden_vector_dim: 256, 
-          use_coverage: false,
+          use_coverage: true,
         },
       },
       target_attention_layer: {
@@ -199,7 +198,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     },
     node_attribute_module: {
         input_dim: 1024,
-        hidden_dim: 1024,
+        hidden_dim: 2048,
         output_dim: 44,
         n_layers: 4, 
         loss_multiplier: 10,
@@ -223,13 +222,12 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
   },
-
   iterator: {
     type: "bucket",
     # TODO: try to sort by target tokens.
-    sorting_keys: [["source_tokens", "num_tokens"]],
+    sorting_keys: [["target_tokens", "num_tokens"]],
     padding_noise: 0.0,
-    batch_size: 32,
+    batch_size: 56,
   },
   validation_iterator: {
     type: "basic",
@@ -249,12 +247,13 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     optimizer: {
       type: "adam",
       weight_decay: 3e-9,
+      lr: 0.001,
       amsgrad: true,
     },
-    learning_rate_scheduler: {
-      type: "reduce_on_plateau",
-      patience: 10,
-    },
+    #learning_rate_scheduler: {
+    #  type: "reduce_on_plateau",
+    #  patience: 10,
+    #},
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",

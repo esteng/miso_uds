@@ -72,6 +72,19 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
                     continue
                 yield instance
 
+    def trim_dependencies(self, deps): 
+        """
+        remove all relations that involve heads which are outside of max len 
+        """
+        new_deps = []
+        for deprel, head in deps: 
+            if head > self._max_src_len:
+                # replace with max len 
+                head = self._max_src_len
+            new_deps.append((deprel, head)) 
+        return new_deps[0: self._max_src_len]
+>>>>>>> transduction-synt-sem-experimental
+
 
     @overrides
     def text_to_instance(self,  # type: ignore
@@ -100,6 +113,14 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
         indices as fields. The language identifier is stored in the metadata.
         """
         fields: Dict[str, Field] = {}
+        og_words = words 
+
+        # trim words
+        if self._max_src_len is not None and len(words) > self._max_src_len:
+            #return None
+            words = words[0:self._max_src_len]
+            upos_tags = upos_tags[0:self._max_src_len]
+            dependencies = self.trim_dependencies(dependencies) 
 
         # trim words
         if self._max_src_len is not None and len(words) > self._max_src_len:
@@ -155,7 +176,7 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
         fields['syn_valid_node_mask'] = ArrayField(np.array([1] * len(words), dtype='uint8')) 
 
         fields["syn_tokens_str"] = MetadataField(
-                words)
+                og_words)
 
         fields["metadata"] = MetadataField({"syn_tokens_str": words, "src_pos_str": upos_tags, "lang": lang})
 

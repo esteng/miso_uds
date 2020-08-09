@@ -51,6 +51,7 @@ class DecompTrainer(Trainer):
                  include_attribute_scores: bool = False,
                  warmup_epochs: int = 0,
                  syntactic_method:str = None,
+                 accumulate_batches: int = 1,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.validation_data_path = validation_data_path
@@ -58,6 +59,7 @@ class DecompTrainer(Trainer):
         self.semantics_only=semantics_only
         self.drop_syntax=drop_syntax
         self.include_attribute_scores=include_attribute_scores
+        self.accumulate_batches = accumulate_batches
 
         self._warmup_epochs = warmup_epochs
         self._curr_epoch = 0
@@ -188,6 +190,138 @@ class DecompTrainer(Trainer):
 
         return val_loss, batches_this_epoch
 
+    @overrides
+    def _train_epoch(self, epoch: int) -> Dict[str, float]:
+        """
+        Trains one epoch and returns metrics.
+        """
+        logger.info("Epoch %d/%d", epoch, self._num_epochs - 1)
+        peak_cpu_usage = peak_memory_mb()
+        logger.info(f"Peak CPU memory usage MB: {peak_cpu_usage}")
+        gpu_usage = []
+        for gpu, memory in gpu_memory_mb().items():
+            gpu_usage.append((gpu, memory))
+            logger.info(f"GPU {gpu} memory usage MB: {memory}")
+
+        train_loss = 0.0
+        # Set the model to "train" mode.
+        self.model.train()
+
+        num_gpus = len(self._cuda_devices)
+
+        # Get tqdm for the training batches
+        raw_train_generator = self.iterator(self.train_data,
+                                            num_epochs=1,
+                                            shuffle=self.shuffle)
+        train_generator = lazy_groups_of(raw_train_generator, num_gpus)
+        num_training_batches = math.ceil(self.iterator.get_num_batches(self.train_data)/num_gpus)
+        self._last_log = time.time()
+        last_save_time = time.time()
+
+        batches_this_epoch = 0
+        if self._batch_num_total is None:
+            self._batch_num_total = 0
+
+        histogram_parameters = set(self.model.get_parameters_for_histogram_tensorboard_logging())
+
+
+        logger.info("Training")
+        train_generator_tqdm = Tqdm.tqdm(train_generator,
+                                         total=num_training_batches)
+        cumulative_batch_size = 0
+        loss = 0.0
+
+        for batch_group in train_generator_tqdm:
+            batches_this_epoch += 1
+            self._batch_num_total += 1
+            batch_num_total = self._batch_num_total
+
+            #if batches_this_epoch % self.accumulate_batches == 0: 
+            self.optimizer.zero_grad()
+
+            loss = self.batch_loss(batch_group, for_training=True)
+            loss.backward()
+
+            # accumulate over number of batches 
+            if batches_this_epoch % self.accumulate_batches == 0:
+                if torch.isnan(loss):
+                    raise ValueError("nan loss encountered")
+
+
+                train_loss += loss.item()
+
+                batch_grad_norm = self.rescale_gradients()
+
+                # This does nothing if batch_num_total is None or you are using a
+                # scheduler which doesn't update per batch.
+                if self._learning_rate_scheduler:
+                    self._learning_rate_scheduler.step_batch(batch_num_total)
+                if self._momentum_scheduler:
+                    self._momentum_scheduler.step_batch(batch_num_total)
+
+                if self._tensorboard.should_log_histograms_this_batch():
+                    # get the magnitude of parameter updates for logging
+                    # We need a copy of current parameters to compute magnitude of updates,
+                    # and copy them to CPU so large models won't go OOM on the GPU.
+                    param_updates = {name: param.detach().cpu().clone()
+                                     for name, param in self.model.named_parameters()}
+                    self.optimizer.step()
+                    for name, param in self.model.named_parameters():
+                        param_updates[name].sub_(param.detach().cpu())
+                        update_norm = torch.norm(param_updates[name].view(-1, ))
+                        param_norm = torch.norm(param.view(-1, )).cpu()
+                        self._tensorboard.add_train_scalar("gradient_update/" + name,
+                                                           update_norm / (param_norm + 1e-7))
+                else:
+                    self.optimizer.step()
+
+                # zero grads after step 
+                loss = 0.0 
+
+            # Update moving averages
+            if self._moving_average is not None:
+                self._moving_average.apply(batch_num_total)
+
+            # Update the description with the latest metrics
+            metrics = training_util.get_metrics(self.model, train_loss, batches_this_epoch)
+            description = training_util.description_from_metrics(metrics)
+
+            train_generator_tqdm.set_description(description, refresh=False)
+
+            # Log parameter values to Tensorboard
+            if self._tensorboard.should_log_this_batch():
+                self._tensorboard.log_parameter_and_gradient_statistics(self.model, batch_grad_norm)
+                self._tensorboard.log_learning_rates(self.model, self.optimizer)
+
+                self._tensorboard.add_train_scalar("loss/loss_train", metrics["loss"])
+                self._tensorboard.log_metrics({"epoch_metrics/" + k: v for k, v in metrics.items()})
+
+            if self._tensorboard.should_log_histograms_this_batch():
+                self._tensorboard.log_histograms(self.model, histogram_parameters)
+
+            if self._log_batch_size_period:
+                cur_batch = sum([training_util.get_batch_size(batch) for batch in batch_group])
+                cumulative_batch_size += cur_batch
+                if (batches_this_epoch - 1) % self._log_batch_size_period == 0:
+                    average = cumulative_batch_size/batches_this_epoch
+                    logger.info(f"current batch size: {cur_batch} mean batch size: {average}")
+                    self._tensorboard.add_train_scalar("current_batch_size", cur_batch)
+                    self._tensorboard.add_train_scalar("mean_batch_size", average)
+
+            # Save model if needed.
+            if self._model_save_interval is not None and (
+                    time.time() - last_save_time > self._model_save_interval
+            ):
+                last_save_time = time.time()
+                self._save_checkpoint(
+                        '{0}.{1}'.format(epoch, training_util.time_to_str(int(last_save_time)))
+                )
+        metrics = training_util.get_metrics(self.model, train_loss, batches_this_epoch, reset=True)
+        metrics['cpu_memory_MB'] = peak_cpu_usage
+        for (gpu_num, memory) in gpu_usage:
+            metrics['gpu_'+str(gpu_num)+'_memory_MB'] = memory
+        return metrics
+
 
     @classmethod
     def from_params(cls,  # type: ignore
@@ -196,6 +330,7 @@ class DecompTrainer(Trainer):
                     recover: bool = False,
                     cache_directory: str = None,
                     cache_prefix: str = None):
+        print(params)
         pieces = TrainerPieces.from_params(params,  # pylint: disable=no-member
                                            serialization_dir,
                                            recover,
@@ -290,6 +425,7 @@ def _from_params(cls,  # type: ignore
     should_log_learning_rate = params.pop_bool("should_log_learning_rate", False)
     log_batch_size_period = params.pop_int("log_batch_size_period", None)
     syntactic_method = params.pop("syntactic_method", None)
+    accumulate_batches = params.pop("accumulate_batches", 1) 
 
     params.assert_empty(cls.__name__)
     return cls(model=model,
@@ -322,6 +458,7 @@ def _from_params(cls,  # type: ignore
                should_log_parameter_statistics=should_log_parameter_statistics,
                should_log_learning_rate=should_log_learning_rate,
                log_batch_size_period=log_batch_size_period,
-               moving_average=moving_average)
+               moving_average=moving_average,
+               accumulate_batches=accumulate_batches)
                
 

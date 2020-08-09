@@ -213,13 +213,38 @@ class DecompSyntaxParsingPredictor(DecompParsingPredictor):
     def dump_line(self, outputs: JsonDict) -> str:
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
         pred_sem_graph, pred_syn_graph, conllu_graph = DecompGraphWithSyntax.from_prediction(outputs, self._model.syntactic_method) 
-        conllu_str = ""
 
         if conllu_graph is not None:
+            #text = " ".join([row["form"] for row in conllu_graph])
+            text = " ".join(outputs['syn_nodes']) 
+            id = 1
+
+            conllu_str = f"# sent_id = train-s{id}\n" +\
+                         f"# text = {text}\n" + \
+                         f"# org_sent_id = {id}\n"
             colnames = ["ID", "form", "lemma", "upos", "xpos", "feats", "head", "deprel", "deps", "misc"]
+            
+            n_vals = 0 
+            n_rows = len(conllu_graph) 
             for row in conllu_graph:
                 vals = [row[cn] for cn in colnames]
                 conllu_str += "\t".join(vals) + "\n"
+                n_vals = len(vals) 
+
+            # cases where we had to trim 
+            print(f"len outputs {len(outputs['syn_nodes'])}")
+            print(f"nrows {n_rows}") 
+
+            if len(outputs['syn_nodes']) > n_rows:
+                c = n_rows
+                for node in outputs['syn_nodes'][n_rows:]: 
+                    #vals = [str(c+1)] + [node] + ["-" for i in range(n_vals-2)]
+                    dummy_row = {"ID": str(c+1), "form": node, "lemma": "-", "upos": "-",
+                                "xpos": "-", "feats": "-", "head": str(1), "deprel": "amod", "deps": "-", "misc": "-"}
+                    vals = [dummy_row[cn] for cn in colnames]
+                    conllu_str += "\t".join(vals) + "\n"
+                    c += 1
+
             conllu_str += '\n' 
 
         return pred_sem_graph, pred_syn_graph, conllu_str

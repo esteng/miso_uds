@@ -11,7 +11,7 @@ EXP_DIR=experiments
 
 #CHECKPOINT_DIR=/exp/estengel/miso_res/models/decomp-parsing-ckpt
 #TRAINING_CONFIG=miso/training_config/decomp_with_syntax.jsonnet
-TEST_DATA=dev
+#TEST_DATA=dev
 
 
 function train() {
@@ -169,6 +169,29 @@ function conllu_eval() {
     --include-package miso.metrics
 }
 
+function conllu_predict() {
+    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
+    split=$(basename -- "${TEST_DATA}")
+    split="${split%.*}"
+    echo "split ${split}"
+    export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
+    echo ${PYTHONPATH}
+    python -m miso.commands.s_score conllu_predict \
+    ${model_file} ${TEST_DATA} \
+    --predictor "decomp_syntax_parsing" \
+    --batch-size 128 \
+    --beam-size 2 \
+    --use-dataset-reader \
+    --output-file ${CHECKPOINT_DIR}/${split}.conllu \
+    --cuda-device 0 \
+    --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
+    --include-package miso.modules.seq2seq_encoders \
+    --include-package miso.models \
+    --include-package miso.predictors \
+    --include-package miso.metrics
+}
 
 function usage() {
 
@@ -241,6 +264,8 @@ function main() {
         eval_attr 
     elif [[ "${action}" == "conllu_eval" ]]; then
         conllu_eval
+    elif [[ "${action}" == "conllu_predict" ]]; then
+        conllu_predict
     fi
 }
 

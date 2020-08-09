@@ -22,7 +22,7 @@ from miso.models.transduction_base import Transduction
 from miso.modules.seq2seq_encoders import Seq2SeqBertEncoder, BaseBertWrapper
 from miso.modules.decoders import RNNDecoder
 from miso.modules.generators import ExtendedPointerGenerator
-from miso.modules.parsers import DeepTreeParser, DecompTreeParser, DeepBiaffineParser
+from miso.modules.parsers import DeepTreeParser, DecompTreeParser
 from miso.modules.label_smoothing import LabelSmoothing
 from miso.modules.decoders.attribute_decoder import NodeAttributeDecoder 
 from miso.modules.decoders.edge_decoder import EdgeAttributeDecoder 

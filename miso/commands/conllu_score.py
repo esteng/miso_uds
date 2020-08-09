@@ -183,7 +183,11 @@ class ConlluScorer:
         self.oracle = oracle
         self.json_output_file = json_output_file
 
-        
+        if os.path.exists(self.pred_args.input_file):
+            # ud only case
+            # make compatible with allenNLP 
+            self.pred_args.input_file += "/*"
+ 
         self.manager = _ReturningPredictManager(self.predictor,
                                     self.pred_args.input_file,
                                     None,
@@ -213,7 +217,6 @@ class ConlluScorer:
         if len(output_graphs) > 0 and type(output_graphs[0]) == tuple:
             output_graphs = [x[-1] for x in output_graphs]
 
-        input_graphs = [inst.fields['graph'].metadata for inst in input_instances] 
         input_sents = [inst.fields['src_tokens_str'].metadata for inst in input_instances]
 
         las_scores = []
