@@ -102,7 +102,7 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         # num_labels x 1
         _minus_inf = -1e8
        
-        ROW = False
+        ROW = True
         # get second max dependent besides 0-0 edge 
         # max over cols at row 0 
         if ROW:
@@ -133,18 +133,31 @@ class DeepTreeParser(torch.nn.Module, Registrable):
             # decode heads and labels 
             # need to decode labels separately so that we can enforce single root 
             scores, label_ids = energy.max(dim=0)
-            energy = scores.unsqueeze(0) 
+            energy = scores
 
-            # TODO: fix so that it can't have multiple roots 
-            # enforce single-root constraint 
-            energy = DeepTreeParser._enforce_root(energy) 
-            instance_heads, instance_head_labels = decode_mst(scores.numpy(), length, has_labels=False)
+            instance_heads, instance_head_labels = decode_mst(energy.numpy(), length, has_labels=False)
             #instance_heads, instance_head_labels = decode_mst(scores.numpy(), length, has_labels=True)
 
             ## Find the labels which correspond to the edges in the max spanning tree.
             instance_head_labels = []
             for child, parent in enumerate(instance_heads):
                 instance_head_labels.append(label_ids[parent, child].item())
+            
+            # check for multiroot
+            multi_root = sum([1 if h == 0 else 0 for h in instance_heads[0:length]]) > 1
+
+            if multi_root: 
+                energy = energy.unsqueeze(0)
+                energy = DeepTreeParser._enforce_root(energy) 
+                energy = energy.squeeze(0) 
+                instance_heads, instance_head_labels = decode_mst(energy.numpy(), length, has_labels=False)
+                #instance_heads, instance_head_labels = decode_mst(scores.numpy(), length, has_labels=True)
+
+                ## Find the labels which correspond to the edges in the max spanning tree.
+                instance_head_labels = []
+                for child, parent in enumerate(instance_heads):
+                    instance_head_labels.append(label_ids[parent, child].item())
+
 
             edge_heads.append(instance_heads)
             edge_labels.append(instance_head_labels)
@@ -173,8 +186,8 @@ class DeepTreeParser(torch.nn.Module, Registrable):
             edge_head_ll: [batch_size, query_length, key_length + 1(sentinel)].
             edge_type_ll: [batch_size, query_length, num_labels] (based on gold_edge_head) or None.
         """
-        if not self.is_syntax: 
-            key, edge_head_mask = self._add_sentinel(query, key, edge_head_mask)
+        #if not self.is_syntax: 
+        key, edge_head_mask = self._add_sentinel(query, key, edge_head_mask)
 
         edge_head_query, edge_head_key, edge_type_query, edge_type_key = self._mlp(query, key)
 

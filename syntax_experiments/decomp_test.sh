@@ -11,7 +11,7 @@ source ${EXP_DIR}/utils.sh
 
 #CHECKPOINT_DIR=decomp-synt-sem-ckpt
 #TRAINING_CONFIG=miso/training_config/overfit_synt_sem.jsonnet
-TEST_DATA=dev
+#TEST_DATA=dev
 
 
 function train() {
@@ -120,7 +120,7 @@ function conllu_eval() {
 
 function conllu_predict() {
     model_file=${CHECKPOINT_DIR}/model.tar.gz
-    TEST_DATA=test/data/
+    #TEST_DATA=test/data/
     output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
     export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
     echo ${PYTHONPATH}

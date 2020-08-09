@@ -11,7 +11,7 @@ EXP_DIR=experiments
 
 #CHECKPOINT_DIR=/exp/estengel/miso_res/models/decomp-parsing-ckpt
 #TRAINING_CONFIG=miso/training_config/decomp_with_syntax.jsonnet
-#TEST_DATA=dev
+TEST_DATA=dev
 
 
 function train() {
@@ -49,7 +49,7 @@ function test() {
     output_file=${CHECKPOINT_DIR}/test.pred.txt
     python -m allennlp.run predict \
     ${model_file} ${TEST_DATA} \
-    --predictor "decomp_syntax_parsing" \
+    --predictor "decomp_parsing" \
     --batch-size 1 \
     --use-dataset-reader \
     --include-package miso.data.dataset_readers \
@@ -67,20 +67,20 @@ function eval() {
     echo ${PYTHONPATH}
     python -m miso.commands.s_score eval \
     ${model_file} ${TEST_DATA} \
-    --predictor "decomp_syntax_parsing" \
-    --batch-size 128 \
-    --beam-size 2 \
+    --predictor "decomp_parsing" \
+    --batch-size 32 \
+    --beam-size 1 \
     --use-dataset-reader \
-    --cuda-device 0 \
+    --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
+    --cuda-device -1 \
     --include-package miso.data.dataset_readers \
     --include-package miso.data.tokenizers \
-    --include-package miso.modules.seq2seq_encoders \
     --include-package miso.models \
+    --include-package miso.modules.seq2seq_encoders \
     --include-package miso.predictors \
     --include-package miso.metrics &> ${CHECKPOINT_DIR}/${TEST_DATA}.synt_struct.out
 }
 
-    #--save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
 function eval_sem() {
     echo "Evaluating a transductive model for decomp parsing..."
     model_file=${CHECKPOINT_DIR}/model.tar.gz
@@ -89,12 +89,12 @@ function eval_sem() {
     echo ${PYTHONPATH}
     python -m miso.commands.s_score eval \
     ${model_file} ${TEST_DATA} \
-    --predictor "decomp_syntax_parsing" \
-    --batch-size 128 \
-    --beam-size 2 \
+    --predictor "decomp_parsing" \
+    --batch-size 1 \
     --use-dataset-reader \
+    --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
     --semantics-only \
-    --cuda-device 0 \
+    --cuda-device -1 \
     --include-package miso.data.dataset_readers \
     --include-package miso.data.tokenizers \
     --include-package miso.models \
@@ -112,13 +112,13 @@ function eval_attr() {
     echo ${PYTHONPATH}
     python -m miso.commands.s_score eval \
     ${model_file} ${TEST_DATA} \
-    --predictor "decomp_syntax_parsing" \
+    --predictor "decomp_parsing" \
     --include-attribute-scores \
-    --batch-size 128 \
-    --beam-size 2 \
+    --batch-size 32 \
+    --beam-size 1 \
     --use-dataset-reader \
     --save-pred-path ${CHECKPOINT_DIR}/${TEST_DATA}_graphs.pkl\
-    --cuda-device 0 \
+    --cuda-device -1 \
     --include-package miso.data.dataset_readers \
     --include-package miso.data.tokenizers \
     --include-package miso.models \
@@ -135,9 +135,9 @@ function spr_eval() {
     echo ${PYTHONPATH}
     python -m miso.commands.s_score spr_eval \
     ${model_file} ${TEST_DATA} \
-    --predictor "decomp_syntax_parsing" \
+    --predictor "decomp_parsing" \
     --use-dataset-reader \
-    --batch-size 128 \
+    --batch-size 32 \
     --oracle \
     --json-output-file ${CHECKPOINT_DIR}/data.json\
     --include-package miso.data.dataset_readers \
@@ -146,7 +146,7 @@ function spr_eval() {
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.predictors \
     --include-package miso.metrics \
-    --cuda-device 0 &> ${CHECKPOINT_DIR}/${TEST_DATA}.pearson.out
+    --cuda-device -1 &> ${CHECKPOINT_DIR}/${TEST_DATA}.pearson.out
 }
 
 function conllu_eval() {
@@ -157,41 +157,18 @@ function conllu_eval() {
     python -m miso.commands.s_score conllu_eval \
     ${model_file} ${TEST_DATA} \
     --predictor "decomp_syntax_parsing" \
-    --batch-size 128 \
-    --beam-size 2 \
+    --batch-size 1 \
+    --beam-size 1 \
     --use-dataset-reader \
-    --cuda-device 0 \
+    --line-limit 128 \
+    --cuda-device -1 \
     --include-package miso.data.dataset_readers \
     --include-package miso.data.tokenizers \
-    --include-package miso.modules.seq2seq_encoders \
     --include-package miso.models \
     --include-package miso.predictors \
     --include-package miso.metrics
 }
 
-function conllu_predict() {
-    model_file=${CHECKPOINT_DIR}/model.tar.gz
-    output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
-    split=$(basename -- "${TEST_DATA}")
-    split="${split%.*}"
-    echo "split ${split}"
-    export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
-    echo ${PYTHONPATH}
-    python -m miso.commands.s_score conllu_predict \
-    ${model_file} ${TEST_DATA} \
-    --predictor "decomp_syntax_parsing" \
-    --batch-size 128 \
-    --beam-size 2 \
-    --use-dataset-reader \
-    --output-file ${CHECKPOINT_DIR}/${split}.conllu \
-    --cuda-device 0 \
-    --include-package miso.data.dataset_readers \
-    --include-package miso.data.tokenizers \
-    --include-package miso.modules.seq2seq_encoders \
-    --include-package miso.models \
-    --include-package miso.predictors \
-    --include-package miso.metrics
-}
 
 function usage() {
 
@@ -264,8 +241,6 @@ function main() {
         eval_attr 
     elif [[ "${action}" == "conllu_eval" ]]; then
         conllu_eval
-    elif [[ "${action}" == "conllu_predict" ]]; then
-        conllu_predict
     fi
 }
 
