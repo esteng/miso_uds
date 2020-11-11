@@ -86,6 +86,20 @@ local data_dir = "data/UD/tiny/*";
       recurrent_dropout_probability: 0.00,
       use_highway: false,
     },
+    #biaffine_parser: {
+    #    label_mlp: {input_dim: 128,
+    #                num_layers: 2,
+    #                hidden_dims: 128,
+    #                activations: "relu",
+    #                dropout: 0.0},
+    #    arc_mlp: {input_dim: 128,
+    #                num_layers: 2,
+    #                hidden_dims: 128,
+    #                activations: "relu",
+    #                dropout: 0.0},
+    #    n_labels: 49
+    #},
+        
     biaffine_parser: {
       query_vector_dim: 128,
       key_vector_dim: 128,
