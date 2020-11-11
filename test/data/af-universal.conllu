@@ -1,0 +1,46 @@
+# sent_id = dev-s1
+# text = En ons hoop hierdie keer dat hernude pogings deur die internasionale gemeenskap om blywende oplossings vir hierdie konflik te vind, vrugte sal afwerp sodat die Israeliete en die Palestyne as bure vrede en sekuriteit kan geniet binne hul soewereine gebiede.
+# org_sent_id = 1547
+1	En	en	CCONJ	KN	_	3	amod	_	_
+2	ons	ons	PRON	PEMP	Case=Acc,Nom|Number=Plur|Person=1|PronType=Prs	3	nsubj	_	_
+3	hoop	hoop	VERB	VTHOG	Subcat=Tran|Tense=Pres|VerbForm=Fin,Inf	0	root	_	_
+4	hierdie	hierdie	DET	PA	PronType=Dem	5	det	_	_
+5	keer	keer	NOUN	NSE	Number=Sing	3	obj	_	_
+6	dat	dat	SCONJ	KO	_	3	amod	_	_
+7	hernude	hernu	ADJ	ASA	AdjType=Attr|Case=Nom|Degree=Pos	8	amod	_	_
+8	pogings	poging	NOUN	NSM	Number=Plur	24	nsubj	_	_
+9	deur	deur	ADP	SVS	AdpType=Prep	12	case	_	_
+10	die	die	DET	LB	Definite=Def|PronType=Art	12	det	_	_
+11	internasionale	internasionaal	ADJ	ASA	AdjType=Attr|Case=Nom|Degree=Pos	12	amod	_	_
+12	gemeenskap	gemeenskap	NOUN	NSE	Number=Sing	8	nmod	_	_
+13	om	om	ADP	SVS	AdpType=Prep	20	case	_	_
+14	blywende	bly	ADJ	ASA	AdjType=Attr|Case=Nom|Degree=Pos	15	amod	_	_
+15	oplossings	oplossing	NOUN	NSM	Number=Plur	20	obj	_	_
+16	vir	vir	ADP	SVS	AdpType=Prep	18	case	_	_
+17	hierdie	hierdie	DET	PA	PronType=Dem	18	det	_	_
+18	konflik	konflik	NOUN	NA	Number=Sing	15	nmod	_	_
+19	te	te	PART	UPI	PartType=Inf	20	mark	_	_
+20	vind	vind	VERB	VTHOG	Subcat=Tran|Tense=Pres|VerbForm=Fin,Inf	12	xcomp	_	SpaceAfter=No
+21	,	,	PUNCT	ZM	_	20	punct	_	_
+22	vrugte	vrug	NOUN	NSM	Number=Plur	24	obj	_	_
+23	sal	sal	AUX	VTUOM	Tense=Pres|VerbForm=Fin,Inf|VerbType=Mod	24	aux	_	_
+24	afwerp	afwerp	VERB	VTHSG	Subcat=Tran|Tense=Pres|VerbForm=Fin,Inf	6	dep	_	_
+25	sodat	sodat	SCONJ	KO	_	24	amod	_	_
+26	die	die	DET	LB	Definite=Def|PronType=Art	27	det	_	_
+27	Israeliete	Israeliet	NOUN	NSM	Number=Plur	37	nsubj	_	_
+28	en	en	CCONJ	KN	_	27	cc	_	_
+29	die	die	DET	LB	Definite=Def|PronType=Art	30	det	_	_
+30	Palestyne	Palestyn	NOUN	NSM	Number=Plur	27	conj	_	_
+31	as	as	SCONJ	KO	_	37	amod	_	_
+32	bure	buur	NOUN	NSM	Number=Plur	31	dep	_	_
+33	vrede	vrede	NOUN	NA	Number=Sing	37	obj	_	_
+34	en	en	CCONJ	KN	_	33	cc	_	_
+35	sekuriteit	sekuriteit	NOUN	NA	Number=Sing	33	conj	_	_
+36	kan	kan	AUX	VTUOM	Tense=Pres|VerbForm=Fin,Inf|VerbType=Mod	37	aux	_	_
+37	geniet	geniet	VERB	VTHOG	Subcat=Tran|Tense=Pres|VerbForm=Fin,Inf	25	dep	_	_
+38	binne	binne	ADP	SVS	AdpType=Prep	41	case	_	_
+39	hul	hul	PRON	PDMB	Number=Plur|Person=3|Poss=Yes|PronType=Prs	41	det	_	_
+40	soewereine	soewerein	ADJ	ASA	AdjType=Attr|Case=Nom|Degree=Pos	41	amod	_	_
+41	gebiede	gebied	NOUN	NSM	Number=Plur	37	obl	_	SpaceAfter=No
+42	.	.	PUNCT	ZE	_	37	punct	_	_
+

@@ -280,7 +280,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
        type: "noam",
        model_size: 64, 
        warmup_steps: 1000,
-       factor: 1.5,
+       factor: 1,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
