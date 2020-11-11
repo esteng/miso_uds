@@ -4,6 +4,7 @@ import sys
 import logging
 import copy 
 import numpy as np
+import pdb 
 
 import torch
 import torch.nn.functional as F
@@ -75,11 +76,11 @@ class MisoTransformerDecoder(MisoDecoder):
         # swap to pytorch's batch-second convention 
         outputs = outputs.permute(1, 0, 2)
         source_memory_bank = source_memory_bank.permute(1, 0, 2)
-        source_padding_mask = source_padding_mask.to(source_memory_bank.device)
-        target_padding_mask = target_padding_mask.to(source_memory_bank.device)
 
         # get a mask 
         ar_mask = self.make_autoregressive_mask(outputs.shape[0]).to(source_memory_bank.device)
+        source_padding_mask = source_padding_mask.to(source_memory_bank.device)
+        target_padding_mask = target_padding_mask.to(source_memory_bank.device)
 
         for i in range(len(self.layers)):
             outputs , __, __ = self.layers[i](outputs, 
@@ -160,8 +161,6 @@ class MisoTransformerDecoder(MisoDecoder):
     
 
             target_attention_weights = target_attention_output['attention_weights']
-
-        target_attention_weights = target_attention_output['attention_weights']
 
         return dict(
                 outputs=outputs,
@@ -402,7 +401,7 @@ class MisoPositionalTransformerDecoder(MisoTransformerDecoder):
         #target_mask = ~target_mask.bool()
 
         target_mask = None  
-        to_ret = self(inputs, source_memory_bank, op_vec, source_mask, target_mask)
+        to_ret = self(inputs, source_memory_bank, op_vec, source_mask, target_mask, is_train=False)
         if to_ret['coverage_history'] is not None:
             to_ret["coverage"] = to_ret["coverage_history"][:,-1].unsqueeze(-1)
         else:

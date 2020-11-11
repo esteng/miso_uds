@@ -603,8 +603,8 @@ class DecompGraph():
             tgt_tokens = [bos] + tgt_tokens
             tgt_attributes = [{}] + tgt_attributes
             edge_attributes = [{}] + edge_attributes
-            copy_offset += 1
             node_name_list = ["@start@"] + node_name_list
+            copy_offset += 1
         if eos:
             tgt_tokens = tgt_tokens + [eos]
             tgt_attributes = tgt_attributes + [{}]
