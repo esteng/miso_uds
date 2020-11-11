@@ -35,7 +35,8 @@ All the UDS models (encoder, intermediate) are trained on XLMR features only, so
     {lang_code}-universal.conllu
 | test
     | 
-    {lang_code}-universal.conllu```
+    {lang_code}-universal.conllu
+```
 
 where {lang_code} is replaced with the 2-letter code in the "languages" field in the config. For single languages, that would be a list with one element, but for multilingual models you can just add in more elements into the list. 
 
