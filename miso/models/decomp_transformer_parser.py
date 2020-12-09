@@ -194,7 +194,6 @@ class DecompTransformerParser(DecompParser):
         # set previously decoded to current step  
         state['input_history'] = decoder_inputs
 
-        
 
         decoding_outputs = self._decoder.one_step_forward(
             inputs=decoder_inputs,
@@ -392,10 +391,8 @@ class DecompTransformerParser(DecompParser):
         batch.index_instances(self.vocab)
         padding_lengths = batch.get_padding_lengths()
         tokens = {}
-        new_token_history = {}
         for key, tensor in batch.as_tensor_dict(padding_lengths)["target_tokens"].items():
             tokens[key] = tensor.type_as(predictions)
-            # concat in new tokens into history 
 
         return dict(
             tokens=tokens,

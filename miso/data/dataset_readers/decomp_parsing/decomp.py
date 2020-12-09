@@ -1,6 +1,7 @@
 import re
 import json
 import sys
+import pdb 
 import logging
 from collections import defaultdict, Counter, namedtuple
 from typing import List, Dict
@@ -773,6 +774,8 @@ class DecompGraph():
         edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
 
         corefs = output['node_indices']
+
+        #pdb.set_trace() 
 
         graph = nx.DiGraph()
         

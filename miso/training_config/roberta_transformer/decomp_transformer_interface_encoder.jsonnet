@@ -38,8 +38,8 @@ local synt_method = "encoder-side";
     syntactic_method: synt_method,
     order: "inorder",
     tokenizer: {
-                type: "pretrained_transformer_for_amr",
-                model_name: "bert-base-cased",
+                type: "pretrained_roberta",
+                model_name: "roberta-base",
                 args: null,
                 kwargs: {do_lowercase: 'false'},
                 #kwargs: null,
@@ -70,8 +70,8 @@ local synt_method = "encoder-side";
     type: "decomp_transformer_syntax_parser",
     syntactic_method: synt_method,
     bert_encoder: {
-                    type: "seq2seq_bert_encoder",
-                    config: "bert-base-cased",
+                    type: "seq2seq_roberta_encoder",
+                    config: "roberta-base",
                   },
     encoder_token_embedder: {
       token_embedders: {
@@ -114,7 +114,7 @@ local synt_method = "encoder-side";
           norm: {type: "scale_norm",
                 dim: 512},
           dim_feedforward: 2048,
-          init_scale: 128,
+          init_scale: 768,
           },
       dropout: 0.20,
     },
@@ -166,6 +166,7 @@ local synt_method = "encoder-side";
       },
     }, 
     decoder: {
+      type: "transformer_decoder",
       input_size: 300 + 50 + 50,
       hidden_size: 512,
       num_layers: 8,
@@ -178,7 +179,7 @@ local synt_method = "encoder-side";
                dim: 512},
         dim_feedforward: 1024,
         dropout: 0.20,
-        init_scale: 128,
+        init_scale: 768,
       },
       source_attention_layer: {
         type: "global",
@@ -266,7 +267,7 @@ local synt_method = "encoder-side";
     type: "decomp_syntax_parsing",
     num_epochs: 450,
     patience: 50,
-    #warmup_epochs: 50,
+    warmup_epochs: 48,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -284,7 +285,7 @@ local synt_method = "encoder-side";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
-       warmup_steps: 4000,
+       warmup_steps: 10000,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",

@@ -8,6 +8,7 @@ import random
 import logging
 from tqdm import tqdm
 from collections import namedtuple
+import pdb 
 
 from miso.metrics.s_metric.candidate_mappings import CandidateMappings
 from miso.metrics.s_metric.weight_dict import WeightDict
@@ -623,7 +624,6 @@ def compute_s_metric(true_graphs: List[DecompGraph],
         #print(f"match {best_match_num}")
         #print(f"test {test_triple_num}")
         #print(f"gold {gold_triple_num}")
-
         total_match_num += best_match_num
         total_test_num += test_triple_num
         total_gold_num += gold_triple_num

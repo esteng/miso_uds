@@ -38,11 +38,8 @@ local synt_method = "encoder-side";
     syntactic_method: synt_method,
     order: "inorder",
     tokenizer: {
-                type: "pretrained_transformer_for_amr",
-                model_name: "bert-base-cased",
-                args: null,
-                kwargs: {do_lowercase: 'false'},
-                #kwargs: null,
+                type: "pretrained_xlmr",
+                model_name: "xlm-roberta-base",
                },
   },
   train_data_path: data_dir,
@@ -70,15 +67,15 @@ local synt_method = "encoder-side";
     type: "decomp_transformer_syntax_parser",
     syntactic_method: synt_method,
     bert_encoder: {
-                    type: "seq2seq_bert_encoder",
-                    config: "bert-base-cased",
-                  },
+                    type: "seq2seq_xlmr_encoder",
+                    config: "xlm-roberta-base",
+    },
     encoder_token_embedder: {
       token_embedders: {
         source_tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
-          pretrained_file: glove_embeddings,
+          #pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -123,7 +120,7 @@ local synt_method = "encoder-side";
         target_tokens: {
           type: "embedding",
           vocab_namespace: "target_tokens",
-          pretrained_file: glove_embeddings,
+          #pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -166,6 +163,7 @@ local synt_method = "encoder-side";
       },
     }, 
     decoder: {
+      type: "transformer_decoder",
       input_size: 300 + 50 + 50,
       hidden_size: 512,
       num_layers: 8,

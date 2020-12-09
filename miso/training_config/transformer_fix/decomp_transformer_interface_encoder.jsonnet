@@ -114,7 +114,7 @@ local synt_method = "encoder-side";
           norm: {type: "scale_norm",
                 dim: 512},
           dim_feedforward: 2048,
-          init_scale: 128,
+          init_scale: 768,
           },
       dropout: 0.20,
     },
@@ -166,6 +166,7 @@ local synt_method = "encoder-side";
       },
     }, 
     decoder: {
+      type: "transformer_decoder",
       input_size: 300 + 50 + 50,
       hidden_size: 512,
       num_layers: 8,
@@ -178,7 +179,7 @@ local synt_method = "encoder-side";
                dim: 512},
         dim_feedforward: 1024,
         dropout: 0.20,
-        init_scale: 128,
+        init_scale: 768,
       },
       source_attention_layer: {
         type: "global",
@@ -266,7 +267,7 @@ local synt_method = "encoder-side";
     type: "decomp_syntax_parsing",
     num_epochs: 450,
     patience: 50,
-    #warmup_epochs: 50,
+    warmup_epochs: 48,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -284,7 +285,7 @@ local synt_method = "encoder-side";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
-       warmup_steps: 4000,
+       warmup_steps: 10000,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",

@@ -38,11 +38,8 @@ local synt_method = "encoder-side";
     syntactic_method: synt_method,
     order: "inorder",
     tokenizer: {
-                type: "pretrained_transformer_for_amr",
-                model_name: "bert-base-cased",
-                args: null,
-                kwargs: {do_lowercase: 'false'},
-                #kwargs: null,
+                type: "pretrained_xlmr",
+                model_name: "xlm-roberta-base",
                },
   },
   train_data_path: data_dir,
@@ -67,18 +64,17 @@ local synt_method = "encoder-side";
   },
 
   model: {
-    type: "decomp_transformer_syntax_parser",
-    syntactic_method: synt_method,
+    type: "decomp_transformer_syntax_only_parser",
     bert_encoder: {
-                    type: "seq2seq_bert_encoder",
-                    config: "bert-base-cased",
-                  },
+                    type: "seq2seq_xlmr_encoder",
+                    config: "xlm-roberta-base",
+    },
     encoder_token_embedder: {
       token_embedders: {
         source_tokens: {
           type: "embedding",
           vocab_namespace: "source_tokens",
-          pretrained_file: glove_embeddings,
+          #pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -105,16 +101,16 @@ local synt_method = "encoder-side";
     encoder: {
       type: "transformer_encoder",
       input_size: 300 + 50 + 768,
-      hidden_size: 512,
-      num_layers: 7,
+      hidden_size: 256,
+      num_layers: 6,
       encoder_layer: {
           type: "pre_norm",
-          d_model: 512,
-          n_head: 16,
+          d_model: 256,
+          n_head: 8,
           norm: {type: "scale_norm",
-                dim: 512},
-          dim_feedforward: 2048,
-          init_scale: 128,
+                dim: 256},
+          dim_feedforward: 1024,
+          init_scale: 4,
           },
       dropout: 0.20,
     },
@@ -123,7 +119,7 @@ local synt_method = "encoder-side";
         target_tokens: {
           type: "embedding",
           vocab_namespace: "target_tokens",
-          pretrained_file: glove_embeddings,
+          #pretrained_file: glove_embeddings,
           embedding_dim: 300,
           trainable: true,
         },
@@ -153,19 +149,20 @@ local synt_method = "encoder-side";
       embedding_dim: 50,
     },
     biaffine_parser: {
-      query_vector_dim: 512,
-      key_vector_dim: 512,
-      edge_head_vector_dim: 512,
-      edge_type_vector_dim: 512,
+      query_vector_dim: 256,
+      key_vector_dim: 256,
+      edge_head_vector_dim: 256,
+      edge_type_vector_dim: 256,
       num_labels: 49,
       is_syntax: true,
       attention: {
         type: "biaffine",
-        query_vector_dim: 512,
-        key_vector_dim: 512,
+        query_vector_dim: 256,
+        key_vector_dim: 256,
       },
     }, 
     decoder: {
+      type: "transformer_decoder",
       input_size: 300 + 50 + 50,
       hidden_size: 512,
       num_layers: 8,
@@ -249,7 +246,6 @@ local synt_method = "encoder-side";
     syntax_edge_type_namespace: "syn_edge_types",
     #loss_mixer: {type:"syntax->semantics"},
   },
-
   iterator: {
     type: "bucket",
     # TODO: try to sort by target tokens.
@@ -261,7 +257,6 @@ local synt_method = "encoder-side";
     type: "basic",
     batch_size: 64,
   },
-
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 450,
@@ -272,7 +267,7 @@ local synt_method = "encoder-side";
     grad_clipping: null,
     cuda_device: 0,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+s_f1",
+    validation_metric: "+syn_uas",
     optimizer: {
       type: "adam",
       betas: [0.9, 0.999],
@@ -283,7 +278,7 @@ local synt_method = "encoder-side";
     },
      learning_rate_scheduler: {
        type: "noam",
-       model_size: 512, 
+       model_size: 768, 
        warmup_steps: 4000,
      },
     no_grad: [],
@@ -298,3 +293,4 @@ local synt_method = "encoder-side";
   numpy_seed: 12,
   pytorch_seed: 12,
 }
+

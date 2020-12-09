@@ -4,6 +4,7 @@ from typing import List, Iterator, Dict
 from collections import namedtuple
 import os
 import overrides
+import pdb 
 
 import numpy as np
 import torch
@@ -267,12 +268,13 @@ class Scorer:
                                 self.pred_args.save_pred_path)
                 
         
-        args = ComputeTup(**compute_args)
         return compute_s_metric(input_graphs, 
                                 output_graphs, 
                                 input_sents, 
-                                args, 
-                                self.include_attribute_scores)
+                                semantics_only = self.semantics_only,
+                                drop_syntax = self.drop_syntax,
+                                #args, 
+                                include_attribute_scores = self.include_attribute_scores)
    
     def predict_and_save_oracle(self):
         assert(self.predictor is not None)

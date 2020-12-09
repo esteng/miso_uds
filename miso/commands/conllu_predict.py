@@ -179,11 +179,12 @@ class ConlluPredictWrapper:
         self.include_attribute_scores = include_attribute_scores
         self.oracle = oracle
         self.output_file = output_file
-
-        if os.path.exists(self.pred_args.input_file):
-            # ud only case
-            # make compatible with allenNLP 
-            self.pred_args.input_file += "/*"
+        
+        if self.pred_args.input_file not in ["train", "dev", "test"]: 
+            if os.path.exists(self.pred_args.input_file):
+                # ud only case
+                # make compatible with allenNLP 
+                self.pred_args.input_file += "/*"
  
         self.manager = _ReturningPredictManager(self.predictor,
                                     self.pred_args.input_file,
