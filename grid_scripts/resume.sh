@@ -7,7 +7,6 @@
 #$ -cwd
 #$ -o /home/hltcoe/estengel/miso_research/grid_logs/resume.out
 
-# -q gpu.q@@2080
 
 ml cuda10.0/toolkit
 ml cudnn/7.5.0_cuda10.0

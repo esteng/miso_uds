@@ -14,6 +14,7 @@ ml cudnn/7.5.0_cuda10.0
 
 cd /home/hltcoe/estengel/miso_research/
 # copy current code 
+mkdir -p ${CHECKPOINT_DIR}
 cp -r miso ${CHECKPOINT_DIR}/miso
 
 echo "RUNNING ON VERSION: " > ${CHECKPOINT_DIR}/stdout.log

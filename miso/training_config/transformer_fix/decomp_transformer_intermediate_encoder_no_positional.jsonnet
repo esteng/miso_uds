@@ -114,8 +114,8 @@ local synt_method = "encoder-side";
           n_head: 8,
           norm: {type: "scale_norm",
                 dim: 256},
-          dim_feedforward: 1024,
-          init_scale: 4,
+          dim_feedforward: 2048,
+          init_scale: 512,
           },
       dropout: 0.20,
     },
@@ -160,6 +160,7 @@ local synt_method = "encoder-side";
       edge_type_vector_dim: 256,
       num_labels: 49,
       is_syntax: true,
+      dropout: 0.2,
       attention: {
         type: "biaffine",
         query_vector_dim: 256,
@@ -175,12 +176,12 @@ local synt_method = "encoder-side";
       decoder_layer: {
         type: "pre_norm",
         d_model: 768, 
-        n_head: 4,
+        n_head: 8,
         norm: {type: "scale_norm",
-               dim: 768},
-        dim_feedforward: 1024,
+               dim: 512},
+        dim_feedforward: 2048,
         dropout: 0.20,
-        init_scale: 4,
+        init_scale: 512,
       },
       source_attention_layer: {
         type: "global",
@@ -219,6 +220,7 @@ local synt_method = "encoder-side";
       key_vector_dim: 768, 
       edge_head_vector_dim: 768,
       edge_type_vector_dim: 128,
+      dropout: 0.2,
       attention: {
         type: "biaffine",
         query_vector_dim: 768,
@@ -230,6 +232,7 @@ local synt_method = "encoder-side";
         hidden_dim: 1024,
         output_dim: 44,
         n_layers: 4, 
+        dropout: 0.2,
         loss_multiplier: 10,
     },
     edge_attribute_module: {
@@ -237,6 +240,7 @@ local synt_method = "encoder-side";
         hidden_dim: 1024,
         output_dim: 14,
         n_layers: 4, 
+        dropout: 0.2,
         loss_multiplier: 10,
     },
     label_smoothing: {
@@ -285,7 +289,7 @@ local synt_method = "encoder-side";
     },
      learning_rate_scheduler: {
        type: "noam",
-       model_size: 768, 
+       model_size: 512, 
        warmup_steps: 8000,
      },
     no_grad: [],

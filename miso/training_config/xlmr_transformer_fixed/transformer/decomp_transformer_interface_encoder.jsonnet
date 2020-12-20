@@ -107,7 +107,7 @@ local synt_method = "encoder-side";
       encoder_layer: {
           type: "pre_norm",
           d_model: 512,
-          n_head: 16,
+          n_head: 8,
           norm: {type: "scale_norm",
                 dim: 512},
           dim_feedforward: 2048,
@@ -156,6 +156,7 @@ local synt_method = "encoder-side";
       edge_type_vector_dim: 512,
       num_labels: 49,
       is_syntax: true,
+      dropout: 0.2,
       attention: {
         type: "biaffine",
         query_vector_dim: 512,
@@ -171,12 +172,12 @@ local synt_method = "encoder-side";
       decoder_layer: {
         type: "pre_norm",
         d_model: 512, 
-        n_head: 4,
+        n_head: 8,
         norm: {type: "scale_norm",
                dim: 512},
-        dim_feedforward: 1024,
+        dim_feedforward: 2048,
         dropout: 0.20,
-        init_scale: 128,
+        init_scale: 512,
       },
       source_attention_layer: {
         type: "global",
@@ -215,6 +216,7 @@ local synt_method = "encoder-side";
       key_vector_dim: 512, 
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 128,
+      dropout: 0.2,
       attention: {
         type: "biaffine",
         query_vector_dim: 512,
@@ -226,6 +228,7 @@ local synt_method = "encoder-side";
         hidden_dim: 1024,
         output_dim: 44,
         n_layers: 4, 
+        dropout: 0.2,
         loss_multiplier: 10,
     },
     edge_attribute_module: {
@@ -233,6 +236,7 @@ local synt_method = "encoder-side";
         hidden_dim: 1024,
         output_dim: 14,
         n_layers: 4, 
+        dropout: 0.2,
         loss_multiplier: 10,
     },
     label_smoothing: {
@@ -245,7 +249,8 @@ local synt_method = "encoder-side";
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
     syntax_edge_type_namespace: "syn_edge_types",
-    #loss_mixer: {type:"syntax->semantics"},
+    loss_mixer: {type:"static-syntax-heavy", 
+                weight: 2},
   },
 
   iterator: {
@@ -270,7 +275,7 @@ local synt_method = "encoder-side";
     grad_clipping: null,
     cuda_device: 0,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+s_f1",
+    validation_metric: "+syn_uas",
     optimizer: {
       type: "adam",
       betas: [0.9, 0.999],
@@ -282,7 +287,7 @@ local synt_method = "encoder-side";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
-       warmup_steps: 4000,
+       warmup_steps: 8000,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",

@@ -229,14 +229,14 @@ local synt_method = "encoder-side";
         hidden_dim: 1024,
         output_dim: 44,
         n_layers: 4, 
-        loss_multiplier: 10,
+        loss_multiplier: 5,
     },
     edge_attribute_module: {
         h_input_dim: 128,
         hidden_dim: 1024,
         output_dim: 14,
         n_layers: 4, 
-        loss_multiplier: 10,
+        loss_multiplier: 5,
     },
     label_smoothing: {
         smoothing: 0.0,

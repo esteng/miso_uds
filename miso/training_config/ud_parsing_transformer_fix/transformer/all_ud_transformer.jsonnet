@@ -3,7 +3,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
 {
   dataset_reader: {
     type: "ud-syntax",
-    languages: ["af"],
+    languages: ["af", "de", "fi", "fr", "gl", "hu"],
     alternate: false,
     instances_per_file: 32,
     source_token_indexers: {
@@ -24,10 +24,11 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
   },
   train_data_path: data_dir + "/train/*",
   validation_data_path: data_dir + "/dev/*",
+  #test_data_path: null,
+  #line_limit: 2,
   datasets_for_vocab_creation: [
     "train"
   ],
-
   vocabulary: {
     non_padded_namespaces: [],
     min_count: {
@@ -41,9 +42,8 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       generation_tokens: 19700,
     },
   },
-
   model: {
-    type: "decomp_transformer_syntax_only_parser",
+    type: "ud_parser",
     bert_encoder: {
                     type: "seq2seq_xlmr_encoder",
                     config: "xlm-roberta-base",
@@ -68,7 +68,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
             num_filters: 50,
             ngram_filter_sizes: [3],
           },
-          dropout: 0.33,
+          dropout: 0.00,
         },
       },
     },
@@ -84,7 +84,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       encoder_layer: {
           type: "pre_norm",
           d_model: 512,
-          n_head: 8,
+          n_head: 16,
           norm: {type: "scale_norm",
                 dim: 512},
           dim_feedforward: 2048,
@@ -92,45 +92,12 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
           },
       dropout: 0.20,
     },
-    decoder_token_embedder: {
-      token_embedders: {
-        target_tokens: {
-          type: "embedding",
-          vocab_namespace: "target_tokens",
-          embedding_dim: 300,
-          trainable: true,
-        },
-        target_token_characters: {
-          type: "character_encoding",
-          embedding: {
-            vocab_namespace: "target_token_characters",
-            embedding_dim: 100,
-          },
-          encoder: {
-            type: "cnn",
-            embedding_dim: 100,
-            num_filters: 50,
-            ngram_filter_sizes: [3],
-          },
-          dropout: 0.33,
-        },
-      },
-    },
-    decoder_node_index_embedding: {
-      # vocab_namespace: "node_indices",
-      num_embeddings: 500,
-      embedding_dim: 50,
-    },
-    decoder_pos_embedding: {
-      vocab_namespace: "pos_tags",
-      embedding_dim: 50,
-    },
     biaffine_parser: {
       query_vector_dim: 512,
       key_vector_dim: 512,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 512,
-      num_labels: 49,
+      num_labels: 95,
       is_syntax: true,
       dropout: 0.33, 
       attention: {
@@ -139,91 +106,8 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
         key_vector_dim: 512,
       },
     }, 
-    decoder: {
-      type: "transformer_decoder",
-      input_size: 300 + 50 + 50,
-      hidden_size: 512,
-      num_layers: 8,
-      use_coverage: true,
-      decoder_layer: {
-        type: "pre_norm",
-        d_model: 512, 
-        n_head: 4,
-        norm: {type: "scale_norm",
-               dim: 512},
-        dim_feedforward: 1024,
-        dropout: 0.20,
-        init_scale: 128,
-      },
-      source_attention_layer: {
-        type: "global",
-        query_vector_dim: 512,
-        key_vector_dim: 512,
-        output_vector_dim: 512,
-        attention: {
-          type: "mlp",
-          # TODO: try to use smaller dims.
-          query_vector_dim: 512,
-          key_vector_dim: 512,
-          hidden_vector_dim: 512, 
-          use_coverage: true,
-        },
-      },
-      target_attention_layer: {
-        type: "global",
-        query_vector_dim: 512,
-        key_vector_dim: 512,
-        output_vector_dim: 512,
-        attention: {
-          type: "mlp",
-          query_vector_dim: 512,
-          key_vector_dim: 512,
-          hidden_vector_dim: 512,
-        },
-      },
-    },
-    extended_pointer_generator: {
-      input_vector_dim: 512,
-      source_copy: true,
-      target_copy: true,
-    },
-    tree_parser: {
-      query_vector_dim: 512,
-      key_vector_dim: 512, 
-      edge_head_vector_dim: 512,
-      edge_type_vector_dim: 128,
-      attention: {
-        type: "biaffine",
-        query_vector_dim: 512,
-        key_vector_dim: 512,
-      },
-    },
-    node_attribute_module: {
-        input_dim: 512,
-        hidden_dim: 1024,
-        output_dim: 44,
-        n_layers: 4, 
-        loss_multiplier: 10,
-    },
-    edge_attribute_module: {
-        h_input_dim: 128,
-        hidden_dim: 1024,
-        output_dim: 14,
-        n_layers: 4, 
-        loss_multiplier: 10,
-    },
-    label_smoothing: {
-        smoothing: 0.0,
-    },
-    dropout: 0.20,
-    beam_size: 2,
-    max_decoding_steps: 60,
-    target_output_namespace: "generation_tokens",
-    pos_tag_namespace: "pos_tags",
-    edge_type_namespace: "edge_types",
+    dropout: 0.2,
     syntax_edge_type_namespace: "syn_edge_types",
-    #loss_mixer: {type:"syntax->semantics"},
-    pretrained_weights: "/exp/estengel/miso_res/xlmr_transformer_fixed/decomp_transformer_encoder_syn_opt_double/ckpt/best.th"
   },
   iterator: {
     type: "bucket",
@@ -231,16 +115,18 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     sorting_keys: [["source_tokens", "num_tokens"]],
     padding_noise: 0.0,
     batch_size: 30,
+    instances_per_epoch: 20000,
   },
   validation_iterator: {
     type: "basic",
     batch_size: 64,
   },
+
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 200,
-    patience: 50,
-    #warmup_epochs: 50,
+    #warmup_epochs: 200,
+    patience: 40,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
     grad_clipping: null,
@@ -263,13 +149,12 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
-    validation_prediction_path: "decomp_validation.txt",
+    validation_prediction_path: "ud_validation.txt",
     semantics_only: false,
+    syntactic_method: "encoder-side",
     drop_syntax: true,
-    syntactic_method: synt_method,
   },
   random_seed: 12,
   numpy_seed: 12,
   pytorch_seed: 12,
 }
-
