@@ -2,6 +2,7 @@ from typing import List, Dict, Tuple, Any
 import logging
 from collections import OrderedDict
 import os 
+import pdb 
 
 import subprocess
 import math
@@ -71,6 +72,7 @@ class UDParser(Transduction):
                                        tree_parser=None,
                                        label_smoothing=None,
                                        target_output_namespace=None,
+                                       pretrained_weights=pretrained_weights,
                                        dropout=dropout,
                                        eps=eps)
                                        

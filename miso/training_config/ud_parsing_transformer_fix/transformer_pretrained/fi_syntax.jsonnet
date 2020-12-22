@@ -108,7 +108,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     }, 
     dropout: 0.2,
     syntax_edge_type_namespace: "syn_edge_types",
-    pretrained_weights: "/exp/estengel/miso_res/xlmr_transformer_fixed/decomp_transformer_encoder_syn_opt_double/ckpt/best.th",
+    pretrained_weights: "/exp/estengel/miso_res/xlmr_transformer_fixed/decomp_transformer_syntax_only/ckpt/best.th"
   },
   iterator: {
     type: "bucket",

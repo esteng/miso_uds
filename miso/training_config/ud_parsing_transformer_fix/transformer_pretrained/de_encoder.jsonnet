@@ -84,20 +84,21 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       encoder_layer: {
           type: "pre_norm",
           d_model: 512,
-          n_head: 16,
+          n_head: 8,
           norm: {type: "scale_norm",
                 dim: 512},
           dim_feedforward: 2048,
-          init_scale: 128,
+          init_scale: 512,
           },
       dropout: 0.20,
     },
     biaffine_parser: {
+      dropout: 0.33,
       query_vector_dim: 512,
       key_vector_dim: 512,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 512,
-      num_labels: 44,
+      num_labels: 49,
       is_syntax: true,
       attention: {
         type: "biaffine",
@@ -107,7 +108,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     }, 
     dropout: 0.2,
     syntax_edge_type_namespace: "syn_edge_types",
-    pretrained_weights: "/exp/estengel/miso_res/xlmr_transformer_fixed/decomp_transformer_encoder_pretrained/ckpt/best.th",
+    pretrained_weights: "/exp/estengel/miso_res/xlmr_transformer_fixed/decomp_transformer_encoder_syn_opt_double/ckpt/best.th",
   },
   iterator: {
     type: "bucket",
@@ -144,7 +145,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
-       warmup_steps: 4000,
+       warmup_steps: 8000,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",

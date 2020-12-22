@@ -34,14 +34,14 @@ class Seq2SeqBertEncoder(BaseBertWrapper):
         :param token_recovery_matrix: [batch_size, num_tokens, num_subwords]
         """
         # encoded_layers: [batch_size, num_subword_pieces, hidden_size]
-        with torch.no_grad():
-            encoded_layers, __ = self.bert_model(
-                input_ids = input_ids, token_type_ids = token_type_ids, attention_mask = attention_mask)
-            #encoded_layers = output['last_hidden_state']
-            if token_recovery_matrix is None:
-                return encoded_layers
-            else:
-                return average_pooling(encoded_layers, token_recovery_matrix)
+        # with torch.no_grad():
+        encoded_layers, __ = self.bert_model(
+            input_ids = input_ids, token_type_ids = token_type_ids, attention_mask = attention_mask)
+        #encoded_layers = output['last_hidden_state']
+        if token_recovery_matrix is None:
+            return encoded_layers
+        else:
+            return average_pooling(encoded_layers, token_recovery_matrix)
 
 @BaseBertWrapper.register("seq2seq_xlmr_encoder")
 class Seq2SeqXLMRobertaEncoder(BaseBertWrapper):
@@ -63,18 +63,18 @@ class Seq2SeqXLMRobertaEncoder(BaseBertWrapper):
         :param token_recovery_matrix: [batch_size, num_tokens, num_subwords]
         """
         max_len = 512
-        with torch.no_grad(): 
-            # encoded_layers: [batch_size, num_subword_pieces, hidden_size]
-            encoded_layers, __ = self.bert_model(
-                input_ids = input_ids, token_type_ids = token_type_ids, attention_mask = attention_mask)
-            #encoded_layers = output['last_hidden_state']
+        # with torch.no_grad(): 
+        # encoded_layers: [batch_size, num_subword_pieces, hidden_size]
+        encoded_layers, __ = self.bert_model(
+            input_ids = input_ids, token_type_ids = token_type_ids, attention_mask = attention_mask)
+        #encoded_layers = output['last_hidden_state']
 
-            if token_recovery_matrix is None:
-                return encoded_layers
-            else:
-                #encoded_layers = encoded_layers[:, 0:max_len-10, :]
-                #token_recovery_matrix = token_recovery_matrix[:,0:max_len-10,:]
-                return average_pooling(encoded_layers, token_recovery_matrix)
+        if token_recovery_matrix is None:
+            return encoded_layers
+        else:
+            #encoded_layers = encoded_layers[:, 0:max_len-10, :]
+            #token_recovery_matrix = token_recovery_matrix[:,0:max_len-10,:]
+            return average_pooling(encoded_layers, token_recovery_matrix)
 
 
 def average_pooling(encoded_layers: torch.FloatTensor,
