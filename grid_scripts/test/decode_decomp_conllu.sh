@@ -13,6 +13,6 @@ ml cudnn/7.5.0_cuda10.0
 
 cd /home/hltcoe/estengel/miso_research
 
-./syntax_experiments/decomp_train.sh -a conllu_predict -d ${CHECKPOINT_DIR} &> ${CHECKPOINT_DIR}/test.conllu.out
+./syntax_experiments/decomp_train.sh -a conllu_predict -d ${CHECKPOINT_DIR} -i test &> ${CHECKPOINT_DIR}/test.conllu.out
 #./experiments/decomp_test.sh -a spr_eval
 

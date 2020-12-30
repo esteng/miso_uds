@@ -131,11 +131,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     # TODO: try to use grad clipping.
     grad_clipping: null,
     cuda_device: 0,
-<<<<<<< HEAD
-    num_serialized_models_to_keep: 5,
-=======
     num_serialized_models_to_keep: 1,
->>>>>>> transduction-synt-sem-experimental
     validation_metric: "+syn_uas",
     optimizer: {
       type: "adam",

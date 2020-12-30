@@ -255,7 +255,7 @@ local synt_method = "encoder-side";
   trainer: {
     type: "decomp_syntax_parsing",
     num_epochs: 200,
-    warmup_epochs: 200,
+    warmup_epochs: 0,
     patience: 40,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.

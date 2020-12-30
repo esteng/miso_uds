@@ -54,7 +54,8 @@ class MisoTransformerDecoder(MisoDecoder):
                 inputs: torch.Tensor,
                 source_memory_bank: torch.Tensor,
                 source_mask: torch.Tensor,
-                target_mask: torch.Tensor) -> Dict: 
+                target_mask: torch.Tensor,
+                is_train: bool = True) -> Dict: 
 
         batch_size, source_seq_length, _ = source_memory_bank.size()
         __, target_seq_length, __ = inputs.size()
@@ -131,11 +132,32 @@ class MisoTransformerDecoder(MisoDecoder):
             # [batch_size, tgt_seq_len, src_seq_len]
             source_attention_weights = torch.cat(source_attention_weights, dim=1) 
             coverage_history = torch.cat(coverage_history, dim=1)
-                
-        target_attention_output = self.target_attn_layer(attentional_tensors,
-                                                         outputs) 
 
-        target_attention_weights = target_attention_output['attention_weights']
+        if is_train:
+            tgt_attn_list = []
+            for timestep in range(attentional_tensors.shape[1]):
+                bsz, seq_len, __ = attentional_tensors.shape 
+                attn_mask = torch.ones((bsz, seq_len))    
+                attn_mask[:,timestep:] = 0
+                attn_mask = attn_mask.to(attentional_tensors.device)
+                
+                target_attention_output = self.target_attn_layer(attentional_tensors[:,timestep,:].unsqueeze(1),
+                                                                 outputs,
+                                                                 mask = attn_mask)
+                if timestep == 0:
+                    # zero out weights at 0, effectively banning target copy since there is nothing to copy 
+                    tgt_attn_list.append(torch.zeros_like(target_attention_output["attention_weights"][:,-1,:].unsqueeze(1)))
+                else:
+                    tgt_attn_list.append(target_attention_output["attention_weights"])
+
+            target_attention_weights = torch.cat(tgt_attn_list, dim=1) 
+        else:
+            target_attention_output = self.target_attn_layer(attentional_tensors,
+                                                             outputs,
+                                                             mask = target_padding_mask)
+                                   
+            target_attention_weights = target_attention_output['attention_weights']
+                
 
         return dict(
                 outputs=outputs,

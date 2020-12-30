@@ -183,10 +183,11 @@ class ConlluScorer:
         self.oracle = oracle
         self.json_output_file = json_output_file
 
-        if os.path.exists(self.pred_args.input_file):
-            # ud only case
-            # make compatible with allenNLP 
-            self.pred_args.input_file += "/*"
+        if self.pred_args.input_file not in ["train", "dev", "test"]: 
+            if os.path.exists(self.pred_args.input_file):
+                # ud only case
+                # make compatible with allenNLP 
+                self.pred_args.input_file += "/*"
  
         self.manager = _ReturningPredictManager(self.predictor,
                                     self.pred_args.input_file,

@@ -20,6 +20,7 @@ class NodeAttributeDecoder(torch.nn.Module):
                 loss_function = Loss,
                 activation = torch.nn.ReLU(),
                 share_networks = False,
+                dropout = 0.20, 
                 binary = False):
         super(NodeAttributeDecoder, self).__init__()
 
@@ -31,6 +32,8 @@ class NodeAttributeDecoder(torch.nn.Module):
 
         self.attr_loss_function = loss_function
         self.mask_loss_function = torch.nn.BCEWithLogitsLoss()
+
+        self.dropout = torch.nn.Dropout(dropout) 
 
         self.n_layers = n_layers
         self.activation = activation
@@ -55,10 +58,12 @@ class NodeAttributeDecoder(torch.nn.Module):
         for l in all_attr_layers:
             attr_net.append(l)
             attr_net.append(self.activation)
+            attr_net.append(self.dropout) 
 
         for l in all_boolean_layers:
             boolean_net.append(l)
             boolean_net.append(self.activation)
+            boolean_net.append(self.dropout) 
 
         attr_net.append(attr_output_layer)
         boolean_net.append(boolean_output_layer)

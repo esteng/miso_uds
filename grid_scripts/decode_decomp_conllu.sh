@@ -12,7 +12,8 @@ ml cuda10.0/toolkit
 ml cudnn/7.5.0_cuda10.0
 
 cd /home/hltcoe/estengel/miso_research
+echo "CHECKPOINT DIR: ${CHECKPOINT_DIR} test_DATA ${TEST_DATA}"
 
-./syntax_experiments/decomp_train.sh -a conllu_predict -d ${CHECKPOINT_DIR} &> ${CHECKPOINT_DIR}/dev.conllu.out
+./syntax_experiments/decomp_train.sh -a conllu_predict -d ${CHECKPOINT_DIR} -i ${TEST_DATA} #&> ${CHECKPOINT_DIR}/${TEST_DATA}.conllu.out
 #./experiments/decomp_test.sh -a spr_eval
 

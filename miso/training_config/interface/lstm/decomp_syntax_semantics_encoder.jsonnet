@@ -152,6 +152,7 @@ local synt_method = "encoder-side";
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 1024,
       num_labels: 49,
+      dropout: 0.33, 
       is_syntax: true,
       attention: {
         type: "biaffine",
@@ -217,6 +218,7 @@ local synt_method = "encoder-side";
         input_dim: 1024,
         hidden_dim: 1024,
         output_dim: 44,
+        dropout: 0.33, 
         n_layers: 4, 
         loss_multiplier: 10,
     },
@@ -224,6 +226,7 @@ local synt_method = "encoder-side";
         h_input_dim: 256,
         hidden_dim: 1024,
         output_dim: 14,
+        dropout: 0.33, 
         n_layers: 4, 
         loss_multiplier: 10,
     },
@@ -237,7 +240,8 @@ local synt_method = "encoder-side";
     pos_tag_namespace: "pos_tags",
     edge_type_namespace: "edge_types",
     syntax_edge_type_namespace: "syn_edge_types",
-    #loss_mixer: {type:"syntax->semantics"},
+    loss_mixer: {type:"static-syntax-heavy", 
+                weight: 2},
   },
 
   iterator: {
@@ -262,7 +266,7 @@ local synt_method = "encoder-side";
     grad_clipping: null,
     cuda_device: 0,
     num_serialized_models_to_keep: 5,
-    validation_metric: "+s_f1",
+    validation_metric: "+syn_uas",
     optimizer: {
       type: "adam",
       weight_decay: 3e-9,

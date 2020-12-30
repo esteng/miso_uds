@@ -604,8 +604,8 @@ class DecompGraph():
             tgt_tokens = [bos] + tgt_tokens
             tgt_attributes = [{}] + tgt_attributes
             edge_attributes = [{}] + edge_attributes
-            copy_offset += 1
             node_name_list = ["@start@"] + node_name_list
+            copy_offset += 1
         if eos:
             tgt_tokens = tgt_tokens + [eos]
             tgt_attributes = tgt_attributes + [{}]
@@ -776,6 +776,8 @@ class DecompGraph():
         edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
 
         corefs = output['node_indices']
+
+        #pdb.set_trace() 
 
         graph = nx.DiGraph()
         

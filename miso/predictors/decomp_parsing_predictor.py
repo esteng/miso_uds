@@ -217,8 +217,11 @@ class DecompSyntaxParsingPredictor(DecompParsingPredictor):
         pred_sem_graph, pred_syn_graph, conllu_graph = DecompGraphWithSyntax.from_prediction(outputs, self._model.syntactic_method) 
 
         if conllu_graph is not None:
-            #text = " ".join([row["form"] for row in conllu_graph])
-            text = " ".join(outputs['syn_nodes']) 
+            if self._model.syntactic_method in ['concat-before', 'concat-after']:
+                text = " ".join([row["form"] for row in conllu_graph])
+                outputs['syn_nodes'] = text.split(" ") 
+            else:
+                text = " ".join(outputs['syn_nodes']) 
             id = 1
 
             conllu_str = f"# sent_id = train-s{id}\n" +\
@@ -233,6 +236,7 @@ class DecompSyntaxParsingPredictor(DecompParsingPredictor):
                 conllu_str += "\t".join(vals) + "\n"
                 n_vals = len(vals) 
 
+            #if self._model.syntactic_method not in ['concat-before', 'concat-after']:
             # cases where we had to trim 
             print(f"len outputs {len(outputs['syn_nodes'])}")
             print(f"nrows {n_rows}") 
@@ -248,6 +252,8 @@ class DecompSyntaxParsingPredictor(DecompParsingPredictor):
                     c += 1
 
             conllu_str += '\n' 
+        else:
+            conllu_str = ""
 
         return pred_sem_graph, pred_syn_graph, conllu_str
 
