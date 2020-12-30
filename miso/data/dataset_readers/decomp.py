@@ -243,8 +243,6 @@ class DecompDatasetReader(DatasetReader):
             padding_value=0
         )
 
-
-
         # These two fields for source copy
 
         fields["source_copy_indices"] = SequenceLabelField(

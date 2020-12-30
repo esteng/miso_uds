@@ -4,6 +4,7 @@ import sys
 import json
 from overrides import overrides 
 from collections import defaultdict 
+import pdb 
 
 from allennlp.commands.predict import _get_predictor, Predict
 from allennlp.commands import ArgumentParserWithDefaults
@@ -21,7 +22,7 @@ from miso.predictors.decomp_parsing_predictor import sanitize, DecompSyntaxParsi
 from miso.data.dataset_readers.decomp_parsing.decomp import DecompGraph
 from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGraphWithSyntax
 
-#from decomp import UDSVisualization, serve_parser
+from decomp import UDSVisualization, serve_parser
 
 def parse_api_sentence(input_line, args, predictor):
     #semantics_only = args.semantics_only
@@ -115,6 +116,7 @@ class _ReturningPredictManager(_PredictManager):
     def run(self):
         has_reader = self._dataset_reader is not None
         instances, results = [], []
+        pdb.set_trace() 
         if has_reader:
             self._dataset_reader.line_limit = self.line_limit
             for batch in lazy_groups_of(self._get_instance_data(), self._batch_size):

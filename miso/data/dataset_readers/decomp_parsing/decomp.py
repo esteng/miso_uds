@@ -1,6 +1,7 @@
 import re
 import json
 import sys
+import pdb 
 import logging
 from collections import defaultdict, Counter, namedtuple
 from typing import List, Dict
@@ -716,6 +717,8 @@ class DecompGraph():
         # Bug fix 1: increase by 1 everything, set first to sentinel 0 tok 
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
+
+        pdb.set_trace() 
 
         return {
             "tgt_tokens" : tgt_tokens,

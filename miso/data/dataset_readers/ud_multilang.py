@@ -83,7 +83,6 @@ class MisoUDDatasetReader(UniversalDependenciesMultiLangDatasetReader):
                 head = self._max_src_len
             new_deps.append((deprel, head)) 
         return new_deps[0: self._max_src_len]
->>>>>>> transduction-synt-sem-experimental
 
 
     @overrides

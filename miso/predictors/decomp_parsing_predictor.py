@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import json
 import logging 
 import sys
+import pdb 
 
 import torch
 import spacy
@@ -117,6 +118,7 @@ class DecompParsingPredictor(Predictor):
 
     def predict_batch_instance(self, instances: List[Instance],
                                oracle: bool = False) -> List[JsonDict]:
+        pdb.set_trace() 
         self._model.oracle = oracle 
         outputs = self._model.forward_on_instances(instances)
         if oracle:
