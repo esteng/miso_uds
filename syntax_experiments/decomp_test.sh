@@ -108,7 +108,7 @@ function conllu_eval() {
     --batch-size 1 \
     --beam-size 1 \
     --use-dataset-reader \
-    --line-limit 2 \
+    --line-limit 2000 \
     --cuda-device -1 \
     --include-package miso.data.dataset_readers \
     --include-package miso.data.tokenizers \
@@ -124,6 +124,7 @@ function conllu_predict() {
     output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
     export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
     echo ${PYTHONPATH}
+    echo ${TEST_DATA}
     python -m miso.commands.s_score conllu_predict \
     ${model_file} ${TEST_DATA} \
     --predictor "decomp_syntax_parsing" \

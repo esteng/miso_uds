@@ -386,6 +386,8 @@ class Transduction(Model):
                 v = v.data
             try:
                 current_state_dict[k].copy_(v)
+                print(f"matched {k}")
+                logger.info(f"matched {k}")
             except RuntimeError:
                 new_shape = pretrained_state_dict[k].shape
                 og_shape = current_state_dict[k].shape

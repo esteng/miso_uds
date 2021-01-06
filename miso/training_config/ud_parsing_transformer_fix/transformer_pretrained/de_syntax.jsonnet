@@ -98,7 +98,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       key_vector_dim: 512,
       edge_head_vector_dim: 512,
       edge_type_vector_dim: 512,
-      num_labels: 49,
+      num_labels: 45,
       is_syntax: true,
       attention: {
         type: "biaffine",
@@ -108,7 +108,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
     }, 
     dropout: 0.2,
     syntax_edge_type_namespace: "syn_edge_types",
-    pretrained_weights: "/exp/estengel/miso_res/xlmr_transformer_fixed/decomp_transformer_syntax_only/ckpt/best.th"
+    pretrained_weights: "/exp/estengel/miso_res/xlmr_tuned/decomp_syntax_only/ckpt/best.th"
   },
   iterator: {
     type: "bucket",

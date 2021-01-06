@@ -718,8 +718,6 @@ class DecompGraph():
         head_indices = [x + 1 for x in head_indices]
         head_indices[0] = 0
 
-        pdb.set_trace() 
-
         return {
             "tgt_tokens" : tgt_tokens,
             "tgt_indices": tgt_indices,
