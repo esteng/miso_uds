@@ -141,6 +141,11 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
       weight_decay: 3e-9, 
       amsgrad: true,
     },
+    bert_optimizer: {
+        type: "adam",
+        lr: 1e-5,
+    },
+    bert_tune_layer: 5,
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 

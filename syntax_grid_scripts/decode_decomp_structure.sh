@@ -8,12 +8,12 @@
 #$ -cwd
 
 # -q gpu.q
-source ~/envs/miso_res2/bin/activate
+source ~/envs/miso_res/bin/activate
 ml cuda10.0/toolkit
 ml cudnn/7.5.0_cuda10.0
 
 cd /home/hltcoe/estengel/miso_research
 
-./syntax_experiments/decomp_train.sh -a eval -d ${CHECKPOINT_DIR} 
+./syntax_experiments/decomp_train.sh -a eval -d ${CHECKPOINT_DIR} -i ${TEST_DATA}
 #./experiments/decomp_test.sh -a eval -d ${CHECKPOINT_DIR}
 

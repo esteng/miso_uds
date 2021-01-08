@@ -72,7 +72,6 @@ function eval() {
     --beam-size 2 \
     --use-dataset-reader \
     --cuda-device 0 \
-    --line-limit 2 \
     --include-package miso.data.dataset_readers \
     --include-package miso.data.tokenizers \
     --include-package miso.modules.seq2seq_encoders \
@@ -140,7 +139,7 @@ function spr_eval() {
     --use-dataset-reader \
     --batch-size 128 \
     --oracle \
-    --json-output-file ${CHECKPOINT_DIR}/data.json\
+    --json-output-file ${CHECKPOINT_DIR}/${TEST_DATA}/data.json\
     --include-package miso.data.dataset_readers \
     --include-package miso.data.tokenizers \
     --include-package miso.models \

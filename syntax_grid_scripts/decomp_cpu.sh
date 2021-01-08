@@ -12,7 +12,7 @@ echo "RUNNING ON VERSION: " > ${CHECKPOINT_DIR}/stdout.log
 git branch >> ${CHECKPOINT_DIR}/stdout.log
 git reflog | head -n 1 >> ${CHECKPOINT_DIR}/stdout.log
 
-source ~/envs/miso_res2/bin/activate
+source ~/envs/miso_res/bin/activate
 echo "activated" >> ${CHECKPOINT_DIR}/stdout.log 
 
 echo "Checkpoint dir:  ${CHECKPOINT_DIR}" >> ${CHECKPOINT_DIR}/stdout.log
