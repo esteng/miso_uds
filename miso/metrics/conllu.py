@@ -97,6 +97,7 @@ import io
 import sys
 import unicodedata
 import unittest
+import pdb 
 
 # CoNLL-U column names
 ID, FORM, LEMMA, UPOS, XPOS, FEATS, HEAD, DEPREL, DEPS, MISC = range(10)
@@ -194,6 +195,7 @@ def load_conllu(file):
             # Add parent and children UDWord links and check there are no cycles
             def process_word(word):
                 if word.parent == "remapping":
+                    pdb.set_trace() 
                     raise UDError("There is a cycle in a sentence")
                 if word.parent is None:
                     head = int(word.columns[HEAD])

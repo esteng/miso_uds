@@ -180,7 +180,9 @@ class ConlluPredictWrapper:
         self.oracle = oracle
         self.output_file = output_file
         
-        if self.pred_args.input_file not in ["train", "dev", "test"]: 
+        if self.pred_args.input_file not in ["train", "dev", "test"] and \
+        "original_only" not in self.pred_args.input_file and \
+        "altered_only" not in self.pred_args.input_file: 
             if os.path.exists(self.pred_args.input_file):
                 # ud only case
                 # make compatible with allenNLP 

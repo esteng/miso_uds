@@ -462,10 +462,19 @@ class DecompGraph():
 
     def get_src_tokens(self):
         src_tokens = self.graph.sentence.split(" ")
+        # get tags if read from UDlines 
         pos_tags = []
-        for node in self.graph.syntax_subgraph:
-            pos_tags.append(self.graph.nodes[node]['upos'])
-        return src_tokens, pos_tags
+        from_lines = False
+        if "-root-0" in self.graph.nodes:
+            try:
+                pos_tags = self.graph.nodes['-root-0']['pos_tags']
+            except KeyError:
+                pos_tags = []
+            from_lines = True
+        else:
+            for node in self.graph.syntax_subgraph:
+                pos_tags.append(self.graph.nodes[node]['upos'])
+        return src_tokens, pos_tags, from_lines
 
     def re_in(self, key, list_rerum):
         for regex in list_rerum:
