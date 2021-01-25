@@ -9,4 +9,7 @@ word2number
 bs4
 lxml
 networkx
-https://github.com/decompositional-semantics-initiative/decomp/tarball/master#egg=decomp
+sentencepiece==0.1.91
+transformers==3.0.2
+icecream
+

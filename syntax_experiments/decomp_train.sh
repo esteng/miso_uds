@@ -212,6 +212,28 @@ function conllu_predict_multi() {
     --include-package miso.metrics
 }
 
+function conllu_predict_ai2() {
+    model_file=${CHECKPOINT_DIR}/ckpt/model.tar.gz
+    split=$(basename -- "${TEST_DATA}")
+    split="${split%.*}"
+    echo "split ${split}"
+    export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
+    echo ${PYTHONPATH}
+    python -m miso.commands.s_score conllu_predict \
+    ${model_file} ${TEST_DATA} \
+    --predictor "decomp_syntax_parsing" \
+    --batch-size 128 \
+    --beam-size 1 \
+    --output-file ${CHECKPOINT_DIR}/${split}.conllu \
+    --cuda-device 0 \
+    --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
+    --include-package miso.modules.seq2seq_encoders \
+    --include-package miso.models \
+    --include-package miso.predictors \
+    --include-package miso.metrics
+}
+
 function usage() {
 
     echo -e 'usage: decomp_parsing.sh [-h] -a action'
@@ -287,6 +309,8 @@ function main() {
         conllu_predict
     elif [[ "${action}" == "conllu_predict_multi" ]]; then
         conllu_predict_multi
+    elif [[ "${action}" == "conllu_predict_ai2" ]]; then
+        conllu_predict_ai2
     fi
 }
 

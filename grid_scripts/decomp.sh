@@ -28,3 +28,5 @@ echo "Checkpoint dir:  ${CHECKPOINT_DIR}" >> ${CHECKPOINT_DIR}/stdout.log
 echo "Trainng config: ${TRAINING_CONFIG}" >> ${CHECKPOINT_DIR}/stdout.log
 
 ./experiments/decomp_train.sh -a train  -c ${TRAINING_CONFIG} -d ${CHECKPOINT_DIR}
+
+./clean_export.sh ${CHECKPOINT_DIR}

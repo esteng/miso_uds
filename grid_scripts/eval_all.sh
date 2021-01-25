@@ -12,8 +12,8 @@ for lang in af de fr fi hu gl hy kk; do
         /exp/estengel/ud_data/all_data/dev/${lang}-universal.conllu \
         /exp/estengel/miso_res/ud_models_tuned/transformer_pretrained/${lang}_encoder/dev.conllu
     
-    #echo "${lang} INTERMEDIATE" 
-    #python miso/metrics/conllu.py \
-    #    /exp/estengel/ud_data/all_data/dev/${lang}-universal.conllu \
-    #    /exp/estengel/miso_res/ud_models_vocab/transformer_pretrained/${lang}_intermediate/dev.conllu
+    echo "${lang} INTERMEDIATE" 
+    python miso/metrics/conllu.py \
+        /exp/estengel/ud_data/all_data/dev/${lang}-universal.conllu \
+        /exp/estengel/miso_res/ud_models_tuned/transformer_pretrained/${lang}_intermediate/dev.conllu
 done

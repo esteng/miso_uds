@@ -672,7 +672,7 @@ class DecompGraph():
             return tgt_tags, tag_lut
 
         # Source Copy
-        src_tokens, src_pos_tags = self.get_src_tokens()
+        src_tokens, src_pos_tags, __ = self.get_src_tokens()
         src_token_ids = None
         src_token_subword_index = None
         src_copy_vocab = SourceCopyVocabulary(src_tokens)
