@@ -4,8 +4,8 @@
 MISO stands for Multimodal Inputs, Semantic Outputs. It is a deep learning framework with re-usable components for parsing a variety of semantic parsing formalisms. In various iterations, MISO has been used in the following publications: 
 
 - [AMR Parsing as Sequence-to-Graph Transduction, Zhang et al., ACL 2019](https://www.aclweb.org/anthology/P19-1009/) 
-- [Broad-Coverage Semantic Parsing as Transduction, Zhang et al., EMNLP 2019](Broad-Coverage Semantic Parsing as Transduction) 
-- [Universal Decompositional Semantic Parsing, Stengel-Eskin et al. ACL 2020](Universal Decompositional Semantic Parsing) 
+- [Broad-Coverage Semantic Parsing as Transduction, Zhang et al., EMNLP 2019](https://www.aclweb.org/anthology/D19-1392/) 
+- [Universal Decompositional Semantic Parsing, Stengel-Eskin et al. ACL 2020](https://www.aclweb.org/anthology/2020.acl-main.746/) 
 - [Joint Universal Syntactic and Semantic Parsing, Stengel-Eskin et al., TACL 2021](#TODO) 
 
 If you use the code in a publication, please do cite these works. 
