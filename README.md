@@ -34,7 +34,7 @@ Using conda, all required libraries can be installed by running:
 
 
 ## Configurations 
-MISO model instantiation happens via a config file, which is stored as a `.yaml` file. 
+MISO model instantiation happens via a config file, which is stored as a `.jsonnet` file. 
 
 
 ## Models 
