@@ -10,6 +10,8 @@ import datetime
 import traceback
 import math
 import os
+import re
+import pdb 
 
 import torch
 import torch.optim.lr_scheduler
@@ -52,6 +54,7 @@ class DecompTrainer(Trainer):
                  warmup_epochs: int = 0,
                  syntactic_method:str = None,
                  accumulate_batches: int = 1,
+                 bert_optimizer: Optimizer = None,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.validation_data_path = validation_data_path
@@ -60,6 +63,7 @@ class DecompTrainer(Trainer):
         self.drop_syntax=drop_syntax
         self.include_attribute_scores=include_attribute_scores
         self.accumulate_batches = accumulate_batches
+        self.bert_optimizer = bert_optimizer
 
         self._warmup_epochs = warmup_epochs
         self._curr_epoch = 0
@@ -238,6 +242,8 @@ class DecompTrainer(Trainer):
 
             #if batches_this_epoch % self.accumulate_batches == 0: 
             self.optimizer.zero_grad()
+            if self.bert_optimizer is not None:
+                self.bert_optimizer.zero_grad()
 
             loss = self.batch_loss(batch_group, for_training=True)
             loss.backward()
@@ -266,6 +272,8 @@ class DecompTrainer(Trainer):
                     param_updates = {name: param.detach().cpu().clone()
                                      for name, param in self.model.named_parameters()}
                     self.optimizer.step()
+                    if self.bert_optimizer is not None:
+                        self.bert_optimizer.step() 
                     for name, param in self.model.named_parameters():
                         param_updates[name].sub_(param.detach().cpu())
                         update_norm = torch.norm(param_updates[name].view(-1, ))
@@ -274,7 +282,8 @@ class DecompTrainer(Trainer):
                                                            update_norm / (param_norm + 1e-7))
                 else:
                     self.optimizer.step()
-
+                    if self.bert_optimizer is not None:
+                        self.bert_optimizer.step() 
                 # zero grads after step 
                 loss = 0.0 
 
@@ -321,7 +330,6 @@ class DecompTrainer(Trainer):
         for (gpu_num, memory) in gpu_usage:
             metrics['gpu_'+str(gpu_num)+'_memory_MB'] = memory
         return metrics
-
 
     @classmethod
     def from_params(cls,  # type: ignore
@@ -386,7 +394,52 @@ def _from_params(cls,  # type: ignore
         # the right device.
         model = model.cuda(model_device)
 
-    parameters = [[n, p] for n, p in model.named_parameters() if p.requires_grad]
+    bert_optim_params = params.pop("bert_optimizer", None)
+    bert_name = "_bert_encoder"
+
+    if bert_optim_params is not None:
+        tune_after_layer_num = params.pop("bert_tune_layer", 12)
+
+        frozen_regex_str = ["(_bert_encoder\.bert_model\.embeddings.*)",
+                            "(_bert_encoder\.bert_model\.pooler.*)"]
+        tune_regex_str = []
+        for i in range(0, 12):
+            # match all numbers greater than layer num via disjunction 
+            tune_regex_one = f"({bert_name}\.bert_model\.encoder\.layer\.{i}\..*)"
+            if i >= tune_after_layer_num:
+                tune_regex_str.append(tune_regex_one)
+            else:
+                frozen_regex_str.append(tune_regex_one)
+        tune_regex = re.compile("|".join(tune_regex_str))
+        frozen_regex = re.compile("|".join(frozen_regex_str))
+        # decide which params require grad for which optimizer 
+        all_names = [n for n, p in model.named_parameters()]
+        tune_bert_names = [n for n in all_names if tune_regex.match(n) is not None]
+        frozen_names = [n for n in all_names if frozen_regex.match(n) is not None]
+        # assert that they're disjoint
+        assert(len(set(frozen_names) & set(tune_bert_names)) == 0)
+        # set tunable params to require gradient, frozen ones to not require 
+        for i, (n, p) in enumerate(model.named_parameters()):
+            if n in frozen_names:
+                p.requires_grad = False 
+            else:
+                p.requires_grad = True
+
+        # extract BERT 
+        bert_params = [[n, p] for n, p in model.named_parameters() if p.requires_grad and n in tune_bert_names]
+        # make sure this matches the tuneable bert params 
+        assert([x[0] for x in bert_params] == tune_bert_names)
+        bert_optimizer = Optimizer.from_params(bert_params, bert_optim_params)
+    else:
+        # freeze all BERT params 
+        tune_bert_names = []
+        bert_optimizer = None 
+        for i, (n, p) in enumerate(model.named_parameters()):
+            if "_bert_encoder" in n:
+                p.requires_grad = False 
+
+    # model params 
+    parameters = [[n, p] for n, p in model.named_parameters() if p.requires_grad and n not in tune_bert_names]
     optimizer = Optimizer.from_params(parameters, params.pop("optimizer"))
     if "moving_average" in params:
         moving_average = MovingAverage.from_params(params.pop("moving_average"), parameters=parameters)
@@ -430,6 +483,7 @@ def _from_params(cls,  # type: ignore
     params.assert_empty(cls.__name__)
     return cls(model=model,
                optimizer=optimizer,
+               bert_optimizer=bert_optimizer,
                iterator=iterator,
                train_dataset=train_data,
                validation_dataset=validation_data,

@@ -1,6 +1,7 @@
 import re
 import json
 import sys
+import pdb 
 import logging
 from collections import defaultdict, Counter, namedtuple
 from typing import List, Dict
@@ -862,7 +863,7 @@ class DecompGraphWithSyntax(DecompGraph):
             return tgt_tags, tag_lut
 
         # Source Copy
-        src_tokens, src_pos_tags = self.get_src_tokens()
+        src_tokens, src_pos_tags, from_lines = self.get_src_tokens()
         src_token_ids = None
         src_token_subword_index = None
         src_copy_vocab = SourceCopyVocabulary(src_tokens)
@@ -874,6 +875,8 @@ class DecompGraphWithSyntax(DecompGraph):
             # use spacy to get a POS tag sequence 
             doc = nlp(" ".join(src_tokens).strip())
             src_pos_tags = [token.pos_ for token in doc]
+            from_lines = True
+        if from_lines: 
             # set syntax nodes
             syn_tokens = src_tokens
             syn_node_name_list = [str(i) for i in range(len(src_tokens))]

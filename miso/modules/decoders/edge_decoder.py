@@ -6,15 +6,18 @@ from miso.modules.linear.bilinear import BiLinear
 from miso.losses.loss import MSECrossEntropyLoss
 
 class MLP(torch.nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, n_layers):
+    def __init__(self, input_dim, hidden_dim, output_dim, n_layers, dropout=0.20):
         super(MLP, self).__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
+        self.dropout = torch.nn.Dropout(p = dropout) 
         layer_list = [torch.nn.Linear(self.input_dim, self.hidden_dim ),
-                                      torch.nn.ReLU()]
+                                      torch.nn.ReLU(),
+                                      self.dropout]
         for layer in range(n_layers - 1):
             layer_list += [torch.nn.Linear(self.hidden_dim, self.hidden_dim),
-                                      torch.nn.ReLU()]
+                                      torch.nn.ReLU(),
+                                      self.dropout]
         layer_list += [torch.nn.Linear(self.hidden_dim, output_dim)]
 
         self.net = torch.nn.Sequential(*layer_list)
@@ -34,6 +37,7 @@ class EdgeAttributeDecoder(torch.nn.Module):
             loss_multiplier = 10,
             loss_function = MSECrossEntropyLoss,
             share_networks = False,
+            dropout = 0.20, 
             binary = False):
         super(EdgeAttributeDecoder, self).__init__()
 
@@ -46,14 +50,14 @@ class EdgeAttributeDecoder(torch.nn.Module):
         self.loss_function = loss_function
         self.binary = binary
         self.attr_bilinear = BiLinear(self.h_input_dim, self.m_input_dim, self.output_dim)
-        self.attr_MLP = MLP(self.output_dim + self.h_input_dim + self.m_input_dim, hidden_dim, self.output_dim, n_layers)
+        self.attr_MLP = MLP(self.output_dim + self.h_input_dim + self.m_input_dim, hidden_dim, self.output_dim, n_layers, dropout = dropout)
 
         if share_networks:
             self.mask_bilinear = self.attr_bilinear
             self.mask_MLP = self.attr_MLP
         else:
             self.mask_bilinear = BiLinear(self.h_input_dim, self.m_input_dim, self.output_dim)
-            self.mask_MLP = MLP(self.output_dim + self.h_input_dim + self.m_input_dim, hidden_dim, self.output_dim, n_layers)
+            self.mask_MLP = MLP(self.output_dim + self.h_input_dim + self.m_input_dim, hidden_dim, self.output_dim, n_layers, dropout = dropout)
 
         self.metrics = ContinuousMetric(prefix = "edge")
 

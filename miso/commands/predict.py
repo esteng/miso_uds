@@ -4,6 +4,7 @@ import sys
 import json
 from overrides import overrides 
 from collections import defaultdict 
+import pdb 
 
 from allennlp.commands.predict import _get_predictor, Predict
 from allennlp.commands import ArgumentParserWithDefaults

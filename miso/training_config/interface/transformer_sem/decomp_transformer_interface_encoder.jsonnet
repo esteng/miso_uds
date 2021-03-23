@@ -34,7 +34,7 @@ local synt_method = "encoder-side";
       }
     },
     drop_syntax: true,
-    semantics_only: true,
+    semantics_only: false,
     syntactic_method: synt_method,
     order: "inorder",
     tokenizer: {
@@ -167,7 +167,6 @@ local synt_method = "encoder-side";
     }, 
     decoder: {
       input_size: 300 + 50 + 50,
-      type: "transformer_decoder",
       hidden_size: 512,
       num_layers: 8,
       use_coverage: true,
@@ -291,7 +290,7 @@ local synt_method = "encoder-side";
     # smatch_tool_path: null, # "smatch_tool",
     validation_data_path: "dev",
     validation_prediction_path: "decomp_validation.txt",
-    semantics_only: true,
+    semantics_only: false,
     drop_syntax: true,
     syntactic_method: synt_method,
   },

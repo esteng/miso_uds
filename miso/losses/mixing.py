@@ -122,6 +122,18 @@ class SemanticsHeavyLossMixer(LossMixer):
     def update_weights(self, curr_epoch, total_epochs): 
         pass
 
+@LossMixer.register("static-syntax-heavy") 
+class SemanticsHeavyLossMixer(LossMixer):
+    """
+    upweight syntactic loss 
+    """
+    def __init__(self, weight=5):
+        super().__init__() 
+        self.loss_weights = [1, weight]
+
+    def update_weights(self, curr_epoch, total_epochs): 
+        pass
+
 @LossMixer.register("learned") 
 class LearnedLossMixer(LossMixer):
     """

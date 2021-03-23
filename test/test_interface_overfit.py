@@ -26,24 +26,6 @@ def test_decomp_overfit():
     assert(metrics["training_node_pearson"] > 0.95)
     assert(metrics["training_edge_pearson"] > 0.95)
 
-def test_decomp_transformer_overfit():
-    config_path = os.path.join(test_path, "configs", "overfit_decomp_transformer.jsonnet") 
-    output_dir = os.path.join(test_path, "checkpoints", "overfit_decomp_transformer.ckpt") 
-
-    test_args = setup_checkpointing_and_args(config_path, output_dir) 
-    train_model_from_file(test_args.param_path,
-                          test_args.serialization_dir)
-
-    metrics = read_metrics(output_dir) 
-    assert_successful_overfit(metrics, {"validation_s_f1": 100.0, 
-                                        "training_uas": 100.0,
-                                         "training_las": 100.0}) 
-
-    assert(metrics["training_node_pearson"] > 0.95)
-    assert(metrics["training_edge_pearson"] > 0.95)
-
-                                        #"training_node_pearson": 0.97728,
-                                        #"training_edge_pearson": 0.99999,
 
 def test_interface_concat_after():
 

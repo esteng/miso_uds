@@ -154,7 +154,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
       input_size: 300 + 50 + 50,
       hidden_size: 512,
       num_layers: 6,
-      use_coverage: false,
+      use_coverage: true,
       decoder_layer: {
         type: "pre_norm",
         d_model: 512, 
@@ -176,7 +176,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
           query_vector_dim: 512,
           key_vector_dim: 512,
           hidden_vector_dim: 512, 
-          use_coverage: false,
+          use_coverage: true,
         },
       },
       target_attention_layer: {

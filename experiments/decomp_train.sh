@@ -15,7 +15,7 @@ TEST_DATA=dev
 
 
 function train() {
-    rm -fr ${CHECKPOINT_DIR}
+    rm -rf ${CHECKPOINT_DIR}/ckpt
     echo "Training a new transductive model for decomp parsing..."
     python -um allennlp.run train \
     --include-package miso.data.dataset_readers \
@@ -24,12 +24,12 @@ function train() {
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.training \
     --include-package miso.metrics \
-    -s ${CHECKPOINT_DIR} \
+    -s ${CHECKPOINT_DIR}/ckpt \
     ${TRAINING_CONFIG}
 }
 
 function resume() {
-    python scripts/edit_config.py ${CHECKPOINT_DIR}/config.json ${TRAINING_CONFIG}
+    python scripts/edit_config.py ${CHECKPOINT_DIR}/ckpt/config.json ${TRAINING_CONFIG}
     python -m allennlp.run train \
     --include-package miso.data.dataset_readers \
     --include-package miso.data.tokenizers \
@@ -37,7 +37,7 @@ function resume() {
     --include-package miso.training \
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.metrics \
-    -s ${CHECKPOINT_DIR} \
+    -s ${CHECKPOINT_DIR}/ckpt \
     --recover \
     ${TRAINING_CONFIG}
 }
@@ -45,7 +45,7 @@ function resume() {
 
 function test() {
     log_info "Evaluating a transductive model for decomp parsing..."
-    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    model_file=${CHECKPOINT_DIR}/ckpt/model.tar.gz
     output_file=${CHECKPOINT_DIR}/test.pred.txt
     python -m allennlp.run predict \
     ${model_file} ${TEST_DATA} \
@@ -61,7 +61,7 @@ function test() {
 
 function eval() {
     echo "Evaluating a transductive model for decomp parsing..."
-    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    model_file=${CHECKPOINT_DIR}/ckpt/model.tar.gz
     output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
     export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
     echo ${PYTHONPATH}
@@ -78,12 +78,12 @@ function eval() {
     --include-package miso.models \
     --include-package miso.modules.seq2seq_encoders \
     --include-package miso.predictors \
-    --include-package miso.metrics &> ${CHECKPOINT_DIR}/${TEST_DATA}.synt_struct.out
+    --include-package miso.metrics  &> ${CHECKPOINT_DIR}/${TEST_DATA}.synt_struct.out
 }
 
 function eval_sem() {
     echo "Evaluating a transductive model for decomp parsing..."
-    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    model_file=${CHECKPOINT_DIR}/ckpt/model.tar.gz
     output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
     export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
     echo ${PYTHONPATH}
@@ -106,7 +106,7 @@ function eval_sem() {
 
 function eval_attr() {
     echo "Evaluating a transductive model for decomp parsing..."
-    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    model_file=${CHECKPOINT_DIR}/ckpt/model.tar.gz
     output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
     export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
     echo ${PYTHONPATH}
@@ -129,8 +129,9 @@ function eval_attr() {
 
 function spr_eval() {
     echo "Evaluating a transductive model for decomp parsing..."
-    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    model_file=${CHECKPOINT_DIR}/ckpt/model.tar.gz
     output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
+    mkdir ${CHECKPOINT_DIR}/${TEST_DATA} 
     export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
     echo ${PYTHONPATH}
     python -m miso.commands.s_score spr_eval \
@@ -139,7 +140,7 @@ function spr_eval() {
     --use-dataset-reader \
     --batch-size 32 \
     --oracle \
-    --json-output-file ${CHECKPOINT_DIR}/data.json\
+    --json-output-file ${CHECKPOINT_DIR}/${TEST_DATA}/data.json\
     --include-package miso.data.dataset_readers \
     --include-package miso.data.tokenizers \
     --include-package miso.models \
@@ -150,7 +151,7 @@ function spr_eval() {
 }
 
 function conllu_eval() {
-    model_file=${CHECKPOINT_DIR}/model.tar.gz
+    model_file=${CHECKPOINT_DIR}/ckpt/model.tar.gz
     output_file=${CHECKPOINT_DIR}/${TEST_DATA}.pred.txt
     export PYTHONPATH=$(pwd)/miso:${PYTHONPATH}
     echo ${PYTHONPATH}

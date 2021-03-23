@@ -109,7 +109,7 @@ class DecompDatasetReader(DatasetReader):
                 if self.api_time:
                     uds = TestUDSCorpus.from_single_line(split)
                 else:
-                    uds = TestUDSCorpus.from_lines(split)
+                    uds = TestUDSCorpus.from_ud_lines(split)
 
         # corpus is Graphs and annotations 
         i=0

@@ -13,5 +13,5 @@ ml cudnn/7.5.0_cuda10.0
 
 cd /home/hltcoe/estengel/miso_research
 
-#./syntax_experiments/decomp_train.sh -a eval -d ${CHECKPOINT_DIR} 
-./experiments/decomp_train.sh -a eval -d ${CHECKPOINT_DIR}
+#./syntax_experiments/decomp_train.sh -a eval -d ${CHECKPOINT_DIR} -i ${TEST_DATA}
+./experiments/decomp_train.sh -a eval -d ${CHECKPOINT_DIR} -i ${TEST_DATA}

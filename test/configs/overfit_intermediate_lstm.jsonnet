@@ -174,14 +174,14 @@ local synt_method = "encoder-side";
       source_attention_layer: {
         type: "global",
         query_vector_dim: 128,
-        key_vector_dim: 512,
+        key_vector_dim: 128,
         output_vector_dim: 128,
         attention: {
           type: "mlp",
           # TODO: try to use smaller dims.
           query_vector_dim: 128,
-          key_vector_dim: 512,
-          hidden_vector_dim: 640, 
+          key_vector_dim: 128,
+          hidden_vector_dim: 64, 
           use_coverage: false,
         },
       },
@@ -194,7 +194,7 @@ local synt_method = "encoder-side";
           type: "mlp",
           query_vector_dim: 128,
           key_vector_dim: 128,
-          hidden_vector_dim: 256,
+          hidden_vector_dim: 64,
           use_coverage: false,
         },
       },

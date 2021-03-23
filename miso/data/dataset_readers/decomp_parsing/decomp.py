@@ -1,6 +1,7 @@
 import re
 import json
 import sys
+import pdb 
 import logging
 from collections import defaultdict, Counter, namedtuple
 from typing import List, Dict
@@ -461,10 +462,19 @@ class DecompGraph():
 
     def get_src_tokens(self):
         src_tokens = self.graph.sentence.split(" ")
+        # get tags if read from UDlines 
         pos_tags = []
-        for node in self.graph.syntax_subgraph:
-            pos_tags.append(self.graph.nodes[node]['upos'])
-        return src_tokens, pos_tags
+        from_lines = False
+        if "-root-0" in self.graph.nodes:
+            try:
+                pos_tags = self.graph.nodes['-root-0']['pos_tags']
+            except KeyError:
+                pos_tags = []
+            from_lines = True
+        else:
+            for node in self.graph.syntax_subgraph:
+                pos_tags.append(self.graph.nodes[node]['upos'])
+        return src_tokens, pos_tags, from_lines
 
     def re_in(self, key, list_rerum):
         for regex in list_rerum:
@@ -662,7 +672,7 @@ class DecompGraph():
             return tgt_tags, tag_lut
 
         # Source Copy
-        src_tokens, src_pos_tags = self.get_src_tokens()
+        src_tokens, src_pos_tags, __ = self.get_src_tokens()
         src_token_ids = None
         src_token_subword_index = None
         src_copy_vocab = SourceCopyVocabulary(src_tokens)
@@ -773,6 +783,8 @@ class DecompGraph():
         edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
 
         corefs = output['node_indices']
+
+        #pdb.set_trace() 
 
         graph = nx.DiGraph()
         

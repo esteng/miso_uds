@@ -4,7 +4,6 @@ import sys
 import logging
 import copy 
 import numpy as np
-import pdb 
 
 import torch
 import torch.nn.functional as F
@@ -61,6 +60,7 @@ class MisoTransformerDecoder(MisoDecoder):
         batch_size, source_seq_length, _ = source_memory_bank.size()
         __, target_seq_length, __ = inputs.size()
 
+
         source_padding_mask = None
         target_padding_mask  = None
         if source_mask is not None:
@@ -79,8 +79,6 @@ class MisoTransformerDecoder(MisoDecoder):
 
         # get a mask 
         ar_mask = self.make_autoregressive_mask(outputs.shape[0]).to(source_memory_bank.device)
-        source_padding_mask = source_padding_mask.to(source_memory_bank.device)
-        target_padding_mask = target_padding_mask.to(source_memory_bank.device)
 
         for i in range(len(self.layers)):
             outputs , __, __ = self.layers[i](outputs, 
@@ -134,7 +132,7 @@ class MisoTransformerDecoder(MisoDecoder):
             # [batch_size, tgt_seq_len, src_seq_len]
             source_attention_weights = torch.cat(source_attention_weights, dim=1) 
             coverage_history = torch.cat(coverage_history, dim=1)
-                
+
         if is_train:
             tgt_attn_list = []
             for timestep in range(attentional_tensors.shape[1]):
@@ -144,8 +142,8 @@ class MisoTransformerDecoder(MisoDecoder):
                 attn_mask = attn_mask.to(attentional_tensors.device)
                 
                 target_attention_output = self.target_attn_layer(attentional_tensors[:,timestep,:].unsqueeze(1),
-                                                                 attentional_tensors,
-                                                                 mask =  attn_mask)
+                                                                 outputs,
+                                                                 mask = attn_mask)
                 if timestep == 0:
                     # zero out weights at 0, effectively banning target copy since there is nothing to copy 
                     tgt_attn_list.append(torch.zeros_like(target_attention_output["attention_weights"][:,-1,:].unsqueeze(1)))
@@ -155,12 +153,11 @@ class MisoTransformerDecoder(MisoDecoder):
             target_attention_weights = torch.cat(tgt_attn_list, dim=1) 
         else:
             target_attention_output = self.target_attn_layer(attentional_tensors,
-                                                             attentional_tensors,
+                                                             outputs,
                                                              mask = target_padding_mask)
                                    
-    
-
             target_attention_weights = target_attention_output['attention_weights']
+                
 
         return dict(
                 outputs=outputs,
@@ -192,10 +189,12 @@ class MisoTransformerDecoder(MisoDecoder):
         """
         bsz, og_seq_len, input_dim = inputs.size() 
         # don't look at last position
-        target_mask = torch.zeros((bsz, og_seq_len ))
-        target_mask[:, -1] = 1
+        #target_mask = torch.ones((bsz, og_seq_len + 1))
+        #target_mask[:, -1] = 0
+        #target_mask = ~target_mask.bool()
 
-        to_ret = self(inputs, source_memory_bank, source_mask, target_mask, is_train=False)
+        target_mask = None  
+        to_ret = self(inputs, source_memory_bank, source_mask, target_mask)
         if to_ret['coverage_history'] is not None:
             to_ret["coverage"] = to_ret["coverage_history"][:,-1].unsqueeze(-1)
         else:
