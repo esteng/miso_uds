@@ -111,7 +111,7 @@ def get_decomp_graph(pp_graph):
     return dg
 
 def compute_conllu_score(true_graphs, pred_graphs):
- ba   las_scores, uas_scores, mlas_scores, blex_scores = [], [], [], []
+    las_scores, uas_scores, mlas_scores, blex_scores = [], [], [], []
 
     for true_graph, pred_graph in zip(true_graphs, pred_graphs):
         true_graph.syntactic_method = "encoder-side"
