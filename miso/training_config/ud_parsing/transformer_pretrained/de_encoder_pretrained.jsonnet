@@ -144,7 +144,7 @@ local data_dir = "/exp/estengel/ud_data/all_data/";
      learning_rate_scheduler: {
        type: "noam",
        model_size: 512, 
-       warmup_steps: 4000,
+       warmup_steps: 8000,
      },
     no_grad: [],
     # smatch_tool_path: null, # "smatch_tool",

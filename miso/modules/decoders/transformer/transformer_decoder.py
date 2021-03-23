@@ -286,7 +286,6 @@ class MisoPositionalTransformerDecoder(MisoTransformerDecoder):
         batch_size, source_seq_length, _ = source_memory_bank.size()
         __, target_seq_length, __ = inputs.size()
 
-
         source_padding_mask = None
         target_padding_mask  = None
         if source_mask is not None:
@@ -401,7 +400,7 @@ class MisoPositionalTransformerDecoder(MisoTransformerDecoder):
         #target_mask = ~target_mask.bool()
 
         target_mask = None  
-        to_ret = self(inputs, source_memory_bank, op_vec, source_mask, target_mask, is_train=False)
+        to_ret = self(inputs, source_memory_bank, op_vec, source_mask, target_mask)
         if to_ret['coverage_history'] is not None:
             to_ret["coverage"] = to_ret["coverage_history"][:,-1].unsqueeze(-1)
         else:
