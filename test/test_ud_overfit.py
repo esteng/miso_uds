@@ -4,6 +4,7 @@ import os
 
 test_path = os.path.dirname(os.path.abspath(__file__))
 path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print(path) 
 sys.path.insert(0, path) 
 
 from allennlp.commands.train import Train, train_model_from_file

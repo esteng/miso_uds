@@ -1,4 +1,4 @@
-local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
+local data_dir = "data/UD/tiny/*";
 
 {
   dataset_reader: {
@@ -97,7 +97,7 @@ local data_dir = "/Users/Elias/miso_research/data/UD/tiny/*";
       key_vector_dim: 64,
       edge_head_vector_dim: 64,
       edge_type_vector_dim: 64,
-      num_labels: 49,
+      num_labels: 17,
       is_syntax: true,
       attention: {
         type: "biaffine",
