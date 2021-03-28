@@ -237,8 +237,8 @@ class DecompSyntaxParsingPredictor(DecompParsingPredictor):
 
             #if self._model.syntactic_method not in ['concat-before', 'concat-after']:
             # cases where we had to trim 
-            print(f"len outputs {len(outputs['syn_nodes'])}")
-            print(f"nrows {n_rows}") 
+            #print(f"len outputs {len(outputs['syn_nodes'])}")
+            #print(f"nrows {n_rows}") 
 
             if len(outputs['syn_nodes']) > n_rows:
                 c = n_rows

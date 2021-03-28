@@ -1,5 +1,4 @@
 local data_dir = "dev";
-local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
 {
   dataset_reader: {
@@ -235,8 +234,8 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
 
   trainer: {
     type: "decomp_parsing",
-    num_epochs: 200,
-    warmup_epochs: 190,
+    num_epochs: 250,
+    warmup_epochs: 240,
     patience: 250,
     grad_norm: 5.0,
     # TODO: try to use grad clipping.
@@ -260,7 +259,7 @@ local glove_embeddings = "/exp/estengel/miso/glove.840B.300d.zip";
     semantics_only: "false",
     drop_syntax: "true",
   },
-  random_seed: 1,
-  numpy_seed: 1,
-  pytorch_seed: 1,
+  random_seed: 12,
+  numpy_seed: 12,
+  pytorch_seed: 12,
 }

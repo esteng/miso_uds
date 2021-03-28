@@ -43,7 +43,7 @@ def setup_and_test(func, model_path, predictor = "decomp_parsing"):
     arg_list = [f"{func}", f"{model_path}", "dev",
     "--predictor", predictor,
     "--batch-size", "1",
-    "--beam-size",  "1", 
+    "--beam-size",  "2", 
     "--use-dataset-reader",
     "--line-limit", "2",
     "--cuda-device", "-1",
@@ -70,10 +70,11 @@ def base_s_score_test(model_path, backoff_func, capsys, predictor = "decomp_pars
 
     setup_and_test("eval", model_path, predictor = predictor)
     
-    out, err = capsys.readouterr() 
-    out = out.strip().split("\n")[0]
-    expected = "Precision: 1.0, Recall: 1.0, F1: 1.0" 
-    assert(out.strip() == expected.strip())
+    #out, err = capsys.readouterr() 
+    #out = out.strip().split("\n")[0]
+    #expected = "Precision: 1.0, Recall: 1.0, F1: 1.0" 
+    #assert(out.strip() == expected.strip())
+    assert(2==3) 
 
 def base_conllu_test(model_path, backoff_func, capsys): 
     # if checkpoint doesn't exist, first run other test 

@@ -771,6 +771,8 @@ class DecompGraph():
         edge_heads = [x-1 for x in edge_heads]
         edge_heads[0] = 0
 
+        print(f"nodes: {nodes}") 
+
         edge_labels = output['edge_types']
 
         node_attr = output['node_attributes'][0]
