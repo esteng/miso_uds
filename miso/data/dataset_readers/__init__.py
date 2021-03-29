@@ -7,5 +7,4 @@ and produce datasets in the formats required by specific models.
 """
 
 # pylint: disable=line-too-long
-from .amr import AMRDatasetReader
 from .decomp import DecompDatasetReader

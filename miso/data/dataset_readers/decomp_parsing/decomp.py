@@ -13,7 +13,7 @@ import spacy
 from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
-from miso.data.dataset_readers.amr_parsing.amr.utils.prepare_istog_instance import is_english_punct
+from miso.data.dataset_readers.decomp_parsing.utils import is_english_punct
 
 from decomp.semantics.uds import UDSGraph
 
@@ -770,8 +770,6 @@ class DecompGraph():
         edge_heads = output['edge_heads']
         edge_heads = [x-1 for x in edge_heads]
         edge_heads[0] = 0
-
-        print(f"nodes: {nodes}") 
 
         edge_labels = output['edge_types']
 
