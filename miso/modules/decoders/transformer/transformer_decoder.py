@@ -285,7 +285,6 @@ class MisoPositionalTransformerDecoder(MisoTransformerDecoder):
         batch_size, source_seq_length, _ = source_memory_bank.size()
         __, target_seq_length, __ = inputs.size()
 
-
         source_padding_mask = None
         target_padding_mask  = None
         if source_mask is not None:

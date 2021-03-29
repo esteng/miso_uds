@@ -24,3 +24,5 @@ def test_decomp_transformer_overfit():
                                         "training_uas": 100.0,
                                          "training_las": 100.0}) 
 
+    assert(metrics["training_node_pearson"] > 0.90)
+    assert(metrics["training_edge_pearson"] > 0.95)

@@ -14,6 +14,7 @@ from utils import assert_successful_overfit, read_metrics, setup_checkpointing_a
 
 sys.path.insert(0, test_path) 
 from test_interface_overfit import * 
+from test_intermediate_overfit import *
 
 from miso.commands.s_score import SScore
 from miso.commands.conllu_score import ConlluScore
@@ -132,10 +133,10 @@ def test_conllu_encoder_side(capsys):
 
 def test_conllu_intermediate_lstm(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_intermediate_lstm.ckpt", "model.tar.gz") 
-    base_conllu_test(model_path, test_interface_encoder_side, capsys) 
+    base_conllu_test(model_path, test_intermediate_lstm, capsys) 
 
 def test_conllu_intermediate_transformer(capsys):
     model_path = os.path.join(test_path, "checkpoints", "overfit_intermediate_transformer.ckpt", "model.tar.gz") 
-    base_conllu_test(model_path, test_interface_encoder_side, capsys) 
+    base_conllu_test(model_path, test_intermediate_transformer, capsys) 
 
 

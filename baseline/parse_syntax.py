@@ -111,7 +111,7 @@ def get_decomp_graph(pp_graph):
     return dg
 
 def compute_conllu_score(true_graphs, pred_graphs):
-    las_scores, mlas_scores, blex_scores = [], [], []
+    las_scores, uas_scores, mlas_scores, blex_scores = [], [], [], []
 
     for true_graph, pred_graph in zip(true_graphs, pred_graphs):
         true_graph.syntactic_method = "encoder-side"
@@ -139,14 +139,16 @@ def compute_conllu_score(true_graphs, pred_graphs):
             try:
                 score = evaluate_wrapper(args)
                 las_scores.append(100 * score["LAS"].f1)
+                uas_scores.append(100 * score["UAS"].f1)
                 mlas_scores.append(100 * score["MLAS"].f1)
                 blex_scores.append(100 * score["BLEX"].f1)
             except UDError:
                 las_scores.append(0)
+                uas_scores.append(0)
                 mlas_scores.append(0)
                 blex_scores.append(0)
 
-    return np.mean(las_scores), np.mean(mlas_scores), np.mean(blex_scores)  
+    return np.mean(las_scores), np.mean(uas_scores), np.mean(mlas_scores), np.mean(blex_scores)  
 
 if __name__ == "__main__":
 
@@ -193,7 +195,7 @@ if __name__ == "__main__":
     #        zipped = [x for x in zip(true_graphs, pred_graphs)]
     #        pkl.dump(zipped, f1)        
 
-    las, mlas, blex = compute_conllu_score(true_graphs, pred_graphs)  
+    las, uas, mlas, blex = compute_conllu_score(true_graphs, pred_graphs)  
 
-    print(f"LAS: {las}, MLAS: {mlas}, BLEX: {blex}") 
+    print(f"LAS: {las}, UAS: {uas}, MLAS: {mlas}, BLEX: {blex}") 
 
