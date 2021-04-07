@@ -1,7 +1,7 @@
 {
     "dataset_reader": {
         "type": "decomp_syntax_semantics",
-        "drop_syntax": true,
+        "drop_syntax": "true",
         "generation_token_indexers": {
             "generation_tokens": {
                 "type": "single_id",
@@ -9,7 +9,7 @@
             }
         },
         "order": "inorder",
-        "semantics_only": false,
+        "semantics_only": "false",
         "source_token_indexers": {
             "source_token_characters": {
                 "type": "characters",
@@ -44,7 +44,7 @@
     },
     "iterator": {
         "type": "bucket",
-        "batch_size": 8,
+        "batch_size": 10,
         "padding_noise": 0,
         "sorting_keys": [
             [
@@ -54,7 +54,7 @@
         ]
     },
     "model": {
-        "type": "decomp_syntax_parser",
+        "type": "decomp_syntax_only_parser",
         "beam_size": 2,
         "bert_encoder": {
             "type": "seq2seq_bert_encoder",
@@ -234,11 +234,11 @@
         "validation_data_path": "dev",
         "type": "decomp_syntax_parsing",
         "cuda_device": 0,
-        "drop_syntax": true,
+        "drop_syntax": "true",
         "grad_clipping": null,
         "grad_norm": 5,
         "no_grad": [],
-        "num_epochs": 250,
+        "num_epochs": 200,
         "num_serialized_models_to_keep": 5,
         "optimizer": {
             "type": "adam",
@@ -246,10 +246,11 @@
             "weight_decay": 3e-09
         },
         "patience": 40,
-        "semantics_only": false,
+        "semantics_only": "false",
         "syntactic_method": "encoder-side",
-        "validation_metric": "+s_f1",
-        "validation_prediction_path": "decomp_validation.txt"
+        "validation_metric": "+syn_uas",
+        "validation_prediction_path": "decomp_validation.txt",
+        "warmup_epochs": 0
     },
     "vocabulary": {
         "max_vocab_size": {

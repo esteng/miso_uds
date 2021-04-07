@@ -1,6 +1,6 @@
 {
     "dataset_reader": {
-        "type": "decomp_syntax_semantics",
+        "type": "decomp",
         "drop_syntax": true,
         "generation_token_indexers": {
             "generation_tokens": {
@@ -21,7 +21,6 @@
                 "namespace": "source_tokens"
             }
         },
-        "syntactic_method": "encoder-side",
         "target_token_indexers": {
             "target_token_characters": {
                 "type": "characters",
@@ -44,7 +43,7 @@
     },
     "iterator": {
         "type": "bucket",
-        "batch_size": 8,
+        "batch_size": 30,
         "padding_noise": 0,
         "sorting_keys": [
             [
@@ -54,60 +53,56 @@
         ]
     },
     "model": {
-        "type": "decomp_syntax_parser",
+        "type": "decomp_transformer_parser",
         "beam_size": 2,
         "bert_encoder": {
             "type": "seq2seq_bert_encoder",
             "config": "bert-base-cased"
         },
-        "biaffine_parser": {
-            "attention": {
-                "type": "biaffine",
-                "key_vector_dim": 512,
-                "query_vector_dim": 512
-            },
-            "edge_head_vector_dim": 512,
-            "edge_type_vector_dim": 1024,
-            "is_syntax": true,
-            "key_vector_dim": 1024,
-            "num_labels": 49,
-            "query_vector_dim": 1024
-        },
         "decoder": {
-            "dropout": 0.33,
-            "rnn_cell": {
-                "hidden_size": 1024,
-                "input_size": 1424,
-                "num_layers": 2,
-                "recurrent_dropout_probability": 0.33,
-                "use_highway": false
+            "type": "transformer_decoder",
+            "decoder_layer": {
+                "type": "pre_norm",
+                "d_model": 512,
+                "dim_feedforward": 2048,
+                "dropout": 0.2,
+                "init_scale": 512,
+                "n_head": 8,
+                "norm": {
+                    "type": "scale_norm",
+                    "dim": 512
+                }
             },
+            "hidden_size": 512,
+            "input_size": 400,
+            "num_layers": 8,
             "source_attention_layer": {
                 "type": "global",
                 "attention": {
                     "type": "mlp",
-                    "hidden_vector_dim": 256,
-                    "key_vector_dim": 1024,
-                    "query_vector_dim": 1024,
+                    "hidden_vector_dim": 512,
+                    "key_vector_dim": 512,
+                    "query_vector_dim": 512,
                     "use_coverage": true
                 },
-                "key_vector_dim": 1024,
-                "output_vector_dim": 1024,
-                "query_vector_dim": 1024
+                "key_vector_dim": 512,
+                "output_vector_dim": 512,
+                "query_vector_dim": 512
             },
             "target_attention_layer": {
                 "type": "global",
                 "attention": {
                     "type": "mlp",
-                    "hidden_vector_dim": 256,
-                    "key_vector_dim": 1024,
-                    "query_vector_dim": 1024,
+                    "hidden_vector_dim": 512,
+                    "key_vector_dim": 512,
+                    "query_vector_dim": 512,
                     "use_coverage": false
                 },
-                "key_vector_dim": 1024,
-                "output_vector_dim": 1024,
-                "query_vector_dim": 1024
-            }
+                "key_vector_dim": 512,
+                "output_vector_dim": 512,
+                "query_vector_dim": 512
+            },
+            "use_coverage": true
         },
         "decoder_node_index_embedding": {
             "embedding_dim": 50,
@@ -146,7 +141,9 @@
         },
         "dropout": 0.2,
         "edge_attribute_module": {
-            "h_input_dim": 256,
+            "binary": true,
+            "dropout": 0.2,
+            "h_input_dim": 128,
             "hidden_dim": 1024,
             "loss_multiplier": 10,
             "n_layers": 4,
@@ -154,14 +151,22 @@
         },
         "edge_type_namespace": "edge_types",
         "encoder": {
-            "type": "miso_stacked_bilstm",
-            "batch_first": true,
+            "type": "transformer_encoder",
+            "dropout": 0.2,
+            "encoder_layer": {
+                "type": "pre_norm",
+                "d_model": 512,
+                "dim_feedforward": 2048,
+                "init_scale": 512,
+                "n_head": 8,
+                "norm": {
+                    "type": "scale_norm",
+                    "dim": 512
+                }
+            },
             "hidden_size": 512,
             "input_size": 1118,
-            "num_layers": 2,
-            "recurrent_dropout_probability": 0.33,
-            "stateful": true,
-            "use_highway": false
+            "num_layers": 7
         },
         "encoder_pos_embedding": {
             "embedding_dim": 100,
@@ -195,36 +200,36 @@
             }
         },
         "extended_pointer_generator": {
-            "input_vector_dim": 1024,
+            "input_vector_dim": 512,
             "source_copy": true,
             "target_copy": true
         },
         "label_smoothing": {
             "smoothing": 0
         },
-        "max_decoding_steps": 100,
+        "max_decoding_steps": 60,
         "node_attribute_module": {
+            "binary": true,
+            "dropout": 0.2,
             "hidden_dim": 1024,
-            "input_dim": 1024,
+            "input_dim": 512,
             "loss_multiplier": 10,
             "n_layers": 4,
             "output_dim": 44
         },
         "pos_tag_namespace": "pos_tags",
-        "syntactic_method": "encoder-side",
-        "syntax_edge_type_namespace": "syn_edge_types",
         "target_output_namespace": "generation_tokens",
         "tree_parser": {
             "attention": {
                 "type": "biaffine",
-                "key_vector_dim": 256,
-                "query_vector_dim": 256
+                "key_vector_dim": 512,
+                "query_vector_dim": 512
             },
             "dropout": 0.2,
-            "edge_head_vector_dim": 256,
-            "edge_type_vector_dim": 256,
-            "key_vector_dim": 1024,
-            "query_vector_dim": 1024
+            "edge_head_vector_dim": 512,
+            "edge_type_vector_dim": 128,
+            "key_vector_dim": 512,
+            "query_vector_dim": 512
         }
     },
     "train_data_path": "train",
@@ -232,24 +237,40 @@
     "test_data_path": null,
     "trainer": {
         "validation_data_path": "dev",
-        "type": "decomp_syntax_parsing",
+        "type": "decomp_parsing",
+        "bert_optimizer": {
+            "type": "adam",
+            "lr": 1e-05
+        },
+        "bert_tune_layer": 10,
         "cuda_device": 0,
         "drop_syntax": true,
         "grad_clipping": null,
         "grad_norm": 5,
+        "learning_rate_scheduler": {
+            "type": "noam",
+            "model_size": 512,
+            "warmup_steps": 8000
+        },
         "no_grad": [],
-        "num_epochs": 250,
-        "num_serialized_models_to_keep": 5,
+        "num_epochs": 450,
+        "num_serialized_models_to_keep": 1,
         "optimizer": {
             "type": "adam",
             "amsgrad": true,
+            "betas": [
+                0.9,
+                0.999
+            ],
+            "eps": 1e-09,
+            "lr": 0,
             "weight_decay": 3e-09
         },
-        "patience": 40,
+        "patience": 51,
         "semantics_only": false,
-        "syntactic_method": "encoder-side",
         "validation_metric": "+s_f1",
-        "validation_prediction_path": "decomp_validation.txt"
+        "validation_prediction_path": "decomp_validation.txt",
+        "warmup_epochs": 49
     },
     "vocabulary": {
         "max_vocab_size": {
@@ -269,6 +290,6 @@
     ],
     "validation_iterator": {
         "type": "basic",
-        "batch_size": 32
+        "batch_size": 64
     }
 }
