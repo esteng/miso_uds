@@ -11,11 +11,11 @@ EXP_DIR=experiments
 
 #CHECKPOINT_DIR=/exp/estengel/miso_res/models/decomp-parsing-ckpt
 #TRAINING_CONFIG=miso/training_config/decomp_with_syntax.jsonnet
-TEST_DATA=dev
+#TEST_DATA=dev
 
 
 function train() {
-    rm -rf ${CHECKPOINT_DIR}/ckpt
+    #rm -rf ${CHECKPOINT_DIR}/ckpt
     echo "Training a new transductive model for decomp parsing..."
     python -um allennlp.run train \
     --include-package miso.data.dataset_readers \
