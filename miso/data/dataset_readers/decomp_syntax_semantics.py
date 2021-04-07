@@ -43,6 +43,7 @@ class DecompDatasetReader(DatasetReader):
                  order: str = "sorted",
                  lazy: bool = False,
                  api_time: bool = False,
+                 full_ud_parse: bool = False, 
                  ) -> None:
 
         super().__init__(lazy=lazy)
@@ -51,6 +52,7 @@ class DecompDatasetReader(DatasetReader):
         self.syntactic_method = syntactic_method
         self.line_limit = line_limit
         self.order = order 
+        self.full_ud_parse = full_ud_parse  
 
         if self.drop_syntax: 
             self.test_cases = DROP_TEST_CASES
@@ -169,7 +171,7 @@ class DecompDatasetReader(DatasetReader):
         fields: Dict[str, Field] = {}
 
         max_tgt_length = None if self.eval else 90
-        d = DecompGraphWithSyntax(graph, drop_syntax = self.drop_syntax, order = self.order, syntactic_method = self.syntactic_method)
+        d = DecompGraphWithSyntax(graph, drop_syntax = self.drop_syntax, order = self.order, syntactic_method = self.syntactic_method, full_ud_parse = self.full_ud_parse) 
 
         list_data = d.get_list_data(
              bos=START_SYMBOL, 
