@@ -311,6 +311,8 @@ function main() {
         conllu_predict_multi
     elif [[ "${action}" == "conllu_predict_ai2" ]]; then
         conllu_predict_ai2
+    elif [[ "${action}" == "conllu_predict_from_lines" ]]; then
+        conllu_predict_ai2
     fi
 }
 

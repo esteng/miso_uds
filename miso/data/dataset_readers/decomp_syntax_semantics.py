@@ -22,7 +22,7 @@ from miso.data.dataset_readers.decomp_parsing.decomp_with_syntax import DecompGr
 from miso.data.dataset_readers.decomp_parsing.uds import TestUDSCorpus
 from miso.data.tokenizers import AMRBertTokenizer, AMRXLMRobertaTokenizer, MisoTokenizer
 
-
+import pdb 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 @DatasetReader.register("decomp_syntax_semantics")
@@ -98,7 +98,6 @@ class DecompDatasetReader(DatasetReader):
     
     @overrides
     def _read(self, split: str) -> Iterable[Instance]:
-
         logger.info("Reading decompositional semantic data from: %s", split)
         if split in ['train', 'test', 'dev']:
             uds = UDSCorpus(split = split)
