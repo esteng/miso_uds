@@ -14,11 +14,11 @@ import spacy
 from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
-from miso.data.dataset_readers.decomp_parsing.utils import is_english_punct
+from miso.data.dataset_readers.amr_parsing.amr.utils.prepare_istog_instance import is_english_punct
 from miso.data.dataset_readers.decomp_parsing.decomp import (DecompGraph, parse_attributes, WORDSENSE_RE, 
                                                             QUOTED_RE, NODE_ATTRIBUTES, SPACY_MODEL, 
                                                             SourceCopyVocabulary)
-from decomp.semantics.uds import UDSGraph
+from decomp.semantics.uds import UDSSentenceGraph
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -34,7 +34,7 @@ except:
 
 class DecompGraphWithSyntax(DecompGraph): 
 
-    def __init__(self, graph, keep_punct = False, drop_syntax = True, order = "inorder", syntactic_method = "concat", full_ud_parse = False):
+    def __init__(self, graph, keep_punct = False, drop_syntax = True, order = "inorder", syntactic_method = "concat"):
         """
         :param graph: nx.Digraph
             the input decomp graph from UDSv1.0
@@ -49,7 +49,6 @@ class DecompGraphWithSyntax(DecompGraph):
         # remove non-semantics, non-syntax nodes
         super(DecompGraphWithSyntax, self).__init__(graph, keep_punct, drop_syntax, order) 
         self.syntactic_method = syntactic_method 
-        self.full_ud_parse = full_ud_parse
 
     @overrides 
     def get_list_node(self, semantics_only):
@@ -67,23 +66,8 @@ class DecompGraphWithSyntax(DecompGraph):
 
         # check if the graph is valid
         if len(self.graph.semantics_subgraph.nodes) == 0 or self.graph_size == 0:
-            if not self.full_ud_parse:
-                print(f"skipping for not having semantics nodes")
-                return None, None, None
-            else:
-                # FOR UD SOTA RESULT: assign a null semantics graph to the datapoint 
-                nx_g = self.graph.graph 
-                name = self.graph.name 
-                syn_node_name = list(self.graph.syntax_subgraph.nodes.keys())[0]
-                sem_node_name = re.sub("syntax","semantics-arg", syn_node_name) 
-                
-                attr_dict = {"domain":"semantics", 'frompredpatt': True, "type": "argument"} 
-                nx_g.add_node(sem_node_name, **attr_dict) 
-                edge_dict = {'domain': 'interface', 'type': 'head', 'id': syn_node_name}
-                nx_g.add_edge(sem_node_name, syn_node_name, **edge_dict) 
-                # overwrite  
-                self.graph = UDSGraph(nx_g, name) 
-                self.remove_performative(self.graph) 
+            #print(f"skipping for not having semantics nodes")
+            return None, None, None
 
         # adding this because you can visit a node as many times as it has incoming edges 
         visitation_limit = {}
@@ -181,9 +165,6 @@ class DecompGraphWithSyntax(DecompGraph):
                 num = int(synt_node.split("-")[2])
                 synt_d = self.graph.nodes[synt_node]
                 syn_dep = (num, [synt_d['form'], synt_d['upos'], synt_d['id']])
-            except ValueError:
-                pdb.set_trace() 
-                
 
 
             syn_head_id = syn_dep[1][2]
@@ -213,7 +194,7 @@ class DecompGraphWithSyntax(DecompGraph):
 
                 except KeyError:
                     # copula
-                    # assert('semantics' in node and 'arg' in node)
+                    assert('semantics' in node and 'arg' in node)
                     syn_children = {}
                 
                 for (idx, (text, pos, syn_child)) in syn_children.items():
@@ -419,8 +400,12 @@ class DecompGraphWithSyntax(DecompGraph):
         possible_roots = set(syntax_graph.nodes.keys())
         for source_node, target_node in syntax_graph.edges:
             possible_roots -= set([target_node])
-        
-        assert(len(possible_roots) == 1)
+
+        try:
+            assert(len(possible_roots) == 1)
+        except AssertionError:
+            return [], [], [], [], []
+
         root = list(possible_roots)[0]
 
         head_lookup = {root: 0}
@@ -1167,7 +1152,7 @@ class DecompGraphWithSyntax(DecompGraph):
         edge_attr = output['edge_attributes']
         node_mask = output['node_attributes_mask'][0]
         edge_mask = output['edge_attributes_mask']
-        
+
         if syntactic_method in ["concat-before", "concat-after"]:
             if "@syntax-sep@" in nodes:
                 # split on syntax starter
@@ -1265,7 +1250,6 @@ class DecompGraphWithSyntax(DecompGraph):
         try:
             node_attr = [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))][1:] + [{}]
             edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
-
             
             sem_graph = cls.build_sem_graph(syntactic_method, sem_nodes, 
                                             node_attr, corefs,
@@ -1496,13 +1480,16 @@ class DecompGraphWithSyntax(DecompGraph):
 
             # add all other edges, dependency, head, or nonhead
             uds_subgraph.add_edge(*edge_name, **arbor_graph.edges[edge])
-
         for node in uds_subgraph.nodes:
             try:
                 assert("domain" in uds_subgraph.nodes[node].keys())
             except AssertionError:
                 print(f"node {node} has no attribute domain")
-        
+        for edge in uds_subgraph.edges:
+            if "domain" not in uds_subgraph.edges[edge]:
+                uds_subgraph.edges[edge]['domain'] = 'syntax'
+                uds_subgraph.edges[edge]['type'] = None
+
         # add syntactic graph
         # add any missing nodes (possible due transduction) 
         #for name, node in syn_graph.nodes.items():
@@ -1519,7 +1506,17 @@ class DecompGraphWithSyntax(DecompGraph):
             #dep_name = str(dep) + "-syntax"
             head_name = f"predicted-{head}-syntax"
             dep_name = f"predicted-{dep}-syntax"
+            # don't want to add new nodes without the right stuff 
+            if head_name not in uds_subgraph.nodes:
+                uds_subgraph.add_node(head_name, domain="syntax", form = "", type="token") 
+            if dep_name not in uds_subgraph.nodes:
+                uds_subgraph.add_node(dep_name, domain="syntax", form = "", type="token") 
+
             uds_subgraph.add_edge(dep_name, head_name, deprel=syn_graph.edges[(dep,head)]["deprel"], domain="syntax") 
 
-        uds_graph = UDSGraph(uds_subgraph, name)
+
+        uds_graph = UDSSentenceGraph(uds_subgraph, name)
+        uds_graph.graph.nodes['-root-0']['domain'] = "semantics"
+        uds_graph.graph.nodes['-root-0']['frompredpatt'] = False
+        uds_graph.graph.nodes['-root-0']['type'] = None
         return uds_graph
