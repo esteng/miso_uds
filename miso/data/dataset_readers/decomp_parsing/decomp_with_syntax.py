@@ -14,7 +14,7 @@ import spacy
 from allennlp.data.vocabulary import DEFAULT_PADDING_TOKEN, DEFAULT_OOV_TOKEN
 
 from miso.data.dataset_readers.decomp_parsing.ontology import NODE_ONTOLOGY, EDGE_ONTOLOGY
-from miso.data.dataset_readers.amr_parsing.amr.utils.prepare_istog_instance import is_english_punct
+from miso.data.dataset_readers.decomp_parsing.utils import is_english_punct
 from miso.data.dataset_readers.decomp_parsing.decomp import (DecompGraph, parse_attributes, WORDSENSE_RE, 
                                                             QUOTED_RE, NODE_ATTRIBUTES, SPACY_MODEL, 
                                                             SourceCopyVocabulary)
