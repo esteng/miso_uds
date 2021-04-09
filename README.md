@@ -58,3 +58,6 @@ For info on configurations, see [the training page](docs/TRAINING.md)
 
 ## Testing
 For info on configurations, see [the testing page](docs/TESTING.md)
+
+## Multilingual experiments 
+For info on configurations, see [the multilingual page](docs/MULTILINGUAL.md)
