@@ -34,7 +34,7 @@ except:
 
 class DecompGraphWithSyntax(DecompGraph): 
 
-    def __init__(self, graph, keep_punct = False, drop_syntax = True, order = "inorder", syntactic_method = "concat"):
+    def __init__(self, graph, keep_punct = False, drop_syntax = True, order = "inorder", syntactic_method = "concat", full_ud_parse = False): 
         """
         :param graph: nx.Digraph
             the input decomp graph from UDSv1.0
@@ -49,6 +49,7 @@ class DecompGraphWithSyntax(DecompGraph):
         # remove non-semantics, non-syntax nodes
         super(DecompGraphWithSyntax, self).__init__(graph, keep_punct, drop_syntax, order) 
         self.syntactic_method = syntactic_method 
+        self.full_ud_parse = full_ud_parse
 
     @overrides 
     def get_list_node(self, semantics_only):
@@ -66,8 +67,23 @@ class DecompGraphWithSyntax(DecompGraph):
 
         # check if the graph is valid
         if len(self.graph.semantics_subgraph.nodes) == 0 or self.graph_size == 0:
-            #print(f"skipping for not having semantics nodes")
-            return None, None, None
+            if not self.full_ud_parse: 
+                #print(f"skipping for not having semantics nodes")
+                return None, None, None
+            else:
+                # FOR UD SOTA RESULT: assign a null semantics graph to the datapoint 
+                nx_g = self.graph.graph 
+                name = self.graph.name 
+                syn_node_name = list(self.graph.syntax_subgraph.nodes.keys())[0]
+                sem_node_name = re.sub("syntax","semantics-arg", syn_node_name) 
+                
+                attr_dict = {"domain":"semantics", 'frompredpatt': True, "type": "argument"} 
+                nx_g.add_node(sem_node_name, **attr_dict) 
+                edge_dict = {'domain': 'interface', 'type': 'head', 'id': syn_node_name}
+                nx_g.add_edge(sem_node_name, syn_node_name, **edge_dict) 
+                # overwrite  
+                self.graph = UDSSentenceGraph(nx_g, name) 
+                self.remove_performative(self.graph) 
 
         # adding this because you can visit a node as many times as it has incoming edges 
         visitation_limit = {}
