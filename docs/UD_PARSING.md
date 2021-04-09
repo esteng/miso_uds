@@ -3,7 +3,11 @@
 This work represents an improved parser for English Web Treebank UD parsing. 
 The best-performing model is based on an XLM-Roberta encoder, which is partially fine-tuned first with multilingual UD parsing, and then trained to perform monolingual EWT UD parsing and, crucially, UDS semantic parsing. 
 While obtaining SOTA results on UD parsing was by no means the objective of the project, these results might prove useful to researchers in the future, particularly because the same model can simultaneously perform UDS parsing in addition to UD parsing, unlike existing UD parsers.  
-To that end, we have made the model available here [TODO](todo).  
+To that end, we have made the model available here.  It can be downloaded by running:
+
+```
+wget https://nlp.jhu.edu/miso/models/xlmr_intermediate_multilingual_pretraining/model.tar.gz
+```
 
 ## Parsing all EWT data
 

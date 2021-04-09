@@ -26,7 +26,8 @@ The configs for this are in `miso/training_config/xlmr/transformer`.
 ## Data organization
 For AllenNLP to read the UD data properly, the following organziation is required: 
 
-```all_data
+```
+all_data
 |
 | train
     | 
@@ -39,4 +40,11 @@ For AllenNLP to read the UD data properly, the following organziation is require
     {lang_code}-universal.conllu
 ```
 
-This data is available [here](TODO)
+This data can be downloaded by running: 
+
+```
+wget https://nlp.jhu.edu/miso/data/ud/all_data.tar.gz
+tar -xzvf all_data.tar.gz 
+```
+
+
