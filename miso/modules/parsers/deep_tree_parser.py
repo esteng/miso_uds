@@ -299,7 +299,6 @@ class DeepTreeParser(torch.nn.Module, Registrable):
         :param mask:  None or [batch_size, query_length, key_length]
         :return: [batch_size, query_length, key_length]
         """
-        # TODO: add mask.
         edge_head_score = self.attention(query, key).squeeze(1)
         return edge_head_score
 

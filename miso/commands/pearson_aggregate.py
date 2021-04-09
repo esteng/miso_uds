@@ -55,7 +55,6 @@ def compute_pearson_score(predictions, test=False):
     def f1_helper(true, pred, thresh = 0):
         true = np.greater(true, 0)
         pred = np.greater(pred, thresh)
-        # TODO: check this 
         tp = np.sum(true * pred)
         fp = np.sum((1-true) * pred)
         fn = np.sum(true * (1-pred))
