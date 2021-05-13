@@ -185,6 +185,23 @@ function serve() {
     --include-package miso.metrics
 }
 
+function parse_lines() {
+    model_file=${CHECKPOINT_DIR}/ckpt/model.tar.gz
+    python -m miso.commands.predict predict \
+    ${model_file} ${TEST_DATA} \
+    --predictor "decomp_syntax_parsing" \
+    --batch-size 1 \
+    --run-arbitrary \
+    --output-file ${CHECKPOINT_DIR}/output_file.pkl \
+    --use-dataset-reader \
+    --cuda-device 0 \
+    --include-package miso.data.dataset_readers \
+    --include-package miso.data.tokenizers \
+    --include-package miso.models \
+    --include-package miso.predictors \
+    --include-package miso.metrics
+}
+
 
 function usage() {
 
@@ -259,6 +276,8 @@ function main() {
         conllu_eval
     elif [[ "${action}" == "serve" ]]; then
         serve
+    elif [[ "${action}" == "parse_lines" ]]; then
+        parse_lines
     fi
 }
 
