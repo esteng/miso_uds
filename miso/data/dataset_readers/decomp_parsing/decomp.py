@@ -682,6 +682,7 @@ class DecompGraph():
             # happens when predicting from just a sentence
             # use spacy to get a POS tag sequence 
             doc = nlp(" ".join(src_tokens).strip())
+            src_tokens = [str(token) for token in doc]
             src_pos_tags = [token.pos_ for token in doc]
 
         tgt_pos_tags, pos_tag_lut = add_source_side_tags_to_target_side(src_tokens, src_pos_tags)
@@ -1033,6 +1034,7 @@ class DecompGraph():
 
         type_mapping = {"pred": "predicate", "arg": "argument"}
         name_mapping = {}
+        interface_edges_added = [] 
         for node in arbor_graph.nodes:
             node_type = arbor_graph.nodes[node]['node_type']
             node_class = node_type 
@@ -1046,6 +1048,8 @@ class DecompGraph():
             else:
                 arbor_graph.nodes[node]['domain'] = "syntax"
                 arbor_graph.nodes[node]['type'] = "token"
+                # rename text to form 
+                arbor_graph.nodes[node]['form'] = arbor_graph.nodes[node]['text']
 
             uds_subgraph.add_node(node_name, **arbor_graph.nodes[node]) 
             name_mapping[node] = node_name
@@ -1054,7 +1058,8 @@ class DecompGraph():
             if node_type in ["pred", "arg"]:
                 synt_name = node+'-'+"syntax"
                 uds_subgraph.add_node(synt_name, form = arbor_graph.nodes[node]['text'], node_type = "syntax", domain = "syntax", type="token") 
-                uds_subgraph.add_edge(node_name, synt_name, semrel = "head")
+                uds_subgraph.add_edge(node_name, synt_name, semrel = "head", type='interface')
+                interface_edges_added.append((node_name, synt_name))
 
         for edge in arbor_graph.edges:
             src_node, tgt_node = edge
@@ -1063,7 +1068,19 @@ class DecompGraph():
             # check if interface edge 
             if "semantics" in src_node_name and "syntax" in tgt_node_name:
                 arbor_graph.edges[edge]['domain'] = 'interface'
-                arbor_graph.edges[edge]['type'] = 'nonhead'
+
+                if ((src_node_name, tgt_node_name)) not in interface_edges_added:
+                    arbor_graph.edges[edge]['type'] = 'nonhead'
+
+            # check semantics-semantics edges
+            elif "semantics" in src_node_name and "semantics" in tgt_node_name:
+                # give each edge a type 
+                if  uds_subgraph.nodes[tgt_node_name]['type'] == 'root': 
+                    edge_type = 'dependency'
+                else:
+                    edge_type = 'head'
+                arbor_graph.edges[edge]['type'] = edge_type 
+                arbor_graph.edges[edge]['domain'] = 'semantics'
 
             # add all other edges, dependency, head, or nonhead
             uds_subgraph.add_edge(*edge_name, **arbor_graph.edges[edge])

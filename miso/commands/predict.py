@@ -5,6 +5,9 @@ import json
 from overrides import overrides 
 from collections import defaultdict 
 import pdb 
+import pickle as pkl 
+import spacy 
+from spacy.tokenizer import Tokenizer
 
 from allennlp.commands.predict import _get_predictor, Predict
 from allennlp.commands import ArgumentParserWithDefaults
@@ -44,9 +47,16 @@ def parse_api_sentence(input_line, args, predictor):
 
     if isinstance(predictor, DecompSyntaxParsingPredictor):
         sem_graph, syn_graph, __ = manager.run()[1][0]
-        return DecompGraphWithSyntax.arbor_to_uds(sem_graph, syn_graph, "test-graph") 
+        return DecompGraphWithSyntax.arbor_to_uds(sem_graph, syn_graph, "test-graph", input_line) 
 
-    return DecompGraph.arbor_to_uds(manager.run()[1][0], "test-graph") 
+    return DecompGraph.arbor_to_uds(manager.run()[1][0], "test-graph", input_line) 
+
+def get_input_lines(input_file):
+    SPACY_MODEL = "en_core_web_sm"
+    nlp = spacy.load(SPACY_MODEL)
+    tokenizer = Tokenizer(nlp.vocab)
+    with open(input_file) as f1:
+        return [str(tokenizer(x.strip())) for x in f1.readlines()]
 
 def _predict(args: argparse.Namespace) -> None:
     predictor = _get_predictor(args)
@@ -56,6 +66,16 @@ def _predict(args: argparse.Namespace) -> None:
         with_syntax = True 
     if args.run_api:
         serve_parser(lambda x: parse_api_sentence(x, args, predictor), with_syntax=with_syntax) 
+
+    elif args.run_arbitrary:
+        input_lines = get_input_lines(args.input_file)
+        
+        output_graphs = []
+        for line in input_lines:
+            output_graph = parse_api_sentence(line, args, predictor) 
+            output_graphs.append(output_graph)
+        with open(args.output_file, 'wb') as f1:
+            pkl.dump(output_graphs, f1) 
 
     else:
         if args.silent and not args.output_file:
@@ -194,6 +214,10 @@ class Predict(Subcommand):
         subparser.add_argument("--run-api",
                                 action="store_true",
                                 help="set to true to run an online API" )
+
+        subparser.add_argument("--run-arbitrary",
+                                action="store_true",
+                                help="set to true to run an arbitrary sentences sored in input file" )
 
         subparser.add_argument("--beam-size",
                                 type=int,

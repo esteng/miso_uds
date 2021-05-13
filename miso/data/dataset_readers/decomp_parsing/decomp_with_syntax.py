@@ -858,7 +858,14 @@ class DecompGraphWithSyntax(DecompGraph):
 
 
         def add_source_side_tags_to_target_side(_src_tokens, _src_tags):
-            assert len(_src_tags) == len(_src_tokens)
+            try:
+                assert len(_src_tags) == len(_src_tokens)
+            except AssertionError:
+                tgt_tags = [DEFAULT_OOV_TOKEN for i in range(len(tgt_tokens))]
+                tag_lut = {DEFAULT_OOV_TOKEN: DEFAULT_OOV_TOKEN,
+                           DEFAULT_PADDING_TOKEN: DEFAULT_OOV_TOKEN}
+                return tgt_tags, tag_lut
+                
             tag_counter = defaultdict(lambda: defaultdict(int))
             for src_token, src_tag in zip(_src_tokens, _src_tags):
                 tag_counter[src_token][src_tag] += 1
@@ -892,8 +899,9 @@ class DecompGraphWithSyntax(DecompGraph):
         src_copy_map = src_copy_vocab.get_copy_map(src_tokens)
         if len(src_pos_tags) == 0:
             # happens when predicting from just a sentence
-            # use spacy to get a POS tag sequence 
+            # use spacy to get a POS tag sequence   
             doc = nlp(" ".join(src_tokens).strip())
+            src_tokens = [str(token) for token in doc]
             src_pos_tags = [token.pos_ for token in doc]
             from_lines = True
         if from_lines: 
@@ -995,10 +1003,16 @@ class DecompGraphWithSyntax(DecompGraph):
             graph = nx.DiGraph()
             for i, n in enumerate(nodes):
                 attr = {"form": n}
-                graph.add_node(str(i), **attr)
+                graph.add_node(i, **attr)
 
             for i, (head, label) in enumerate(zip(edge_heads, edge_labels)):
-                edge = (i, head)
+                if head == 0: 
+                    # root node not present, add self edge 
+                    edge = (i,i)
+                else:
+                    edge = (i, head-1)
+                    if i not in graph.nodes or head-1 not in graph.nodes:
+                        pdb.set_trace() 
                 attr = {"deprel": label} 
                 graph.add_edge(*edge, **attr)
             return graph 
@@ -1100,7 +1114,7 @@ class DecompGraphWithSyntax(DecompGraph):
                 attr = {'semrel':'nonhead'}
                 # don't set parent to syntax! that just makes all semantics nodes with syntactic children syntax nodes fool
                 #graph.nodes[parent]['type'] = 'syntax'
-                graph.nodes[child]['type'] = 'syntax'
+                graph.nodes[child]['type'] = 'token'
 
             graph.add_edge(parent, child, **attr)
 
@@ -1112,7 +1126,7 @@ class DecompGraphWithSyntax(DecompGraph):
             try:
                 __ = graph.nodes[node]['type'] 
             except KeyError:
-                graph.nodes[node]['type'] = "syntax"
+                graph.nodes[node]['type'] = "token"
 
         return graph
 
@@ -1415,7 +1429,7 @@ class DecompGraphWithSyntax(DecompGraph):
         return instances, relations, attributes
 
     @staticmethod
-    def arbor_to_uds(arbor_graph, syn_graph, name):
+    def arbor_to_uds(arbor_graph, syn_graph, name, sentence):
         def get_pred_arg(edge):
             source_node = arbor_graph.nodes[e[0]]
             target_node = arbor_graph.nodes[e[1]]
@@ -1460,51 +1474,99 @@ class DecompGraphWithSyntax(DecompGraph):
         type_mapping = {"pred": "predicate", "arg": "argument"}
         name_mapping = {}
         current_forms = []
+
+        #split_sent = tokenizer(sentence) 
+        # add syntactic nodes and edges first 
+        sent_list = []
+        for node in syn_graph.nodes:
+            node_idx = int(node)  
+            try:
+                form = syn_graph.nodes[node]['form']
+            except KeyError:
+                form = "" 
+            sent_list.append(form) 
+            dep_name = f"predicted-{node_idx}-syntax"
+            uds_subgraph.add_node(dep_name, domain="syntax", form = form, type="token", position = node_idx)  
+
+        sentence = " ".join(sent_list) 
+        for dep, head in syn_graph.edges:
+            head_name = f"predicted-{head}-syntax"
+            dep_name = f"predicted-{dep}-syntax"
+            dep_token = syn_graph.nodes[dep]['form']
+            if head  > 0: 
+                # head is root if idx = 0, don't add 
+                try:
+                    head_token = syn_graph.nodes[head]['form']
+                except KeyError:
+                    pdb.set_trace() 
+                    head_token = ""
+                uds_subgraph.add_edge(dep_name, head_name, deprel=syn_graph.edges[(dep,head)]["deprel"], domain="syntax") 
+
         for node in arbor_graph.nodes:
             node_type = arbor_graph.nodes[node]['node_type']
             node_class = node_type 
             if node_type in ["pred", "arg"]:
                 node_class = "semantics"
             node_name = node + '-' + node_class
+            form = arbor_graph.nodes[node]['text']
+
             if node_type in ['pred', 'arg']:
                 arbor_graph.nodes[node]['domain'] = "semantics"
                 arbor_graph.nodes[node]['type'] = type_mapping[node_type]
                 arbor_graph.nodes[node]['frompredpatt'] = True
-            else:
-                arbor_graph.nodes[node]['domain'] = "syntax"
-                arbor_graph.nodes[node]['type'] = "token"
-                current_forms.append(arbor_graph.nodes[node]['text'])
+                # only add semantics nodes 
+            if node_type in ['pred', 'arg', 'root']: 
+                uds_subgraph.add_node(node_name, **arbor_graph.nodes[node]) 
 
-            uds_subgraph.add_node(node_name, **arbor_graph.nodes[node]) 
             name_mapping[node] = node_name
 
             # add text as syntactic child 
             if node_type in ["pred", "arg"]:
-                synt_name = node+'-'+"syntax"
-                uds_subgraph.add_node(synt_name, form = arbor_graph.nodes[node]['text'], node_type = "syntax", domain = "syntax", type="token") 
-                current_forms.append(arbor_graph.nodes[node]['text'])
-                uds_subgraph.add_edge(node_name, synt_name, semrel = "head")
+                try:
+                    synt_idx = sentence.split(" ").index(form) 
+                    synt_name = f"predicted-{synt_idx}-syntax"
+                    if synt_name not in uds_subgraph.nodes: 
+                        uds_subgraph.add_node(synt_name, domain="syntax", form = "", type="token", position = len(sentence.split(" ") - 1)  )
+                        
+                    uds_subgraph.add_edge(node_name, synt_name, semrel = "head", domain = 'interface')
+                except ValueError:
+                    continue
 
         for edge in arbor_graph.edges:
             src_node, tgt_node = edge
             src_node_name, tgt_node_name = name_mapping[src_node], name_mapping[tgt_node]
             edge_name = (src_node_name, tgt_node_name) 
-            # check if interface edge 
-            if "semantics" in src_node_name and "syntax" in tgt_node_name:
-                arbor_graph.edges[edge]['domain'] = 'interface'
-                arbor_graph.edges[edge]['type'] = 'nonhead'
 
-            # add all other edges, dependency, head, or nonhead
-            uds_subgraph.add_edge(*edge_name, **arbor_graph.edges[edge])
+            # check semantics-semantics edges
+            if ("semantics" in src_node_name or "root" in src_node_name) and \
+                "semantics" in tgt_node_name:
+                # give each edge a type 
+                if  uds_subgraph.nodes[tgt_node_name]['type'] == 'root' or\
+                    uds_subgraph.nodes[src_node_name]['type'] == 'root':
+                    edge_type = 'dependency'
+                else:
+                    edge_type = 'head'
+                arbor_graph.edges[edge]['type'] = edge_type 
+                arbor_graph.edges[edge]['domain'] = 'semantics'
+            #elif "semantics" in src_node_name and "syntax" in tgt_node_name:
+            #    arbor_graph.edges[edge]['domain'] = 'interface'
+            #    arbor_graph.edges[edge]['type'] = 'nonhead'
+
+            #    if tgt_node_name not in uds_subgraph.nodes:
+            #        pdb.set_trace() 
+
+                # add all other edges, dependency, head, or nonhead
+                uds_subgraph.add_edge(*edge_name, **arbor_graph.edges[edge])
         for node in uds_subgraph.nodes:
             try:
                 assert("domain" in uds_subgraph.nodes[node].keys())
             except AssertionError:
                 print(f"node {node} has no attribute domain")
+                pdb.set_trace() 
         for edge in uds_subgraph.edges:
             if "domain" not in uds_subgraph.edges[edge]:
                 uds_subgraph.edges[edge]['domain'] = 'syntax'
-                uds_subgraph.edges[edge]['type'] = None
+                uds_subgraph.edges[edge]['type'] = 'nonhead'
 
         # add syntactic graph
         # add any missing nodes (possible due transduction) 
@@ -1516,23 +1578,10 @@ class DecompGraphWithSyntax(DecompGraph):
         #    except KeyError:
         #        print(name, node) 
 
-        # add syntactic edges 
-        for dep, head in syn_graph.edges:
-            #head_name = str(head) + "-syntax"
-            #dep_name = str(dep) + "-syntax"
-            head_name = f"predicted-{head}-syntax"
-            dep_name = f"predicted-{dep}-syntax"
-            # don't want to add new nodes without the right stuff 
-            if head_name not in uds_subgraph.nodes:
-                uds_subgraph.add_node(head_name, domain="syntax", form = "", type="token") 
-            if dep_name not in uds_subgraph.nodes:
-                uds_subgraph.add_node(dep_name, domain="syntax", form = "", type="token") 
-
-            uds_subgraph.add_edge(dep_name, head_name, deprel=syn_graph.edges[(dep,head)]["deprel"], domain="syntax") 
 
 
         uds_graph = UDSSentenceGraph(uds_subgraph, name)
         uds_graph.graph.nodes['-root-0']['domain'] = "semantics"
         uds_graph.graph.nodes['-root-0']['frompredpatt'] = False
-        uds_graph.graph.nodes['-root-0']['type'] = None
+        uds_graph.graph.nodes['-root-0']['type'] = 'root'
         return uds_graph
