@@ -58,6 +58,7 @@ For info on configurations, see [the training page](docs/TRAINING.md)
 
 ## Testing
 For info on configurations, see [the testing page](docs/TESTING.md)
+For predicting UDS graphs from arbitrary text, see [the prediction page](docs/UDS_PARSING.md)
 
 ## Multilingual experiments 
 For info on configurations, see [the multilingual page](docs/MULTILINGUAL.md)
