@@ -1528,7 +1528,7 @@ class DecompGraphWithSyntax(DecompGraph):
                     if synt_name not in uds_subgraph.nodes: 
                         uds_subgraph.add_node(synt_name, domain="syntax", form = "", type="token", position = len(sentence.split(" ") - 1)  )
                         
-                    uds_subgraph.add_edge(node_name, synt_name, semrel = "head", domain = 'interface')
+                    uds_subgraph.add_edge(node_name, synt_name, type = "head", domain = 'interface')
                 except ValueError:
                     continue
 
@@ -1537,15 +1537,22 @@ class DecompGraphWithSyntax(DecompGraph):
             src_node_name, tgt_node_name = name_mapping[src_node], name_mapping[tgt_node]
             edge_name = (src_node_name, tgt_node_name) 
 
+            if uds_subgraph.nodes[src_node_name]['type'] == 'predicate' and uds_subgraph.nodes[tgt_node_name]['type'] == 'argument':
+                # pred to arg is dependency 
+                edge_type = "dependency"
+            elif uds_subgraph.nodes[src_node_name]['type'] == 'argument' and uds_subgraph.nodes[tgt_node_name]['type'] == 'predicate':
+                # arg to pred is dependency 
+                edge_type = "head"
+            else:
+                edge_type = "nonhead"
+
             # check semantics-semantics edges
             if ("semantics" in src_node_name or "root" in src_node_name) and \
                 "semantics" in tgt_node_name:
-                # give each edge a type 
                 if  uds_subgraph.nodes[tgt_node_name]['type'] == 'root' or\
                     uds_subgraph.nodes[src_node_name]['type'] == 'root':
                     edge_type = 'dependency'
-                else:
-                    edge_type = 'head'
+
                 arbor_graph.edges[edge]['type'] = edge_type 
                 arbor_graph.edges[edge]['domain'] = 'semantics'
             #elif "semantics" in src_node_name and "syntax" in tgt_node_name:
