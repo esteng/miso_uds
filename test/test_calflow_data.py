@@ -27,6 +27,10 @@ def load_test_lispress():
     return '( Yield :output ( CreateCommitEventWrapper :event ( CreatePreflightEventWrapper :constraint ( Constraint[Event] :attendees ( andConstraint ( AttendeeListHasRecipient :recipient ( Execute :intension ( refer ( extensionConstraint ( RecipientWithNameLike :constraint ( Constraint[Recipient] ) :name # ( PersonName " Jeff " ) ) ) ) ) ) ( AttendeeListHasRecipient :recipient ( Execute :intension ( refer ( extensionConstraint ( RecipientWithNameLike :constraint ( Constraint[Recipient] ) :name # ( PersonName " John " ) ) ) ) ) ) ) :duration ( ?= ( toHours # ( Number 1 ) ) ) :location ( ?= # ( LocationKeyphrase " Conference Room B " ) ) :start ( ?= ( DateAtTimeWithDefaults :date ( NextDOW :dow # ( DayOfWeek " THURSDAY " ) ) :time ( NumberPM :number # ( Number 4 ) ) ) ) :subject ( ?= # ( String " discuss analytics " ) ) ) ) ) )'
 
 @pytest.fixture
+def load_test_lispress_short():
+    return '( Yield :output ( Execute :intension ( ConfirmAndReturnAction ) ) )'
+
+@pytest.fixture
 def load_tiny_data():
     data_path = os.path.join(path, "data", "smcalflow.full.data", "tiny.dataflow_dialogues.jsonl")
     dialogues = load_jsonl_file(data_path, Dialogue)
@@ -34,6 +38,13 @@ def load_tiny_data():
         for turn in dialogue.turns:
             pass
     return None
+
+@pytest.fixture
+def load_all_valid_tgt_str():
+    data_path = os.path.join(path, "data", "smcalflow.full.data", "valid.tgt") 
+    with open(data_path) as f1:
+       lines = f1.readlines() 
+    return lines 
 
 @pytest.fixture
 def load_indexers():
@@ -85,12 +96,44 @@ def test_calflow_dataset_reader(load_indexers):
 
     assert(data)
 
-def test_tgt_str_to_list(load_test_lispress):
+def test_tgt_str_to_list_short(load_test_lispress_short):
+    calflow_graph = CalFlowGraph(src_str="", tgt_str = load_test_lispress_short)
+
+    assert(calflow_graph.node_name_list == ['Yield', ':output', 'Execute', ':intension', 'ConfirmAndReturnAction'])
+    assert(calflow_graph.node_idx_list == [0, 1, 2, 3, 4])
+    assert(calflow_graph.edge_head_list == [-1, 0, 0, 2, 2])
+    assert(calflow_graph.edge_type_list == [-1, 0, 1, 0, 1])
+
+def test_calflow_roundtrip_short(load_test_lispress_short):
+    calflow_graph = CalFlowGraph(src_str="", tgt_str = load_test_lispress_short)
+    graph = calflow_graph.lists_to_ast(calflow_graph.node_name_list, calflow_graph.edge_head_list, calflow_graph.edge_type_list)
+    pred_str = calflow_graph.digraph_to_lispress(graph)
+
+    assert(pred_str == load_test_lispress_short)
+
+def test_calflow_roundtrip_long(load_test_lispress):
     calflow_graph = CalFlowGraph(src_str="", tgt_str = load_test_lispress)
-    calflow_graph.tgt_str_to_list(load_test_lispress)
-    pdb.set_trace() 
+    graph = calflow_graph.lists_to_ast(calflow_graph.node_name_list, calflow_graph.edge_head_list, calflow_graph.edge_type_list)
+    pred_str = calflow_graph.digraph_to_lispress(graph)
 
+    assert(pred_str == load_test_lispress)
 
+def test_calflow_roundtrip_valid(load_all_valid_tgt_str):
+    all_lines = load_all_valid_tgt_str
+    for line in all_lines:
+        line=line.strip()
+        calflow_graph = CalFlowGraph(src_str="", tgt_str = line)
+        graph = calflow_graph.lists_to_ast(calflow_graph.node_name_list, calflow_graph.edge_head_list, calflow_graph.edge_type_list)
+        pred_str = calflow_graph.digraph_to_lispress(graph)
+
+        assert(pred_str == line)
+
+def test_tgt_str_to_list_long(load_test_lispress):
+    g = CalFlowGraph(src_str="", tgt_str = load_test_lispress)
+    print(g.node_name_list)
+    print(g.edge_head_list)
+    print(g.edge_type_list)
+    pdb.set_trace()
 
 #def test_get_list_data(load_tiny_data):
 #    # test concat-after 
