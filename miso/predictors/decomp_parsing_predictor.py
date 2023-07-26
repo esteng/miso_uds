@@ -75,7 +75,7 @@ class DecompParsingPredictor(Predictor):
     def dump_line(self, outputs: JsonDict) -> str:
         # function hijacked from parent class to return a decomp arborescence instead of printing a line 
         pred_graph = DecompGraph.from_prediction(outputs)
-
+        
         return pred_graph
 
     @contextmanager
