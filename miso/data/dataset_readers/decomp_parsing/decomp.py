@@ -70,7 +70,8 @@ def parse_attributes(attr_list: List, mask_list: List, ontology: List) -> Dict :
 
     for k, attr_v, mask_v in zip(ontology, attr_list, mask_list):
         mask_val = sigmoid(mask_v)
-        if mask_val > 0.5:
+        #if mask_val > 0.5:
+        if mask_val > 0.0:
             # upper and lower bound 
             if attr_v > 0:
                 attr_v = min(3, attr_v)
@@ -781,7 +782,6 @@ class DecompGraph():
         # off by 1 fixed here 
         node_attr = [parse_attributes(node_attr[i], node_mask[i], NODE_ONTOLOGY) for i in range(len(node_attr))][1:] + [{}]
         edge_attr = [parse_attributes(edge_attr[i], edge_mask[i], EDGE_ONTOLOGY) for i in range(len(edge_attr))]
-
         corefs = output['node_indices']
 
         #pdb.set_trace() 
@@ -990,7 +990,7 @@ class DecompGraph():
         return instances, relations, attributes
 
     @staticmethod
-    def arbor_to_uds(arbor_graph, name):
+    def arbor_to_uds(arbor_graph, name, sentence):
         def get_pred_arg(edge):
             source_node = arbor_graph.nodes[e[0]]
             target_node = arbor_graph.nodes[e[1]]
@@ -1090,8 +1090,16 @@ class DecompGraph():
                 assert("domain" in uds_subgraph.nodes[node].keys())
             except AssertionError:
                 print(f"node {node} has no attribute domain")
+                pdb.set_trace()
+        for edge in uds_subgraph.edges:
+            if "domain" not in uds_subgraph.edges[edge]:
+                uds_subgraph.edges[edge]['domain'] = 'syntax'
+                uds_subgraph.edges[edge]['type'] = 'nonhead'
 
         uds_graph = UDSSentenceGraph(uds_subgraph, name)
+        uds_graph.graph.nodes['-root-0']['domain'] = "semantics"
+        uds_graph.graph.nodes['-root-0']['frompredpatt'] = False
+        uds_graph.graph.nodes['-root-0']['type'] = 'root'
         return uds_graph
 
 class SourceCopyVocabulary:
